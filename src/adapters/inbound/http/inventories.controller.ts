@@ -10,7 +10,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common'
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 
 import { DomainError } from '../../../domain/errors/DomainError'
 import { InventoryNotFoundError } from '../../../application/errors/ApplicationError'
@@ -22,6 +22,9 @@ import type {
 import { ADD_ITEM, GET_INVENTORY, REMOVE_ITEM } from './tokens'
 import { ChangeInventoryRequest, InventoryResponse } from './inventories.dto'
 
+import { Role, type VerifiedIdentity } from '../../../application/ports/TokenVerifierPort'
+import { CurrentIdentity } from './auth/decorators'
+
 /**
  * Adaptador de entrada HTTP.
  *
@@ -30,6 +33,7 @@ import { ChangeInventoryRequest, InventoryResponse } from './inventories.dto'
  * aplicacion en codigos HTTP. No contiene reglas de negocio.
  */
 @ApiTags('inventories')
+@ApiBearerAuth()
 @Controller('inventories')
 export class InventoriesController {
   constructor(
@@ -42,8 +46,13 @@ export class InventoriesController {
   @ApiOperation({ summary: 'Recupera el inventario de un jugador' })
   @ApiResponse({ status: 200, description: 'Inventario encontrado', type: InventoryResponse })
   @ApiResponse({ status: 404, description: 'El jugador no tiene inventario' })
-  async findOne(@Param('ownerId') ownerId: string): Promise<InventoryResponse> {
+  async findOne(
+    @Param('ownerId') ownerId: string,
+    @CurrentIdentity() identity: VerifiedIdentity,
+  ): Promise<InventoryResponse> {
     try {
+      InventoriesController.assertOwner(ownerId, identity)
+
       return await this.getInventory.execute(ownerId)
     } catch (error: unknown) {
       throw InventoriesController.translate(error)
@@ -58,8 +67,11 @@ export class InventoriesController {
   async add(
     @Param('ownerId') ownerId: string,
     @Body() body: ChangeInventoryRequest,
+    @CurrentIdentity() identity: VerifiedIdentity,
   ): Promise<InventoryResponse> {
     try {
+      InventoriesController.assertOwner(ownerId, identity)
+
       return await this.addItem.execute({ ownerId, itemId: body.itemId, quantity: body.quantity })
     } catch (error: unknown) {
       throw InventoriesController.translate(error)
@@ -75,8 +87,11 @@ export class InventoriesController {
   async remove(
     @Param('ownerId') ownerId: string,
     @Body() body: ChangeInventoryRequest,
+    @CurrentIdentity() identity: VerifiedIdentity,
   ): Promise<InventoryResponse> {
     try {
+      InventoriesController.assertOwner(ownerId, identity)
+
       return await this.removeItem.execute({
         ownerId,
         itemId: body.itemId,
@@ -84,6 +99,24 @@ export class InventoriesController {
       })
     } catch (error: unknown) {
       throw InventoriesController.translate(error)
+    }
+  }
+
+  /**
+   * El inventario de la URL debe ser el de quien pide.
+   *
+   * Antes bastaba cambiar el `ownerId` de la ruta para leer o vaciar el
+   * inventario de cualquier jugador. El identificador sigue en la URL porque
+   * identifica el recurso; lo que cambia es que ahora tiene que COINCIDIR con
+   * el sujeto del testimonio.
+   *
+   * Un inventario ajeno responde 404 y no 403: distinguirlos confirmaria que
+   * ese jugador existe, y con eso se puede enumerar quien juega. Un
+   * administrador queda exento.
+   */
+  private static assertOwner(ownerId: string, identity: VerifiedIdentity): void {
+    if (ownerId !== identity.subject && !identity.roles.has(Role.Administrator)) {
+      throw new InventoryNotFoundError(ownerId)
     }
   }
 
