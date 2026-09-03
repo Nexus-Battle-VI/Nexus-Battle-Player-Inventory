@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import { Int32, type Collection, type Db, type MongoClient } from 'mongodb'
@@ -27,7 +28,7 @@ type DocumentoDePrueba = Record<string, unknown> & { _id: string }
  * un esquema equivocado.
  */
 describe('MongoInventoryRepository', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoInventoryRepository
@@ -48,12 +49,16 @@ describe('MongoInventoryRepository', () => {
   }
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
 
     // `directConnection` porque Testcontainers levanta un conjunto de replicas
     // de un solo nodo: sin esto el driver intentaria descubrir la topologia y
     // se quedaria esperando a miembros que no existen.
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `test_inventory_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -67,8 +72,9 @@ describe('MongoInventoryRepository', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   beforeEach(() => {

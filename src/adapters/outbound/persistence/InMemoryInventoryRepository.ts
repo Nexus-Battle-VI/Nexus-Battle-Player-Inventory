@@ -1,6 +1,15 @@
 import { Inventory } from '../../../domain/entities/Inventory'
 import type { InventorySnapshot } from '../../../domain/entities/Inventory'
-import { PlayerId } from '../../../domain/value-objects/identifiers'
+import { ItemId, PlayerId, Quantity } from '../../../domain/value-objects/identifiers'
+import { CapacityPolicy } from '../../../domain/policies/CapacityPolicy'
+import {
+  InventoryGrantConflictError,
+  InventoryGrantRejectedError,
+  type InventoryGrantCommand,
+  type InventoryGrantPort,
+  type InventoryGrantResult,
+} from '../../../application/ports/InventoryGrantPort'
+import { DomainError } from '../../../domain/errors/DomainError'
 import type { InventoryRepositoryPort } from '../../../application/ports/InventoryRepositoryPort'
 import type {
   InventoryQueryPort,
@@ -18,8 +27,57 @@ import type {
  * Cumple los dos puertos sobre el mismo almacen: `InventoryRepositoryPort` para
  * los comandos e `InventoryQueryPort` para la consulta paginada de HU-27.
  */
-export class InMemoryInventoryRepository implements InventoryRepositoryPort, InventoryQueryPort {
+export class InMemoryInventoryRepository
+  implements InventoryRepositoryPort, InventoryQueryPort, InventoryGrantPort
+{
   private readonly byOwner = new Map<string, InventorySnapshot>()
+  private readonly grants = new Map<
+    string,
+    { fingerprint: string; result: InventoryGrantResult | null; rejection: string | null }
+  >()
+
+  grant(command: InventoryGrantCommand): Promise<InventoryGrantResult> {
+    try {
+      const fingerprint = JSON.stringify({ playerId: command.playerId, items: command.items })
+      const previous = this.grants.get(command.operationId)
+      if (previous !== undefined) {
+        if (previous.fingerprint !== fingerprint) throw new InventoryGrantConflictError()
+        if (previous.rejection !== null) throw new InventoryGrantRejectedError(previous.rejection)
+        if (previous.result === null) throw new Error('Resultado de entrega incompleto.')
+        return Promise.resolve(structuredClone(previous.result))
+      }
+      const snapshot = this.byOwner.get(command.playerId)
+      const ownerId = PlayerId.create(command.playerId)
+      const inventory =
+        snapshot === undefined
+          ? Inventory.createEmpty(ownerId, CapacityPolicy.default())
+          : Inventory.restore({ ownerId, capacity: snapshot.capacity, slots: snapshot.slots })
+      try {
+        for (const item of command.items) {
+          inventory.add(ItemId.create(item.productId), Quantity.create(item.quantity), new Date())
+        }
+      } catch (error: unknown) {
+        if (!(error instanceof DomainError)) throw error
+        this.grants.set(command.operationId, {
+          fingerprint,
+          result: null,
+          rejection: error.message,
+        })
+        throw new InventoryGrantRejectedError(error.message)
+      }
+      const result: InventoryGrantResult = { ...command, applied: true }
+      // No await entre validar el lote y guardar ambas partes: un solo turno de JS.
+      this.byOwner.set(command.playerId, inventory.toSnapshot())
+      this.grants.set(command.operationId, {
+        fingerprint,
+        result: structuredClone(result),
+        rejection: null,
+      })
+      return Promise.resolve(result)
+    } catch (error: unknown) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
 
   save(inventory: Inventory): Promise<void> {
     this.byOwner.set(inventory.ownerId.value, inventory.toSnapshot())
@@ -75,5 +133,6 @@ export class InMemoryInventoryRepository implements InventoryRepositoryPort, Inv
 
   clear(): void {
     this.byOwner.clear()
+    this.grants.clear()
   }
 }

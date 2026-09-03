@@ -2,6 +2,16 @@ import { Module, type CanActivate } from '@nestjs/common'
 import { APP_GUARD, Reflector } from '@nestjs/core'
 
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
+import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
+import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
+import {
+  INVENTORY_GRANTS,
+  type InventoryGrantPort,
+} from '../../application/ports/InventoryGrantPort'
+import {
+  GRANT_PURCHASED_ITEMS,
+  GrantPurchasedItems,
+} from '../../application/use-cases/GrantPurchasedItems'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
@@ -68,6 +78,7 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
  * abra varios. Es `null` con `PERSISTENCE_DRIVER=memory`.
  */
 export const MONGO_DATABASE = Symbol('MongoDatabase')
+export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
 
 /**
  * Raiz de composicion.
@@ -83,6 +94,7 @@ export const MONGO_DATABASE = Symbol('MongoDatabase')
     MyInventoryController,
     HeroEquipmentController,
     HealthController,
+    InventoryGrantsController,
   ],
   providers: [
     {
@@ -133,6 +145,15 @@ export const MONGO_DATABASE = Symbol('MongoDatabase')
         return databaseOf(client, options)
       },
       inject: [APP_CONFIG, LOGGER],
+    },
+    {
+      provide: MONGO_LIFECYCLE,
+      useFactory: (db: Db | null): { onModuleDestroy: () => Promise<void> } => ({
+        onModuleDestroy: async (): Promise<void> => {
+          await db?.client.close()
+        },
+      }),
+      inject: [MONGO_DATABASE],
     },
     {
       provide: INVENTORY_REPOSITORY,
@@ -197,6 +218,30 @@ export const MONGO_DATABASE = Symbol('MongoDatabase')
     {
       provide: CLOCK,
       useFactory: (): ClockPort => new SystemClock(),
+    },
+    {
+      provide: APP_GUARD,
+      useFactory: (
+        config: AppConfig,
+        reflector: Reflector,
+        clock: ClockPort,
+        logger: Logger,
+      ): CanActivate =>
+        new InternalServiceGuard({
+          reflector,
+          secret: config.internalServiceAuthSecret,
+          allowedServices: ['commerce'],
+          clock,
+          logger,
+        }),
+      inject: [APP_CONFIG, Reflector, CLOCK, LOGGER],
+    },
+    { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
+    {
+      provide: GRANT_PURCHASED_ITEMS,
+      useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
+        new GrantPurchasedItems(grants),
+      inject: [INVENTORY_GRANTS],
     },
     {
       provide: CAPACITY_POLICY,

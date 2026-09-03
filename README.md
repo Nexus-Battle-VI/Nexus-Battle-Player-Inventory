@@ -214,6 +214,10 @@ La imagen es multi-etapa, se ejecuta con el usuario sin privilegios `node`, incl
 - El servicio **no valida que el objeto exista en el catálogo** ni que el jugador exista en Account. Comprobarlo requeriría una llamada sincrónica entre servicios o una réplica local del catálogo; ambas son decisiones de integración que corresponden a ADR-006 y no se toman de facto aquí.
 - La capacidad es fija por configuración del dominio. Capacidades distintas por tipo de jugador son una extensión natural que el modelo ya admite, pero no forman parte de este alcance.
 
+## Entrega de compras
+
+El contrato HMAC, resultados idempotentes, rechazo terminal y requisitos de Mongo replica set estan en [docs/purchase-grants.md](docs/purchase-grants.md).
+
 ## Contribución
 
 Se aplican las convenciones descritas en [CONTRIBUTING.md](CONTRIBUTING.md) y la [política de trazabilidad entre repositorios](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/blob/main/docs/governance/cross-repository-traceability.md) de Management.

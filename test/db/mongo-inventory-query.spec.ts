@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import type { Db, MongoClient } from 'mongodb'
@@ -22,7 +23,7 @@ import { ItemId, PlayerId, Quantity } from '../../src/domain/value-objects/ident
  * Un doble de prueba no demostraria que ese pipeline se comporta como se cree.
  */
 describe('MongoInventoryRepository (consulta paginada)', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoInventoryRepository
@@ -57,9 +58,13 @@ describe('MongoInventoryRepository (consulta paginada)', () => {
   }
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
 
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `test_inventory_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -73,8 +78,9 @@ describe('MongoInventoryRepository (consulta paginada)', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   beforeEach(() => {

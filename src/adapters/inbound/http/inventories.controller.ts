@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ConflictException,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,6 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 
 import { DomainError } from '../../../domain/errors/DomainError'
 import { InventoryNotFoundError } from '../../../application/errors/ApplicationError'
+import { InventoryConcurrentWriteError } from '../../../application/ports/InventoryGrantPort'
 import type {
   AddItemToInventory,
   GetInventory,
@@ -126,6 +128,9 @@ export class InventoriesController {
   }
 
   private static translate(error: unknown): Error {
+    if (error instanceof InventoryConcurrentWriteError) {
+      return new ConflictException(error.message)
+    }
     if (error instanceof InventoryNotFoundError) {
       return new NotFoundException(error.message)
     }

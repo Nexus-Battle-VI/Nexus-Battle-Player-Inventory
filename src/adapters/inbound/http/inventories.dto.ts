@@ -11,12 +11,15 @@ import { IsInt, IsString, Matches, Max, Min } from 'class-validator'
 export class ChangeInventoryRequest {
   @ApiProperty({
     example: 'espada-de-hierro',
-    description: 'Identificador del objeto en kebab-case',
+    description: 'UUID canonico de Catalog o identificador legacy en kebab-case',
   })
   @IsString()
-  @Matches(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/, {
-    message: 'El identificador del objeto debe estar en kebab-case.',
-  })
+  @Matches(
+    /^(?:[a-z][a-z0-9]*(-[a-z0-9]+)*|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/,
+    {
+      message: 'El identificador del objeto debe ser UUID o kebab-case.',
+    },
+  )
   itemId!: string
 
   @ApiProperty({ example: 3, minimum: 1, maximum: 9999 })
