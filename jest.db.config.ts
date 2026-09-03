@@ -29,6 +29,7 @@ const config: Config = {
   collectCoverageFrom: [
     'src/adapters/outbound/persistence/MongoInventoryRepository.ts',
     'src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
+    'src/adapters/outbound/persistence/MongoHeroSelectionRepository.ts',
     'src/infrastructure/persistence/**/*.ts',
     '!src/infrastructure/persistence/migrate.ts',
   ],

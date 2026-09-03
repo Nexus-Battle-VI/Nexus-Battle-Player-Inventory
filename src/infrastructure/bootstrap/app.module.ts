@@ -14,15 +14,19 @@ import {
 } from '../../application/use-cases/GrantPurchasedItems'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
+import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
+  GET_HERO_SELECTION,
   GET_INVENTORY,
   GET_ITEM_DETAIL,
+  LIST_AVAILABLE_HEROES,
   LIST_OWNED_ITEMS,
   REMOVE_ITEM,
+  SELECT_HERO,
 } from '../../adapters/inbound/http/tokens'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 
@@ -35,21 +39,28 @@ import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedIn
 import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
+import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
+import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
+import { SelectHero } from '../../application/use-cases/SelectHero'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
 import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
 import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
 import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
+import { HERO_SELECTION_REPOSITORY } from '../../application/ports/HeroSelectionRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
 import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
 import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
+import type { HeroSelectionRepositoryPort } from '../../application/ports/HeroSelectionRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
 import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
+import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
+import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
@@ -92,6 +103,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
   controllers: [
     InventoriesController,
     MyInventoryController,
+    HeroSelectionController,
     HeroEquipmentController,
     HealthController,
     InventoryGrantsController,
@@ -165,6 +177,12 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       provide: HERO_LOADOUT_REPOSITORY,
       useFactory: (db: Db | null): HeroLoadoutRepositoryPort =>
         db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_SELECTION_REPOSITORY,
+      useFactory: (db: Db | null): HeroSelectionRepositoryPort =>
+        db === null ? new InMemoryHeroSelectionRepository() : new MongoHeroSelectionRepository(db),
       inject: [MONGO_DATABASE],
     },
     {
@@ -318,6 +336,45 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         clock: ClockPort,
       ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock),
       inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK],
+    },
+    // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
+    // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen
+    // paralelo ni una segunda lectura del catalogo.
+    {
+      provide: LIST_AVAILABLE_HEROES,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        selections: HeroSelectionRepositoryPort,
+      ): ListAvailableHeroes => new ListAvailableHeroes(inventories, catalog, selections),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY],
+    },
+    {
+      provide: GET_HERO_SELECTION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        selections: HeroSelectionRepositoryPort,
+      ): GetHeroSelection => new GetHeroSelection(inventories, catalog, loadouts, selections),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_SELECTION_REPOSITORY],
+    },
+    {
+      provide: SELECT_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        selections: HeroSelectionRepositoryPort,
+        clock: ClockPort,
+      ): SelectHero => new SelectHero(inventories, catalog, loadouts, selections, clock),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        HERO_SELECTION_REPOSITORY,
+        CLOCK,
+      ],
     },
     {
       provide: ADD_ITEM,

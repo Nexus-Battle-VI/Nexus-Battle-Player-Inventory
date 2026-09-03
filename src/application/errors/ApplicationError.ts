@@ -82,3 +82,38 @@ export class HeroLoadoutConflictError extends Error {
     this.name = 'HeroLoadoutConflictError'
   }
 }
+
+/**
+ * El jugador todavia no ha preparado ningun heroe (HU-07). 404: no hay recurso
+ * que devolver, y no es un error del cliente ni del servicio.
+ */
+export class NoHeroSelectedError extends Error {
+  constructor() {
+    super('Todavia no has preparado ningun heroe.')
+    this.name = 'NoHeroSelectedError'
+  }
+}
+
+/**
+ * El heroe SI pertenece al jugador, pero no esta activo en el catalogo vigente
+ * (HU-07, CA-11). Es un dato valido con una regla incumplida: 409, y con un
+ * mensaje que distingue "no lo tienes" de "ya no esta disponible" —confundirlos
+ * mandaria al jugador a buscar en el sitio equivocado—.
+ */
+export class HeroNotSelectableError extends Error {
+  constructor(heroReference: string) {
+    super(`El heroe "${heroReference}" no esta disponible en el catalogo vigente.`)
+    this.name = 'HeroNotSelectableError'
+  }
+}
+
+/**
+ * Otra peticion cambio la seleccion entre la lectura y el guardado (bloqueo
+ * optimista). 409: la peticion es correcta y puede reintentarse.
+ */
+export class HeroSelectionConflictError extends Error {
+  constructor(ownerId: string) {
+    super(`La seleccion de heroe de ${ownerId} cambio durante la operacion. Reintentelo.`)
+    this.name = 'HeroSelectionConflictError'
+  }
+}
