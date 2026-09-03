@@ -2,8 +2,15 @@ import { Module, type CanActivate } from '@nestjs/common'
 import { APP_GUARD, Reflector } from '@nestjs/core'
 
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
+import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
-import { ADD_ITEM, GET_INVENTORY, REMOVE_ITEM } from '../../adapters/inbound/http/tokens'
+import {
+  ADD_ITEM,
+  GET_INVENTORY,
+  GET_ITEM_DETAIL,
+  LIST_OWNED_ITEMS,
+  REMOVE_ITEM,
+} from '../../adapters/inbound/http/tokens'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 
 import {
@@ -11,13 +18,21 @@ import {
   GetInventory,
   RemoveItemFromInventory,
 } from '../../application/use-cases/InventoryUseCases'
+import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
+import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
+import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
+import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
+import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
+import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
+import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
+import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
 import { CapacityPolicy } from '../../domain/policies/CapacityPolicy'
 
@@ -46,7 +61,7 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
  * framework y podria ejecutarse fuera de el sin cambios.
  */
 @Module({
-  controllers: [InventoriesController, HealthController],
+  controllers: [InventoriesController, MyInventoryController, HealthController],
   providers: [
     {
       provide: APP_CONFIG,
@@ -158,6 +173,53 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
       useFactory: (inventories: InventoryRepositoryPort): GetInventory =>
         new GetInventory(inventories),
       inject: [INVENTORY_REPOSITORY],
+    },
+    // La consulta de HU-27 usa un puerto de LECTURA propio (CQRS ligero). Lo
+    // sirve el mismo adaptador de persistencia que ya elige el driver: la
+    // separacion es de responsabilidad, no de origen de datos.
+    {
+      provide: INVENTORY_QUERY,
+      useExisting: INVENTORY_REPOSITORY,
+    },
+    // Cliente de LECTURA de Catalog. Con `CATALOG_BASE_URL` informado usa el
+    // adaptador HTTP real; sin el, un doble que siempre responde "no disponible"
+    // — la busqueda y la ficha responderan 503 en vez de inventar datos.
+    {
+      provide: CATALOG_READ,
+      useFactory: (config: AppConfig, logger: Logger): CatalogReadPort => {
+        if (config.catalog === null) {
+          logger.warn('catalog_read_disabled', {
+            detail:
+              'CATALOG_BASE_URL sin configurar: la busqueda por nombre y la ficha de detalle responderan 503.',
+          })
+
+          return new InMemoryCatalogReadClient([], true)
+        }
+
+        logger.info('catalog_read_http', { baseUrl: config.catalog.baseUrl })
+
+        return new HttpCatalogReadClient({
+          baseUrl: config.catalog.baseUrl,
+          timeoutMs: config.catalog.timeoutMs,
+        })
+      },
+      inject: [APP_CONFIG, LOGGER],
+    },
+    {
+      provide: LIST_OWNED_ITEMS,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+      ): ListOwnedInventoryItems => new ListOwnedInventoryItems(inventories, catalog),
+      inject: [INVENTORY_QUERY, CATALOG_READ],
+    },
+    {
+      provide: GET_ITEM_DETAIL,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+      ): GetOwnedInventoryItemDetail => new GetOwnedInventoryItemDetail(inventories, catalog),
+      inject: [INVENTORY_QUERY, CATALOG_READ],
     },
     {
       provide: ADD_ITEM,

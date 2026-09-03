@@ -8,3 +8,15 @@ export class InventoryNotFoundError extends Error {
     this.name = 'InventoryNotFoundError'
   }
 }
+
+/**
+ * El jugador no posee esa referencia, o Catalog no conoce el producto que
+ * posee. Se traduce a 404 en ambos casos: distinguirlos filtraria si el
+ * producto existe en el catalogo de otra persona.
+ */
+export class InventoryItemNotFoundError extends Error {
+  constructor(itemReference: string) {
+    super(`El jugador no posee el producto "${itemReference}".`)
+    this.name = 'InventoryItemNotFoundError'
+  }
+}

@@ -8,3 +8,5 @@
 export const GET_INVENTORY = Symbol('GetInventory')
 export const ADD_ITEM = Symbol('AddItemToInventory')
 export const REMOVE_ITEM = Symbol('RemoveItemFromInventory')
+export const LIST_OWNED_ITEMS = Symbol('ListOwnedInventoryItems')
+export const GET_ITEM_DETAIL = Symbol('GetOwnedInventoryItemDetail')
