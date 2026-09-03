@@ -3,9 +3,12 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
+import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
+  EQUIP_ITEM_ON_HERO,
+  GET_HERO_EQUIPMENT,
   GET_INVENTORY,
   GET_ITEM_DETAIL,
   LIST_OWNED_ITEMS,
@@ -20,21 +23,29 @@ import {
 } from '../../application/use-cases/InventoryUseCases'
 import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
 import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
+import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
+import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
 import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
 import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
+import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
 import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
 import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
+import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
+import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
 import { CapacityPolicy } from '../../domain/policies/CapacityPolicy'
+
+import type { Db } from 'mongodb'
 
 import { createMongoClient, databaseOf } from '../persistence/database'
 import { createLogger, type Logger } from '../observability/logger'
@@ -51,6 +62,12 @@ import type { ReadinessCheck, VersionReport } from '../health/health'
 export const APP_CONFIG = Symbol('AppConfig')
 export const LOGGER = Symbol('Logger')
 export const CAPACITY_POLICY = Symbol('CapacityPolicy')
+/**
+ * Conexion a MongoDB compartida por los repositorios (inventario y loadout de
+ * heroe). Un solo cliente y un solo pool: ADR-011 desaconseja que un servicio
+ * abra varios. Es `null` con `PERSISTENCE_DRIVER=memory`.
+ */
+export const MONGO_DATABASE = Symbol('MongoDatabase')
 
 /**
  * Raiz de composicion.
@@ -61,7 +78,12 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
  * framework y podria ejecutarse fuera de el sin cambios.
  */
 @Module({
-  controllers: [InventoriesController, MyInventoryController, HealthController],
+  controllers: [
+    InventoriesController,
+    MyInventoryController,
+    HeroEquipmentController,
+    HealthController,
+  ],
   providers: [
     {
       provide: APP_CONFIG,
@@ -78,14 +100,14 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
       inject: [APP_CONFIG],
     },
     {
-      provide: INVENTORY_REPOSITORY,
-      useFactory: async (config: AppConfig, logger: Logger): Promise<InventoryRepositoryPort> => {
+      provide: MONGO_DATABASE,
+      useFactory: async (config: AppConfig, logger: Logger): Promise<Db | null> => {
         if (config.persistenceDriver !== PersistenceDriver.Mongo) {
           logger.warn('in_memory_persistence', {
             detail: 'PERSISTENCE_DRIVER=memory: el estado se pierde al reiniciar el servicio.',
           })
 
-          return new InMemoryInventoryRepository()
+          return null
         }
 
         // `loadConfig` ya garantiza que MONGODB_URI existe con este driver: un
@@ -108,9 +130,21 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
         // El esquema NO se migra aqui. Migrar al arrancar hace que varias
         // replicas migren a la vez y que una migracion rota deje el servicio en
         // bucle de reinicio. Es un paso explicito: `npm run migrate`.
-        return new MongoInventoryRepository(databaseOf(client, options))
+        return databaseOf(client, options)
       },
       inject: [APP_CONFIG, LOGGER],
+    },
+    {
+      provide: INVENTORY_REPOSITORY,
+      useFactory: (db: Db | null): InventoryRepositoryPort =>
+        db === null ? new InMemoryInventoryRepository() : new MongoInventoryRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_LOADOUT_REPOSITORY,
+      useFactory: (db: Db | null): HeroLoadoutRepositoryPort =>
+        db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
+      inject: [MONGO_DATABASE],
     },
     {
       provide: TOKEN_VERIFIER,
@@ -220,6 +254,25 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
         catalog: CatalogReadPort,
       ): GetOwnedInventoryItemDetail => new GetOwnedInventoryItemDetail(inventories, catalog),
       inject: [INVENTORY_QUERY, CATALOG_READ],
+    },
+    {
+      provide: GET_HERO_EQUIPMENT,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+    },
+    {
+      provide: EQUIP_ITEM_ON_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        clock: ClockPort,
+      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK],
     },
     {
       provide: ADD_ITEM,
