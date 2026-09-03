@@ -87,6 +87,14 @@ export interface HeroAttributeView {
   readonly kind: 'HEROE'
   readonly heroSubtype: string
   readonly baseStats: HeroBaseStats
+  /**
+   * Referencias a los productos `HABILIDAD` del heroe, tal como las publica
+   * Catalog. Viajan como REFERENCIAS, no resueltas: quien las necesite con
+   * nombre las pide a Catalog. Se leen en HU-07 para presentar el heroe antes
+   * de elegirlo; HU-28 no las usa y por eso pueden faltar en un producto
+   * anterior al contrato vigente, en cuyo caso la lista queda vacia.
+   */
+  readonly abilities: readonly string[]
 }
 
 export interface EquippableAttributeView {
@@ -195,9 +203,14 @@ export const parseHeroAttributes = (attributes: unknown): HeroAttributeView => {
 
   const attackMagnitude = parseMagnitude(values.baseAttack)
 
+  const abilities = Array.isArray(values.abilities)
+    ? values.abilities.filter((entry): entry is string => typeof entry === 'string')
+    : []
+
   return {
     kind: 'HEROE',
     heroSubtype,
+    abilities,
     baseStats: {
       power,
       health,
