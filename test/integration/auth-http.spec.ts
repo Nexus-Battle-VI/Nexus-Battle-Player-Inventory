@@ -27,6 +27,11 @@ const IDENTITIES: Readonly<Record<string, VerifiedIdentity>> = {
     email: null,
     roles: new Set([Role.Player, Role.Administrator]),
   },
+  'token-super-administrador': {
+    subject: 'sujeto-super-admin',
+    email: null,
+    roles: new Set([Role.Player, Role.SuperAdministrator]),
+  },
 }
 
 const stubVerifier: TokenVerifierPort = {
@@ -136,6 +141,22 @@ describe('API de inventarios con autenticacion activa', () => {
     const response = await request(app.getHttpServer())
       .get('/api/inventories/sujeto-ana')
       .set('Authorization', bearer('token-administrador'))
+
+    expect(response.status).toBe(200)
+  })
+
+  /**
+   * El super administrador satisface toda exigencia de administrador, de forma
+   * unidireccional (`RolesGuard`). `assertOwner` comprobaba solo `ADMINISTRATOR`
+   * y dejaba fuera al rol raiz: una cuenta que solo lo tuviera recibia 404 en
+   * una consulta de soporte, sin nada que lo explicara.
+   */
+  it('permite a un super administrador consultar un inventario ajeno', async () => {
+    await anadir('sujeto-ana', 'token-ana')
+
+    const response = await request(app.getHttpServer())
+      .get('/api/inventories/sujeto-ana')
+      .set('Authorization', bearer('token-super-administrador'))
 
     expect(response.status).toBe(200)
   })

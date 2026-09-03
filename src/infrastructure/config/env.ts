@@ -30,6 +30,19 @@ export const PersistenceDriver = {
 
 export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof PersistenceDriver]
 
+/**
+ * Configuracion del cliente de LECTURA de Catalog (HU-27).
+ *
+ * `baseUrl` es la URL interna del servicio Catalog (nombre de servicio de
+ * compose, sin TLS: no sale del nodo). Cuando es `null` el servicio arranca
+ * igual, pero la busqueda por nombre y la ficha de detalle —que necesitan la
+ * informacion vigente del producto— responden 503 en lugar de inventar datos.
+ */
+export interface CatalogClientConfig {
+  readonly baseUrl: string
+  readonly timeoutMs: number
+}
+
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production'
   readonly serviceName: string
@@ -42,6 +55,7 @@ export interface AppConfig {
   readonly databaseUrl: string | null
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
+  readonly catalog: CatalogClientConfig | null
 }
 
 type RawEnv = Readonly<Record<string, string | undefined>>
@@ -171,6 +185,8 @@ export const loadConfig = (env: RawEnv): AppConfig => {
     )
   }
 
+  const catalogBaseUrl = readString(env, 'CATALOG_BASE_URL', '')
+
   return {
     nodeEnv,
     serviceName: readString(env, 'SERVICE_NAME', 'nexus-battle-player-inventory'),
@@ -188,5 +204,12 @@ export const loadConfig = (env: RawEnv): AppConfig => {
       authMode === AuthMode.Jwt
         ? { userPoolId: cognitoUserPoolId, clientId: cognitoClientId }
         : null,
+    catalog:
+      catalogBaseUrl === ''
+        ? null
+        : {
+            baseUrl: catalogBaseUrl.replace(/\/+$/, ''),
+            timeoutMs: readInteger(env, 'CATALOG_TIMEOUT_MS', 2_000, 1, 60_000),
+          },
   }
 }
