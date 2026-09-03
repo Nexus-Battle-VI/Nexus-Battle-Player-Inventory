@@ -41,7 +41,7 @@ El JSON canonico ordena claves recursivamente, conserva el orden de arrays y no 
 
 Con `PERSISTENCE_DRIVER=mongo`, una transaccion con lectura snapshot y escritura majority guarda el inventario completo y el resultado en `inventory_grants`. Un error de capacidad o apilado guarda el rechazo terminal sin modificar ninguna ranura. Ese rechazo permanece aunque luego se libere espacio; una compra nueva necesita otro operationId. Los resultados no caducan. El guardado publico usa revision CAS para impedir que una lectura anterior sobrescriba una entrega concurrente.
 
-La migracion `002-purchase-grants` amplia el validador existente y crea el ledger. Antes de arrancar: `npm ci`, `npm run build`, `npm run migrate`. Requiere MongoDB replica set o cluster con soporte de transacciones; una instancia standalone no basta. Configurar `MONGODB_URI` con el replica set y `PERSISTENCE_DRIVER=mongo`. Produccion rechaza entregas con persistencia memory. Memory es solo un doble de desarrollo/pruebas.
+La migracion `003-purchase-grants` amplia el validador existente y crea el ledger. Antes de arrancar: `npm ci`, `npm run build`, `npm run migrate`. Requiere MongoDB replica set o cluster con soporte de transacciones; una instancia standalone no basta. Configurar `MONGODB_URI` con el replica set y `PERSISTENCE_DRIVER=mongo`. Produccion rechaza entregas con persistencia memory. Memory es solo un doble de desarrollo/pruebas.
 
 ## Verificacion
 
