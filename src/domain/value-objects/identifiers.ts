@@ -41,6 +41,8 @@ export class PlayerId {
  */
 export class ItemId {
   private static readonly PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
+  private static readonly UUID =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   readonly value: string
 
@@ -51,9 +53,9 @@ export class ItemId {
   static create(raw: string): ItemId {
     const normalized = raw.trim().toLowerCase()
 
-    if (!ItemId.PATTERN.test(normalized)) {
+    if (!ItemId.PATTERN.test(normalized) && !ItemId.UUID.test(normalized)) {
       throw new DomainError(
-        `El identificador de objeto "${raw}" no es valido. Se espera kebab-case.`,
+        `El identificador de objeto "${raw}" no es valido. Se espera UUID o referencia legacy kebab-case.`,
       )
     }
 

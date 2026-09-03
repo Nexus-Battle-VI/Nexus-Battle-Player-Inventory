@@ -8,6 +8,7 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **Arquitectura interna:** Clean + Hexagonal, con puertos y adaptadores
 - **Base de datos objetivo:** MongoDB (ver limitaciones más abajo)
 - **Documentación técnica del sistema:** [Nexus-Battle-Infrastructure](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure)
+- **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
 
 ## La regla central: capacidad y apilado
 
@@ -213,6 +214,10 @@ La imagen es multi-etapa, se ejecuta con el usuario sin privilegios `node`, incl
 - **La persistencia por defecto es en memoria y se pierde al reiniciar.** Con `PERSISTENCE_DRIVER=mongo` opera el adaptador real sobre MongoDB con el driver oficial, probado contra un motor en contenedor. El repositorio en memoria no es un resto del andamiaje: es lo que permite probar el dominio y los casos de uso **sin Docker**. El driver está fijado en la línea `6.x`: la `7.6.0` no conecta con MongoDB 8.0.
 - El servicio **no valida que el objeto exista en el catálogo** ni que el jugador exista en Account. Comprobarlo requeriría una llamada sincrónica entre servicios o una réplica local del catálogo; ambas son decisiones de integración que corresponden a ADR-006 y no se toman de facto aquí.
 - La capacidad es fija por configuración del dominio. Capacidades distintas por tipo de jugador son una extensión natural que el modelo ya admite, pero no forman parte de este alcance.
+
+## Entrega de compras
+
+El contrato HMAC, resultados idempotentes, rechazo terminal y requisitos de Mongo replica set estan en [docs/purchase-grants.md](docs/purchase-grants.md).
 
 ## Contribución
 

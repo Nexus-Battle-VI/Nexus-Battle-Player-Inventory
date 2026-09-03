@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ConflictException,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,6 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 
 import { DomainError } from '../../../domain/errors/DomainError'
 import { InventoryNotFoundError } from '../../../application/errors/ApplicationError'
+import { InventoryConcurrentWriteError } from '../../../application/ports/InventoryGrantPort'
 import type {
   AddItemToInventory,
   GetInventory,
@@ -112,15 +114,23 @@ export class InventoriesController {
    *
    * Un inventario ajeno responde 404 y no 403: distinguirlos confirmaria que
    * ese jugador existe, y con eso se puede enumerar quien juega. Un
-   * administrador queda exento.
+   * administrador queda exento, y el super administrador satisface esa exigencia
+   * de administrador de forma unidireccional, igual que resuelve `RolesGuard`:
+   * un administrador NO hereda a la inversa lo que se exige al rol raiz.
    */
   private static assertOwner(ownerId: string, identity: VerifiedIdentity): void {
-    if (ownerId !== identity.subject && !identity.roles.has(Role.Administrator)) {
+    const isAdmin =
+      identity.roles.has(Role.Administrator) || identity.roles.has(Role.SuperAdministrator)
+
+    if (ownerId !== identity.subject && !isAdmin) {
       throw new InventoryNotFoundError(ownerId)
     }
   }
 
   private static translate(error: unknown): Error {
+    if (error instanceof InventoryConcurrentWriteError) {
+      return new ConflictException(error.message)
+    }
     if (error instanceof InventoryNotFoundError) {
       return new NotFoundException(error.message)
     }

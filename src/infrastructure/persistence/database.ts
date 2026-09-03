@@ -1,6 +1,9 @@
 import { MongoClient, type Db } from 'mongodb'
 
 import * as migration001 from '../../adapters/outbound/persistence/migrations/001-inventories'
+import * as migration002 from '../../adapters/outbound/persistence/migrations/002-hero-loadouts'
+import * as migration003 from '../../adapters/outbound/persistence/migrations/003-purchase-grants'
+import * as migration004 from '../../adapters/outbound/persistence/migrations/004-hero-selections'
 
 export interface DatabaseOptions {
   readonly uri: string
@@ -49,6 +52,9 @@ export const databaseOf = (client: MongoClient, options: DatabaseOptions): Db =>
  */
 const MIGRATIONS: readonly { readonly name: string; readonly up: (db: Db) => Promise<void> }[] = [
   { name: '001-inventories', up: migration001.up },
+  { name: '002-hero-loadouts', up: migration002.up },
+  { name: '003-purchase-grants', up: migration003.up },
+  { name: '004-hero-selections', up: migration004.up },
 ]
 
 const REGISTRY = '_migrations'

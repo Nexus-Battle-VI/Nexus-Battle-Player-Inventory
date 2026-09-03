@@ -37,6 +37,7 @@ const config: Config = {
     '!src/**/index.ts',
     '!src/main.ts',
     '!src/adapters/outbound/persistence/MongoInventoryRepository.ts',
+    '!src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
     '!src/infrastructure/persistence/**',
   ],
   coverageDirectory: 'coverage',

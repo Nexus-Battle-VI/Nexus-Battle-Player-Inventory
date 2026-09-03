@@ -2,8 +2,32 @@ import { Module, type CanActivate } from '@nestjs/common'
 import { APP_GUARD, Reflector } from '@nestjs/core'
 
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
+import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
+import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
+import {
+  INVENTORY_GRANTS,
+  type InventoryGrantPort,
+} from '../../application/ports/InventoryGrantPort'
+import {
+  GRANT_PURCHASED_ITEMS,
+  GrantPurchasedItems,
+} from '../../application/use-cases/GrantPurchasedItems'
+import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
+import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
+import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
-import { ADD_ITEM, GET_INVENTORY, REMOVE_ITEM } from '../../adapters/inbound/http/tokens'
+import {
+  ADD_ITEM,
+  EQUIP_ITEM_ON_HERO,
+  GET_HERO_EQUIPMENT,
+  GET_HERO_SELECTION,
+  GET_INVENTORY,
+  GET_ITEM_DETAIL,
+  LIST_AVAILABLE_HEROES,
+  LIST_OWNED_ITEMS,
+  REMOVE_ITEM,
+  SELECT_HERO,
+} from '../../adapters/inbound/http/tokens'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 
 import {
@@ -11,15 +35,38 @@ import {
   GetInventory,
   RemoveItemFromInventory,
 } from '../../application/use-cases/InventoryUseCases'
+import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
+import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
+import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
+import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
+import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
+import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
+import { SelectHero } from '../../application/use-cases/SelectHero'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
+import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
+import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
+import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
+import { HERO_SELECTION_REPOSITORY } from '../../application/ports/HeroSelectionRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
+import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
+import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
+import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
+import type { HeroSelectionRepositoryPort } from '../../application/ports/HeroSelectionRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
+import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
+import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
+import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
+import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
+import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
 import { CapacityPolicy } from '../../domain/policies/CapacityPolicy'
+
+import type { Db } from 'mongodb'
 
 import { createMongoClient, databaseOf } from '../persistence/database'
 import { createLogger, type Logger } from '../observability/logger'
@@ -36,6 +83,13 @@ import type { ReadinessCheck, VersionReport } from '../health/health'
 export const APP_CONFIG = Symbol('AppConfig')
 export const LOGGER = Symbol('Logger')
 export const CAPACITY_POLICY = Symbol('CapacityPolicy')
+/**
+ * Conexion a MongoDB compartida por los repositorios (inventario y loadout de
+ * heroe). Un solo cliente y un solo pool: ADR-011 desaconseja que un servicio
+ * abra varios. Es `null` con `PERSISTENCE_DRIVER=memory`.
+ */
+export const MONGO_DATABASE = Symbol('MongoDatabase')
+export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
 
 /**
  * Raiz de composicion.
@@ -46,7 +100,14 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
  * framework y podria ejecutarse fuera de el sin cambios.
  */
 @Module({
-  controllers: [InventoriesController, HealthController],
+  controllers: [
+    InventoriesController,
+    MyInventoryController,
+    HeroSelectionController,
+    HeroEquipmentController,
+    HealthController,
+    InventoryGrantsController,
+  ],
   providers: [
     {
       provide: APP_CONFIG,
@@ -63,14 +124,14 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
       inject: [APP_CONFIG],
     },
     {
-      provide: INVENTORY_REPOSITORY,
-      useFactory: async (config: AppConfig, logger: Logger): Promise<InventoryRepositoryPort> => {
+      provide: MONGO_DATABASE,
+      useFactory: async (config: AppConfig, logger: Logger): Promise<Db | null> => {
         if (config.persistenceDriver !== PersistenceDriver.Mongo) {
           logger.warn('in_memory_persistence', {
             detail: 'PERSISTENCE_DRIVER=memory: el estado se pierde al reiniciar el servicio.',
           })
 
-          return new InMemoryInventoryRepository()
+          return null
         }
 
         // `loadConfig` ya garantiza que MONGODB_URI existe con este driver: un
@@ -93,9 +154,36 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
         // El esquema NO se migra aqui. Migrar al arrancar hace que varias
         // replicas migren a la vez y que una migracion rota deje el servicio en
         // bucle de reinicio. Es un paso explicito: `npm run migrate`.
-        return new MongoInventoryRepository(databaseOf(client, options))
+        return databaseOf(client, options)
       },
       inject: [APP_CONFIG, LOGGER],
+    },
+    {
+      provide: MONGO_LIFECYCLE,
+      useFactory: (db: Db | null): { onModuleDestroy: () => Promise<void> } => ({
+        onModuleDestroy: async (): Promise<void> => {
+          await db?.client.close()
+        },
+      }),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: INVENTORY_REPOSITORY,
+      useFactory: (db: Db | null): InventoryRepositoryPort =>
+        db === null ? new InMemoryInventoryRepository() : new MongoInventoryRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_LOADOUT_REPOSITORY,
+      useFactory: (db: Db | null): HeroLoadoutRepositoryPort =>
+        db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_SELECTION_REPOSITORY,
+      useFactory: (db: Db | null): HeroSelectionRepositoryPort =>
+        db === null ? new InMemoryHeroSelectionRepository() : new MongoHeroSelectionRepository(db),
+      inject: [MONGO_DATABASE],
     },
     {
       provide: TOKEN_VERIFIER,
@@ -150,6 +238,30 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
       useFactory: (): ClockPort => new SystemClock(),
     },
     {
+      provide: APP_GUARD,
+      useFactory: (
+        config: AppConfig,
+        reflector: Reflector,
+        clock: ClockPort,
+        logger: Logger,
+      ): CanActivate =>
+        new InternalServiceGuard({
+          reflector,
+          secret: config.internalServiceAuthSecret,
+          allowedServices: ['commerce'],
+          clock,
+          logger,
+        }),
+      inject: [APP_CONFIG, Reflector, CLOCK, LOGGER],
+    },
+    { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
+    {
+      provide: GRANT_PURCHASED_ITEMS,
+      useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
+        new GrantPurchasedItems(grants),
+      inject: [INVENTORY_GRANTS],
+    },
+    {
       provide: CAPACITY_POLICY,
       useFactory: (): CapacityPolicy => CapacityPolicy.default(),
     },
@@ -158,6 +270,111 @@ export const CAPACITY_POLICY = Symbol('CapacityPolicy')
       useFactory: (inventories: InventoryRepositoryPort): GetInventory =>
         new GetInventory(inventories),
       inject: [INVENTORY_REPOSITORY],
+    },
+    // La consulta de HU-27 usa un puerto de LECTURA propio (CQRS ligero). Lo
+    // sirve el mismo adaptador de persistencia que ya elige el driver: la
+    // separacion es de responsabilidad, no de origen de datos.
+    {
+      provide: INVENTORY_QUERY,
+      useExisting: INVENTORY_REPOSITORY,
+    },
+    // Cliente de LECTURA de Catalog. Con `CATALOG_BASE_URL` informado usa el
+    // adaptador HTTP real; sin el, un doble que siempre responde "no disponible"
+    // — la busqueda y la ficha responderan 503 en vez de inventar datos.
+    {
+      provide: CATALOG_READ,
+      useFactory: (config: AppConfig, logger: Logger): CatalogReadPort => {
+        if (config.catalog === null) {
+          logger.warn('catalog_read_disabled', {
+            detail:
+              'CATALOG_BASE_URL sin configurar: la busqueda por nombre y la ficha de detalle responderan 503.',
+          })
+
+          return new InMemoryCatalogReadClient([], true)
+        }
+
+        logger.info('catalog_read_http', { baseUrl: config.catalog.baseUrl })
+
+        return new HttpCatalogReadClient({
+          baseUrl: config.catalog.baseUrl,
+          timeoutMs: config.catalog.timeoutMs,
+        })
+      },
+      inject: [APP_CONFIG, LOGGER],
+    },
+    {
+      provide: LIST_OWNED_ITEMS,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+      ): ListOwnedInventoryItems => new ListOwnedInventoryItems(inventories, catalog),
+      inject: [INVENTORY_QUERY, CATALOG_READ],
+    },
+    {
+      provide: GET_ITEM_DETAIL,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+      ): GetOwnedInventoryItemDetail => new GetOwnedInventoryItemDetail(inventories, catalog),
+      inject: [INVENTORY_QUERY, CATALOG_READ],
+    },
+    {
+      provide: GET_HERO_EQUIPMENT,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+    },
+    {
+      provide: EQUIP_ITEM_ON_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        clock: ClockPort,
+      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK],
+    },
+    // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
+    // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen
+    // paralelo ni una segunda lectura del catalogo.
+    {
+      provide: LIST_AVAILABLE_HEROES,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        selections: HeroSelectionRepositoryPort,
+      ): ListAvailableHeroes => new ListAvailableHeroes(inventories, catalog, selections),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY],
+    },
+    {
+      provide: GET_HERO_SELECTION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        selections: HeroSelectionRepositoryPort,
+      ): GetHeroSelection => new GetHeroSelection(inventories, catalog, loadouts, selections),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_SELECTION_REPOSITORY],
+    },
+    {
+      provide: SELECT_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        selections: HeroSelectionRepositoryPort,
+        clock: ClockPort,
+      ): SelectHero => new SelectHero(inventories, catalog, loadouts, selections, clock),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        HERO_SELECTION_REPOSITORY,
+        CLOCK,
+      ],
     },
     {
       provide: ADD_ITEM,
