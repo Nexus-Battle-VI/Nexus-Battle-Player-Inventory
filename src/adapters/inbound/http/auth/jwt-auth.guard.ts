@@ -12,7 +12,7 @@ import {
   TokenVerificationError,
   type TokenVerifierPort,
 } from '../../../../application/ports/TokenVerifierPort'
-import { IS_PUBLIC, type RequestWithIdentity } from './decorators'
+import { IS_INTERNAL, IS_PUBLIC, type RequestWithIdentity } from './decorators'
 
 interface RequestWithAuthHeader extends RequestWithIdentity {
   headers: Record<string, string | string[] | undefined>
@@ -39,7 +39,11 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ])
 
-    if (isPublic === true) {
+    const internal = this.reflector.getAllAndOverride<boolean>(IS_INTERNAL, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+    if (isPublic === true || internal) {
       return true
     }
 

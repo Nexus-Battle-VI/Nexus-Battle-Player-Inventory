@@ -8,6 +8,8 @@ import {
 import type { Role, VerifiedIdentity } from '../../../../application/ports/TokenVerifierPort'
 
 export const IS_PUBLIC = 'auth:public'
+export const IS_INTERNAL = 'auth:internal'
+export const InternalOnly = (): MethodDecorator & ClassDecorator => SetMetadata(IS_INTERNAL, true)
 export const REQUIRED_ROLES = 'auth:roles'
 
 /**

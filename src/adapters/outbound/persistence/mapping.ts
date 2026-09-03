@@ -40,6 +40,7 @@ export interface SlotDocument {
  */
 export interface InventoryDocument {
   readonly _id: string
+  readonly revision?: Int32 | number
   readonly capacity: Int32 | number
   readonly slots: readonly SlotDocument[]
 }

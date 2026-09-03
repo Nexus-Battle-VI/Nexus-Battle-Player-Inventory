@@ -56,6 +56,7 @@ export interface AppConfig {
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
   readonly catalog: CatalogClientConfig | null
+  readonly internalServiceAuthSecret: string | null
 }
 
 type RawEnv = Readonly<Record<string, string | undefined>>
@@ -186,6 +187,16 @@ export const loadConfig = (env: RawEnv): AppConfig => {
   }
 
   const catalogBaseUrl = readString(env, 'CATALOG_BASE_URL', '')
+  const internalServiceAuthSecret = readString(env, 'INTERNAL_SERVICE_AUTH_SECRET', '') || null
+  if (
+    nodeEnv === 'production' &&
+    internalServiceAuthSecret !== null &&
+    persistenceDriver !== PersistenceDriver.Mongo
+  ) {
+    throw new ConfigurationError(
+      'Las entregas internas de produccion requieren PERSISTENCE_DRIVER=mongo.',
+    )
+  }
 
   return {
     nodeEnv,
@@ -211,5 +222,6 @@ export const loadConfig = (env: RawEnv): AppConfig => {
             baseUrl: catalogBaseUrl.replace(/\/+$/, ''),
             timeoutMs: readInteger(env, 'CATALOG_TIMEOUT_MS', 2_000, 1, 60_000),
           },
+    internalServiceAuthSecret,
   }
 }
