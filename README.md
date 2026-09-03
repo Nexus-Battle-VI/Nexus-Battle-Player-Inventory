@@ -8,6 +8,7 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **Arquitectura interna:** Clean + Hexagonal, con puertos y adaptadores
 - **Base de datos objetivo:** MongoDB (ver limitaciones más abajo)
 - **Documentación técnica del sistema:** [Nexus-Battle-Infrastructure](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure)
+- **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
 
 ## La regla central: capacidad y apilado
 
