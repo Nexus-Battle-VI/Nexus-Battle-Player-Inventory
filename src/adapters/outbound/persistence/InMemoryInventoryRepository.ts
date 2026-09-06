@@ -119,6 +119,18 @@ export class InMemoryInventoryRepository
     return Promise.resolve(this.orderedSlots(ownerId))
   }
 
+  findOwnersOfProduct(productId: ItemId): Promise<readonly string[]> {
+    const owners: string[] = []
+
+    for (const [ownerId, snapshot] of this.byOwner) {
+      if (snapshot.slots.some((slot) => slot.itemId === productId.value)) {
+        owners.push(ownerId)
+      }
+    }
+
+    return Promise.resolve(owners)
+  }
+
   private orderedSlots(ownerId: PlayerId): readonly OwnedInventoryItem[] {
     const slots = this.byOwner.get(ownerId.value)?.slots ?? []
 
