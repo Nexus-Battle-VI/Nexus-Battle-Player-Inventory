@@ -31,6 +31,10 @@ class FakeInventoryQuery implements InventoryQueryPort {
   findAllOwnedItems(): Promise<readonly OwnedInventoryItem[]> {
     return Promise.resolve(this.owned.map((itemId) => ({ itemId, quantity: 1 })))
   }
+
+  findOwnersOfProduct(): Promise<readonly string[]> {
+    return Promise.resolve([])
+  }
 }
 
 const hero = (sku: string): CatalogProductView => ({

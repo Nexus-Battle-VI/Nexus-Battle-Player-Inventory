@@ -4,6 +4,7 @@ import * as migration001 from '../../adapters/outbound/persistence/migrations/00
 import * as migration002 from '../../adapters/outbound/persistence/migrations/002-hero-loadouts'
 import * as migration003 from '../../adapters/outbound/persistence/migrations/003-purchase-grants'
 import * as migration004 from '../../adapters/outbound/persistence/migrations/004-hero-selections'
+import * as migration005 from '../../adapters/outbound/persistence/migrations/005-product-owners-index'
 
 export interface DatabaseOptions {
   readonly uri: string
@@ -55,6 +56,7 @@ const MIGRATIONS: readonly { readonly name: string; readonly up: (db: Db) => Pro
   { name: '002-hero-loadouts', up: migration002.up },
   { name: '003-purchase-grants', up: migration003.up },
   { name: '004-hero-selections', up: migration004.up },
+  { name: '005-product-owners-index', up: migration005.up },
 ]
 
 const REGISTRY = '_migrations'

@@ -1,4 +1,4 @@
-import type { PlayerId } from '../../domain/value-objects/identifiers'
+import type { ItemId, PlayerId } from '../../domain/value-objects/identifiers'
 
 /**
  * Una ranura del inventario proyectada para la consulta paginada de HU-27.
@@ -60,6 +60,22 @@ export interface InventoryQueryPort {
    * que recuperar el conjunto completo es un unico documento pequeno.
    */
   findAllOwnedItems(ownerId: PlayerId): Promise<readonly OwnedInventoryItem[]>
+
+  /**
+   * Jugadores que poseen actualmente el objeto indicado, sin duplicados
+   * (HU-38, TASK #175): Notifications lo usa para dirigir una notificacion de
+   * suspension/reactivacion solo a quien posee el producto.
+   *
+   * "Poseer" es tener una ranura para ese `itemId`. Una ranura solo existe con
+   * cantidad mayor o igual a 1 -el agregado la elimina al agotarse (ver
+   * `Inventory.remove`)-, asi que la presencia en `slots` ya es la posesion
+   * actual; no hace falta filtrar por cantidad aqui.
+   *
+   * Un jugador con varias unidades aparece una sola vez: cada inventario es un
+   * unico documento con como maximo una ranura por `itemId`, asi que la
+   * consulta ya devuelve como mucho una fila por jugador.
+   */
+  findOwnersOfProduct(productId: ItemId): Promise<readonly string[]>
 }
 
 export const INVENTORY_QUERY = Symbol('InventoryQueryPort')
