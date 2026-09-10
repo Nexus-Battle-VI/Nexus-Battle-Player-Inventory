@@ -56,6 +56,7 @@ import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
 import type { HeroSelectionRepositoryPort } from '../../application/ports/HeroSelectionRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
+import { BATTLE_STATE, type BattleStatePort } from '../../application/ports/BattleStatePort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
@@ -66,6 +67,7 @@ import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistenc
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
+import { InMemoryBattleStateRegistry } from '../../adapters/outbound/battle/InMemoryBattleStateRegistry'
 import { CapacityPolicy } from '../../domain/policies/CapacityPolicy'
 
 import type { Db } from 'mongodb'
@@ -241,6 +243,12 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (): ClockPort => new SystemClock(),
     },
     {
+      // Adaptador transitorio y reemplazable. HU-14 debe publicar su fuente de
+      // verdad antes de promover HU-29 a produccion; no se crea aqui un motor.
+      provide: BATTLE_STATE,
+      useFactory: (): BattleStatePort => new InMemoryBattleStateRegistry(),
+    },
+    {
       provide: APP_GUARD,
       useFactory: (
         config: AppConfig,
@@ -345,8 +353,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
         clock: ClockPort,
-      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK],
+        battles: BattleStatePort,
+      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock, battles),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK, BATTLE_STATE],
     },
     // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
     // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen

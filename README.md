@@ -9,6 +9,7 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **Base de datos objetivo:** MongoDB (ver limitaciones más abajo)
 - **Documentación técnica del sistema:** [Nexus-Battle-Infrastructure](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure)
 - **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
+- **HU-29:** [Bloqueo de equipamiento durante batalla](docs/hu-29-equipment-combat-lock.md).
 
 ## La regla central: capacidad y apilado
 

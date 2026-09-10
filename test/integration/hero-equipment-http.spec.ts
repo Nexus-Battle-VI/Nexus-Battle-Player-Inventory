@@ -13,6 +13,9 @@ import {
 } from '../../src/application/ports/TokenVerifierPort'
 import { CATALOG_READ, type CatalogProductView } from '../../src/application/ports/CatalogReadPort'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
+import { InMemoryBattleStateRegistry } from '../../src/adapters/outbound/battle/InMemoryBattleStateRegistry'
+import { BATTLE_STATE } from '../../src/application/ports/BattleStatePort'
+import { PlayerId } from '../../src/domain/value-objects/identifiers'
 
 /**
  * HU-28 sobre HTTP con autenticacion activa y un doble sembrado de Catalog.
@@ -95,6 +98,7 @@ const CATALOG: CatalogProductView[] = [
 describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
   let app: INestApplication
   let previousEnv: Record<string, string | undefined>
+  let battleStates: InMemoryBattleStateRegistry
 
   beforeAll(async () => {
     previousEnv = {
@@ -106,11 +110,14 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
     process.env.COGNITO_USER_POOL_ID = 'us-east-1_pruebas'
     process.env.COGNITO_CLIENT_ID = 'cliente-de-pruebas'
 
+    battleStates = new InMemoryBattleStateRegistry()
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(TOKEN_VERIFIER)
       .useValue(stubVerifier)
       .overrideProvider(CATALOG_READ)
       .useValue(new InMemoryCatalogReadClient(CATALOG))
+      .overrideProvider(BATTLE_STATE)
+      .useValue(battleStates)
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -223,6 +230,51 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
     await own('s-badslot', 'espada-de-fuego')
 
     await equip('s-badslot', 'guerrero-tanque', 'ANILLO_1', 'espada-de-fuego').expect(400)
+  })
+
+  it.each([
+    ['weapon', 'WEAPON_1', 'espada-de-fuego'] as const,
+    ['armor', 'HELMET', 'casco-de-acero'] as const,
+    ['item', 'ITEM_1', 'pocion-de-vida'] as const,
+  ])(
+    'HU-29: batalla activa bloquea %s con 409 y deja el loadout intacto',
+    async (kind, slot, sku) => {
+      const subject = `s-battle-${kind}`
+      await own(subject, 'guerrero-tanque')
+      await own(subject, sku)
+      battleStates.markBattleStarted(PlayerId.create(subject), 'pid-guerrero-tanque')
+
+      const blocked = await equip(subject, 'guerrero-tanque', slot, sku)
+      expect(blocked.status).toBe(409)
+      expect(blocked.body).toMatchObject({
+        reason: 'battle_lock',
+        message: expect.stringMatching(/batalla activa/),
+      })
+
+      const after = await getEquipment(subject, 'guerrero-tanque')
+      expect(after.status).toBe(200)
+      expect(after.body.equipment.weapons).toEqual([])
+      expect(after.body.equipment.items).toEqual([])
+      expect(Object.values(after.body.equipment.armor).every((value) => value === null)).toBe(true)
+    },
+  )
+
+  it('HU-29: al finalizar la batalla libera el flujo normal de HU-28', async () => {
+    const subject = 's-battle-finished'
+    const owner = PlayerId.create(subject)
+    await own(subject, 'guerrero-tanque')
+    await own(subject, 'espada-de-fuego')
+    battleStates.markBattleStarted(owner, 'pid-guerrero-tanque')
+    await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(409)
+
+    battleStates.markBattleFinished(owner, 'pid-guerrero-tanque')
+    const allowed = await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego')
+
+    expect(allowed.status).toBe(200)
+    expect(allowed.body.equipment.weapons[0]).toMatchObject({
+      slot: 'WEAPON_1',
+      itemId: 'espada-de-fuego',
+    })
   })
 
   it('regresion HU-27: el listado del inventario propio sigue respondiendo', async () => {

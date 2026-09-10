@@ -25,6 +25,7 @@ import {
   WeaponCapacityExceededError,
 } from '../../../domain/entities/HeroLoadout'
 import {
+  EquipmentLockedDuringBattleError,
   EquipmentProductNotOwnedError,
   EquipmentSlotMismatchError,
   HeroLoadoutConflictError,
@@ -92,7 +93,8 @@ export class HeroEquipmentController {
   @ApiResponse({ status: 404, description: 'Heroe o producto no propio' })
   @ApiResponse({
     status: 409,
-    description: 'Ranura ocupada, capacidad 2/6/2 excedida o conflicto de concurrencia',
+    description:
+      'Batalla activa (reason=battle_lock), ranura ocupada, capacidad excedida o conflicto',
   })
   @ApiResponse({ status: 422, description: 'El producto no encaja en la familia o la ranura' })
   @ApiResponse({ status: 503, description: 'Catalog no respondio' })
@@ -128,6 +130,7 @@ export class HeroEquipmentController {
     }
 
     if (
+      error instanceof EquipmentLockedDuringBattleError ||
       error instanceof EquipmentSlotOccupiedError ||
       error instanceof ItemAlreadyEquippedError ||
       error instanceof WeaponCapacityExceededError ||
@@ -135,6 +138,10 @@ export class HeroEquipmentController {
       error instanceof ItemCapacityExceededError ||
       error instanceof HeroLoadoutConflictError
     ) {
+      if (error instanceof EquipmentLockedDuringBattleError) {
+        return new ConflictException({ reason: error.reason, message: error.message })
+      }
+
       return new ConflictException(error.message)
     }
 
