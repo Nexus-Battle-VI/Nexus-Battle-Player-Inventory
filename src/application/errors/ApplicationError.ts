@@ -84,6 +84,20 @@ export class HeroLoadoutConflictError extends Error {
 }
 
 /**
+ * El contexto de combate informa que el heroe participa en una batalla activa.
+ * La razon estable permite que HTTP y futuros adaptadores presenten el mismo
+ * resultado sin depender del texto humano.
+ */
+export class EquipmentLockedDuringBattleError extends Error {
+  readonly reason = 'battle_lock' as const
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'EquipmentLockedDuringBattleError'
+  }
+}
+
+/**
  * El jugador todavia no ha preparado ningun heroe (HU-07). 404: no hay recurso
  * que devolver, y no es un error del cliente ni del servicio.
  */
