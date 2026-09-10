@@ -33,6 +33,7 @@ const config: Config = {
   // medir.
   collectCoverageFrom: [
     'src/**/*.ts',
+    '!src/demo/**',
     '!src/**/*.module.ts',
     '!src/**/index.ts',
     '!src/main.ts',
