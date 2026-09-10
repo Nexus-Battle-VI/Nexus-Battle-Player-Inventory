@@ -17,6 +17,7 @@ import {
   InvalidEquipmentTypeError,
 } from '../../src/application/errors/ApplicationError'
 import { CatalogUnavailableError } from '../../src/application/ports/CatalogReadPort'
+import { InMemoryBattleStateRegistry } from '../../src/adapters/outbound/battle/InMemoryBattleStateRegistry'
 
 const OWNER = 'sujeto-jugador'
 const clock: ClockPort = { now: () => new Date('2026-09-03T12:00:00.000Z') }
@@ -101,6 +102,7 @@ interface Kit {
   readonly equip: EquipItemOnHero
   readonly get: GetHeroEquipment
   readonly loadouts: InMemoryHeroLoadoutRepository
+  readonly battles: InMemoryBattleStateRegistry
 }
 
 const buildKit = (params: {
@@ -111,11 +113,13 @@ const buildKit = (params: {
   const inventories = new FakeInventoryQuery(params.owned)
   const catalog = new InMemoryCatalogReadClient(params.catalog, params.unavailable ?? false)
   const loadouts = new InMemoryHeroLoadoutRepository()
+  const battles = new InMemoryBattleStateRegistry()
 
   return {
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battles),
     get: new GetHeroEquipment(inventories, catalog, loadouts),
     loadouts,
+    battles,
   }
 }
 
@@ -296,6 +300,53 @@ describe('EquipItemOnHero (RF-28)', () => {
         productReference: 'espada-de-fuego',
       }),
     ).rejects.toBeInstanceOf(CatalogUnavailableError)
+  })
+})
+
+describe('EquipItemOnHero (RF-29)', () => {
+  it.each([
+    ['WEAPON_1', 'espada-de-fuego', 'ARMA'] as const,
+    ['HELMET', 'casco-de-acero', 'ARMADURA'] as const,
+    ['ITEM_1', 'pocion-de-vida', 'ITEM'] as const,
+  ])('bloquea %s durante batalla y no crea el loadout', async (slot, sku, type) => {
+    const product =
+      type === 'ARMADURA' ? equippable(sku, type, { slot: 'HEAD' }) : equippable(sku, type)
+    const kit = buildKit({
+      owned: ['guerrero-tanque', sku],
+      catalog: [hero('guerrero-tanque'), product],
+    })
+    kit.battles.markBattleStarted({ value: OWNER } as PlayerId, 'pid-guerrero-tanque')
+
+    await expect(
+      kit.equip.execute({
+        ownerId: OWNER,
+        heroReference: 'guerrero-tanque',
+        slot,
+        productReference: sku,
+      }),
+    ).rejects.toMatchObject({ name: 'EquipmentLockedDuringBattleError', reason: 'battle_lock' })
+    await expect(
+      kit.loadouts.findByHero({ value: OWNER } as PlayerId, 'pid-guerrero-tanque'),
+    ).resolves.toBeNull()
+  })
+
+  it('vuelve a delegar a HU-28 cuando la batalla termina', async () => {
+    const kit = buildKit({
+      owned: ['guerrero-tanque', 'espada-de-fuego'],
+      catalog: [hero('guerrero-tanque'), equippable('espada-de-fuego', 'ARMA')],
+    })
+    const owner = { value: OWNER } as PlayerId
+    kit.battles.markBattleStarted(owner, 'pid-guerrero-tanque')
+    kit.battles.markBattleFinished(owner, 'pid-guerrero-tanque')
+
+    const state = await kit.equip.execute({
+      ownerId: OWNER,
+      heroReference: 'guerrero-tanque',
+      slot: 'WEAPON_1',
+      productReference: 'espada-de-fuego',
+    })
+
+    expect(state.equipment.weapons[0]?.itemId).toBe('espada-de-fuego')
   })
 })
 
