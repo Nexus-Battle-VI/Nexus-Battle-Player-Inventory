@@ -257,6 +257,22 @@ export class MongoInventoryRepository
 
     return projection === undefined ? [] : projection.items.map(toOwnedItem)
   }
+
+  /**
+   * `slots.itemId` es multivalor (cada documento tiene un array de ranuras), asi
+   * que un indice sobre ese campo es automaticamente multikey: Mongo indexa cada
+   * elemento del array por separado y esta consulta lo aprovecha sin `$elemMatch`
+   * -no hace falta acotar mas de un campo por elemento, `itemId` ya identifica
+   * la ranura-. Se proyecta solo `_id` (el `ownerId`): ninguna otra ranura ni
+   * cantidad sale de este servicio. Ver migracion `005-product-owners-index`.
+   */
+  async findOwnersOfProduct(productId: ItemId): Promise<readonly string[]> {
+    const documents = await this.inventories
+      .find({ 'slots.itemId': productId.value }, { projection: { _id: 1 } })
+      .toArray()
+
+    return documents.map((document) => document._id)
+  }
 }
 
 const toOwnedItem = (slot: SlotDocument): OwnedInventoryItem => ({

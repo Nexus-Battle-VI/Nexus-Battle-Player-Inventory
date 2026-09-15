@@ -3,6 +3,7 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
 import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
+import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
 import {
   INVENTORY_GRANTS,
@@ -12,6 +13,7 @@ import {
   GRANT_PURCHASED_ITEMS,
   GrantPurchasedItems,
 } from '../../application/use-cases/GrantPurchasedItems'
+import { GET_PRODUCT_OWNERS, GetProductOwners } from '../../application/use-cases/GetProductOwners'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
@@ -107,6 +109,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     HeroEquipmentController,
     HealthController,
     InventoryGrantsController,
+    ProductOwnersController,
   ],
   providers: [
     {
@@ -248,7 +251,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         new InternalServiceGuard({
           reflector,
           secret: config.internalServiceAuthSecret,
-          allowedServices: ['commerce'],
+          // 'notifications': HU-38, resuelve propietarios de un producto para
+          // dirigir notificaciones de suspension/reactivacion.
+          allowedServices: ['commerce', 'notifications'],
           clock,
           logger,
         }),
@@ -260,6 +265,12 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
         new GrantPurchasedItems(grants),
       inject: [INVENTORY_GRANTS],
+    },
+    {
+      provide: GET_PRODUCT_OWNERS,
+      useFactory: (inventories: InventoryQueryPort): GetProductOwners =>
+        new GetProductOwners(inventories),
+      inject: [INVENTORY_QUERY],
     },
     {
       provide: CAPACITY_POLICY,

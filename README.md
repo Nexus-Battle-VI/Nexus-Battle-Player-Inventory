@@ -219,6 +219,10 @@ La imagen es multi-etapa, se ejecuta con el usuario sin privilegios `node`, incl
 
 El contrato HMAC, resultados idempotentes, rechazo terminal y requisitos de Mongo replica set estan en [docs/purchase-grants.md](docs/purchase-grants.md).
 
+## Resolución de propietarios por producto (HU-38)
+
+Contrato interno de solo lectura para que Notifications resuelva a qué jugadores dirigir una notificación de suspensión/reactivación de catálogo, sin acceder directamente a esta base de datos. No transfiere ownership de datos ni implica correo. Detalle del contrato, autenticación e índice en [docs/product-owners.md](docs/product-owners.md).
+
 ## Contribución
 
 Se aplican las convenciones descritas en [CONTRIBUTING.md](CONTRIBUTING.md) y la [política de trazabilidad entre repositorios](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/blob/main/docs/governance/cross-repository-traceability.md) de Management.
