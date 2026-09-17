@@ -12,13 +12,16 @@ import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { HeroEquipmentDto } from '../dto/HeroEquipmentDto'
 import {
   EquipmentProductNotOwnedError,
+  EquipmentLockedDuringBattleError,
   EquipmentSlotMismatchError,
   InvalidEquipmentTypeError,
 } from '../errors/ApplicationError'
+import type { BattleStatePort } from '../ports/BattleStatePort'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 import { assembleEquipmentView, resolveOwnedHero } from './hero-equipment-shared'
+import { decideEquipmentChange } from '../../domain/policies/EquipmentCombatLockPolicy'
 
 export interface EquipItemOnHeroCommand {
   readonly ownerId: string
@@ -44,17 +47,20 @@ export class EquipItemOnHero {
   private readonly catalog: CatalogReadPort
   private readonly loadouts: HeroLoadoutRepositoryPort
   private readonly clock: ClockPort
+  private readonly battles: BattleStatePort
 
   constructor(
     inventories: InventoryQueryPort,
     catalog: CatalogReadPort,
     loadouts: HeroLoadoutRepositoryPort,
     clock: ClockPort,
+    battles: BattleStatePort,
   ) {
     this.inventories = inventories
     this.catalog = catalog
     this.loadouts = loadouts
     this.clock = clock
+    this.battles = battles
   }
 
   async execute(command: EquipItemOnHeroCommand): Promise<HeroEquipmentDto> {
@@ -66,7 +72,16 @@ export class EquipItemOnHero {
     // 1. El heroe pertenece al jugador y es un HEROE canonico.
     const hero = await resolveOwnedHero(deps, owner, command.heroReference)
 
-    // 2. El producto pertenece al inventario del jugador.
+    // 2. HU-29 precede a TODA lectura y mutacion del producto/loadout. Se
+    // consulta despues de validar la pertenencia del heroe para no convertir el
+    // estado de batalla en un canal de enumeracion de heroes ajenos.
+    const battleActive = await this.battles.isHeroInActiveBattle(owner, hero.heroProduct.productId)
+    const decision = decideEquipmentChange(battleActive, categoryOfSlot(slot))
+    if (!decision.ok) {
+      throw new EquipmentLockedDuringBattleError(decision.message)
+    }
+
+    // 3. El producto pertenece al inventario del jugador.
     const owned = await this.inventories.findAllOwnedItems(owner)
     const ownedRefs = new Set(owned.map((item) => item.itemId))
 
@@ -83,7 +98,7 @@ export class EquipItemOnHero {
       throw new EquipmentProductNotOwnedError(productReference)
     }
 
-    // 3. El tipo del producto es equipable y su familia casa con la ranura.
+    // 4. El tipo del producto es equipable y su familia casa con la ranura.
     const category = equipmentCategoryOfProductType(product.type)
     if (category === null) {
       throw new InvalidEquipmentTypeError(productReference, product.type)
@@ -92,7 +107,7 @@ export class EquipItemOnHero {
       throw new InvalidEquipmentSlotError(slot, category)
     }
 
-    // 4. Para armadura, la ranura canonica de la pieza debe coincidir.
+    // 5. Para armadura, la ranura canonica de la pieza debe coincidir.
     if (category === 'ARMOR') {
       const expected = ARMOR_SLOT_BY_EQUIPMENT_SLOT[slot]
       const actual = parseEquippableAttributes(product.attributes).armorSlot
@@ -101,7 +116,7 @@ export class EquipItemOnHero {
       }
     }
 
-    // 5. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por
+    // 6. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por
     //    ranura exacta" y la prohibicion de reemplazo silencioso.
     const loadout =
       (await this.loadouts.findByHero(owner, hero.heroProduct.productId)) ??
@@ -116,10 +131,10 @@ export class EquipItemOnHero {
       occurredAt: this.clock.now(),
     })
 
-    // 6. Persistencia atomica con bloqueo optimista (lanza HeroLoadoutConflictError).
+    // 7. Persistencia atomica con bloqueo optimista (lanza HeroLoadoutConflictError).
     const saved = await this.loadouts.save(loadout, expectedVersion)
 
-    // 7. Nuevo estado consistente, suficiente para refrescar la interfaz.
+    // 8. Nuevo estado consistente, suficiente para refrescar la interfaz.
     return assembleEquipmentView(deps, hero, saved)
   }
 }
