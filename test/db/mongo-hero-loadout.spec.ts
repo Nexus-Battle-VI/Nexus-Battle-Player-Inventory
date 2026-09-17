@@ -97,6 +97,21 @@ describe('MongoHeroLoadoutRepository', () => {
     expect(await loadouts().countDocuments({ _id: documentId(player.value, 'heroe-1') })).toBe(1)
   })
 
+  it('acepta un itemId con forma de productId UUID, como el que deja una compra real', async () => {
+    const player = owner()
+    const loadout = HeroLoadout.createEmpty(player.value, 'heroe-uuid')
+    loadout.equip({
+      slot: 'WEAPON_1',
+      itemId: '088e6e86-5a7a-472a-8693-c11b946a8716',
+      productId: '088e6e86-5a7a-472a-8693-c11b946a8716',
+      category: 'WEAPON',
+      occurredAt: AT,
+    })
+
+    const saved = await repository.save(loadout, 0)
+    expect(saved.entry('WEAPON_1')?.itemId).toBe('088e6e86-5a7a-472a-8693-c11b946a8716')
+  })
+
   it('devuelve null cuando el heroe no tiene loadout', async () => {
     expect(await repository.findByHero(owner(), 'sin-loadout')).toBeNull()
   })
