@@ -32,6 +32,10 @@ HU-11 no crea un motor de batalla, una sala, una rotación de IA, daño, experie
 equipamiento ni un microservicio exclusivo. El instante exacto en que el contexto de
 combate emite el turno se mantiene fuera de esta historia.
 
+El ataque básico interesa aquí solo por su costo 0 y porque sustituye a la habilidad
+impagable; su daño, sus dados y su precisión son de Combat. Tampoco se muestra el Poder
+al jugador: ver «Decisiones abiertas», punto 10.
+
 Quién conserva el estado durante la actividad y cómo consume esta regla el contexto de
 Combat es una decisión abierta: ver «Decisiones abiertas», punto 6.
 
@@ -100,13 +104,40 @@ al menos 1 punto**: con saldo 0 no hay nada que consumir y se trata como impagab
 
 ## Caso de uso
 
-**Actor:** Jugador o ejecutor de turno del héroe.
+- **Identificador:** `UC-HU11-01` — Gestionar el recurso Poder del héroe.
+- **Actor:** Jugador o, cuando el combate lo delegue, el ejecutor de turno del héroe.
+- **Objetivo:** consultar, consumir y recuperar el Poder de un héroe según RF-11, para que
+  las habilidades que dependen de él se validen con un saldo coherente.
+- **Precondiciones:** el héroe está identificado; su estado cumple `0 ≤ actual ≤ máximo`;
+  el contexto de combate emite los eventos de turno y de fin de combate.
+- **Entrada:** estado del héroe (`heroId`, actual, máximo) y un evento: una acción con su
+  costo publicado y su resultado de ejecución, un turno, o el fin de combate.
+- **Flujo principal (acción con costo):**
+  1. El contexto identifica al héroe y toma su estado.
+  2. Pregunta `canAfford(estado, costo)`.
+  3. Si alcanza, ejecuta la acción.
+  4. Informa el resultado a `spendPower`.
+  5. La política descuenta el costo y devuelve un estado nuevo.
+  6. El contexto conserva ese estado, que valida la siguiente acción.
+- **Flujos alternativos:**
+  - **A1** Saldo insuficiente: la habilidad no se ejecuta, se fuerza el ataque básico y el
+    saldo no cambia.
+  - **A2** Acción cancelada, rechazada o no ejecutada: el saldo no cambia y no se afirma
+    ninguna acción de reemplazo.
+  - **A3** Ataque básico: costo 0, el saldo no cambia.
+  - **A4** Turno: `regenPower` suma 2 con tope.
+  - **A5** Fin de combate: `restorePower` deja el máximo.
+- **Excepciones:** estado inválido (héroe vacío, valores no enteros, actual fuera de
+  rango), costo mal formado (modo desconocido, `FIXED` no entero o menor que 1) o
+  resultado de ejecución desconocido. Lanzan `DomainError` y no producen ningún efecto.
+- **Postcondiciones:** `0 ≤ actual ≤ máximo`; solo cambia el estado del héroe indicado; el
+  estado recibido no se muta.
+- **Reglas y aceptación:** RF-11 y las restricciones de la HU #20; CA-01, CA-02 y CA-03
+  (ver «Trazabilidad de reglas»).
+- **Trazabilidad:** RF-11 → HU-11 (#20) → Tasks #234, #235 y #236 → este documento y
+  `HeroPowerPolicy`.
 
-**Precondición:** existe un héroe identificado con Poder actual y máximo coherentes.
-
-**Entrada:** estado del héroe, costo publicado y resultado de ejecución de la acción.
-
-**Postcondiciones:**
+Postcondiciones por evento:
 
 - una acción válida y pagable produce un estado nuevo con el costo descontado;
 - una acción impagable conserva el saldo y selecciona `basic_attack`;
@@ -115,42 +146,77 @@ al menos 1 punto**: con saldo 0 no hay nada que consumir y se trata como impagab
 - el fin del combate restaura el máximo;
 - el estado de otro héroe no cambia.
 
+## Diagrama de actividades
+
 ```mermaid
 flowchart TD
-  A[Evento para un héroe] --> B{¿Fin de combate?}
-  B -- Sí --> C[Restaurar al máximo]
-  B -- No --> D{¿Turno?}
-  D -- Sí --> E[Sumar 2 con tope]
-  D -- No --> F{¿Acción ejecutada?}
-  F -- No --> G[Conservar Poder]
-  F -- Sí --> H{¿Costo cubierto?}
-  H -- No --> I[Conservar Poder y forzar ataque básico]
-  H -- Sí --> J[Descontar costo]
+  A([Evento para un héroe]) --> B[Identificar al héroe, no al jugador]
+  B --> C[Conocer su Poder actual y máximo]
+  C --> D{Tipo de evento}
+  D -->|Fin de combate| E[Restaurar: actual igual al máximo]
+  D -->|Turno| F[Sumar 2 sin superar el máximo]
+  D -->|Ataque básico| G[Costo 0: conservar el Poder]
+  D -->|Acción con costo| H{Poder mayor o igual al costo}
+  H -->|No| I[No ejecutar la habilidad y forzar ataque básico. Conservar el Poder]
+  H -->|Sí| J{Se ejecuta válidamente}
+  J -->|No| K[Conservar el Poder]
+  J -->|Sí| L[Descontar el costo. Nunca menor que cero]
+  E --> M[Exponer el nuevo valor]
+  F --> M
+  G --> M
+  I --> M
+  K --> M
+  L --> M
+  M --> N([El nuevo valor valida la siguiente acción])
 ```
 
-## Secuencia conceptual
+El caso límite en que un llamador informa como cancelada una acción que además era
+impagable lo resuelve `spendPower` por precedencia (ver «Precedencia de `spendPower`»):
+no descuenta y no afirma acción de reemplazo.
+
+## Diagrama de secuencia
+
+Los dos héroes son del mismo jugador. La política no guarda estado: el contexto de
+combate conserva un estado por héroe y solo pasa a la política el del héroe afectado.
 
 ```mermaid
 sequenceDiagram
   actor Jugador
-  participant Combate
-  participant Poder as Módulo de Poder
-  participant Heroe
+  participant Combate as Contexto de combate
   participant Catalog as Definición de habilidad
+  participant Poder as Política de Poder
+  participant HeroeA as Héroe A
+  participant HeroeB as Héroe B
 
-  Jugador->>Combate: seleccionar acción
-  Combate->>Catalog: obtener costo publicado
-  Combate->>Poder: canAfford(estado, costo)
-  Poder-->>Combate: sí / no (sin consumir)
-  Combate->>Poder: spendPower(estado, costo, resultado)
-  alt saldo suficiente
-    Poder-->>Combate: ok + nuevo estado
-  else saldo insuficiente
-    Poder-->>Combate: insufficient + basic_attack + estado intacto
-  else acción cancelada o inválida
-    Poder-->>Combate: not_executed + estado intacto
+  Note over HeroeA,HeroeB: Mismo jugador. A tiene 10 de 10 y B tiene 8 de 8
+  Jugador->>Combate: elegir una habilidad para el héroe A
+  Combate->>Catalog: obtener el costo publicado
+  Combate->>Poder: canAfford del estado de A y el costo
+  alt el costo está cubierto
+    Poder-->>Combate: sí
+    Combate->>Combate: ejecutar la acción
+    alt la acción se ejecutó
+      Combate->>Poder: spendPower del estado de A con EXECUTED
+      Poder-->>Combate: ok y estado nuevo de A con 6 de 10
+    else la acción se canceló o se rechazó
+      Combate->>Poder: spendPower del estado de A con CANCELLED
+      Poder-->>Combate: not_executed y estado de A intacto
+    end
+  else el costo supera el saldo
+    Poder-->>Combate: no
+    Combate->>Poder: spendPower del estado de A con EXECUTED
+    Poder-->>Combate: insufficient, ataque básico y estado de A intacto
   end
-  Combate->>Heroe: usar el estado devuelto en la siguiente validación
+  Combate->>HeroeA: conservar el estado devuelto
+  Note over HeroeB: El estado de B no interviene y sigue en 8 de 8
+
+  loop en cada turno del combate
+    Combate->>Poder: regenPower del estado del héroe en turno
+    Poder-->>Combate: estado con 2 más sin pasar el máximo
+  end
+
+  Combate->>Poder: restorePower al finalizar el combate
+  Poder-->>Combate: estado con el actual igual al máximo
 ```
 
 ## Modelo
@@ -183,6 +249,21 @@ La implementación es funcional e inmutable: no persiste un historial ni mantien
 una bolsa de Poder por jugador. El contexto de combate es quien conserva el estado
 temporal por héroe y emite turno/fin; HU-11 solo aplica la regla.
 
+## Impacto arquitectónico y fronteras
+
+- El Poder es un recurso **del héroe**: su regla vive en el dominio de Player/Inventory,
+  que ya es la fuente de verdad del héroe y de su equipamiento. No está en el comercio
+  electrónico ni se copia en Misiones.
+- Consumidores previstos: el contexto de combate (turno y fin de combate), Misiones (la
+  misma regla, mediante las simulaciones que pide a Combat según ADR-019) y la interfaz de
+  batalla, que muestra el valor. Consumen la regla y no reimplementan el +2 ni los
+  límites. Cómo llega la regla a Combat es la decisión abierta 6.
+- Fronteras: HU-08 (experiencia) no interviene. HU-28 y HU-29 (equipamiento) solo aportan
+  el máximo efectivo, que aquí se lee. HU-31 (efecto épico) conserva los efectos, incluida
+  la reducción de Poder al oponente (decisión abierta 4). HU-15 entrega el máximo a Combat.
+- No hay endpoint ni persistencia nuevos. El valor actual de un combate lo conserva quien
+  lo ejecuta; el máximo se deriva de la definición del héroe y no se guarda.
+
 ## Compatibilidad con trabajo aprobado
 
 - HU-27 aporta propiedad y selección del héroe.
@@ -190,6 +271,32 @@ temporal por héroe y emite turno/fin; HU-11 solo aplica la regla.
 - HU-15 entrega ese valor a Combat.
 - HU-31 conserva los ocho códigos canónicos de subtipo y su política de épicas.
 - Catalog ya soporta `FIXED` y `ALL_AVAILABLE`; HU-11 no crea un segundo catálogo.
+
+## Trazabilidad de reglas
+
+Cada restricción de la HU #20 frente a lo que la cumple y a los bloques de pruebas que la
+ejercitan (CA-02). Los bloques están en `test/unit/hero-power.spec.ts`, salvo el último,
+que está en `test/unit/hero-power-hero-definition.spec.ts`.
+
+| Regla de la HU #20 / RF-11                                            | Cómo se cumple                                                                     | Bloque de pruebas                                           |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Conocer el Poder disponible antes de permitir una acción que lo gasta | `getPower`, `getMaxPower`, `canAfford`                                             | consulta del Poder de un héroe concreto; consulta previa    |
+| Una habilidad que requiere Poder no se ejecuta si no alcanza          | `spendPower` devuelve `insufficient` y `basic_attack` sin tocar el saldo           | Poder insuficiente; reanimación                             |
+| Al consumir, se descuenta el costo                                    | `spendPower` con `ok: true`                                                        | consumo válido                                              |
+| El ataque básico no reduce el Poder                                   | costo `NONE`                                                                       | el ataque básico no consume Poder                           |
+| Regeneración solo en los momentos y cantidades de las reglas          | `regenPower` (+2 con tope) y `restorePower` (máximo)                               | regeneración de +2; restauración total                      |
+| El valor se mantiene coherente durante toda la batalla                | el estado inmutable que devuelve cada operación                                    | secuencia completa; invariante `0 ≤ actual ≤ máximo`        |
+| El Poder es del héroe y no se mezcla con el de otro del mismo jugador | `heroId` dentro del estado; ninguna operación recibe dos héroes                    | aislamiento                                                 |
+| Nunca por debajo de cero ni por encima del máximo                     | validación de entrada, `min` en la regeneración, un costo solo se paga si ≤ saldo  | invariante; validación de estados                           |
+| Una acción rechazada, cancelada o no ejecutada no descuenta           | `CANCELLED` e `INVALID`                                                            | acción cancelada, rechazada o no ejecutada                  |
+| El nuevo valor valida de inmediato la siguiente acción                | la siguiente operación recibe el estado devuelto por la anterior                   | el nuevo valor se usa de inmediato                          |
+| El máximo lo da la definición aprobada del héroe                      | `createHeroPower(heroId, effectiveStats.power)`                                    | el máximo sale de la definición del héroe (segundo archivo) |
+| El valor debe mostrarse actualizado al jugador                        | **No se implementa aquí**: la presentación es de la interfaz (decisión abierta 10) | —                                                           |
+
+- **CA-01:** Poder actual y costo producen el Poder actualizado, y un costo mayor que el
+  saldo bloquea la habilidad y degrada a ataque básico: filas 2 y 3.
+- **CA-02:** cada fila tiene al menos un caso positivo, negativo o de frontera.
+- **CA-03:** todos los casos derivados pasan (`npm run test:unit` y el CI del PR).
 
 ## Pruebas y evidencia
 
@@ -232,8 +339,8 @@ npm run demo:hu11 -- --commands=1,3,3,t,h8,3,e,q
 
 ## Decisiones abiertas
 
-Ninguna se decidió por el PO; cada una tiene una elección conservadora y probada que se
-puede cambiar sin tocar el resto.
+Ninguna se decidió por el PO. Las que afectan al código tienen una elección conservadora
+y probada que se puede cambiar sin tocar el resto.
 
 1. **Épicas y Poder.** El enunciado de la HU habla de una «habilidad especial o épica»
    que se degrada por Poder insuficiente, pero el documento oficial dice que las épicas
@@ -260,3 +367,10 @@ puede cambiar sin tocar el resto.
 8. **Datos reales.** El ambiente debe publicar héroes y habilidades reales mediante
    Catalog. La interfaz Web productiva se conecta al contrato real de combate; no usa el
    demo ni una copia local de esta política como autoridad.
+9. **Misión frente a combate.** La HU nombra ambos. RF-11 escribe la restauración
+   completa para el fin de **combate**, así que no se añade un llenado extra al cerrar
+   una misión.
+10. **Presentación del Poder.** La HU pide que el valor se muestre actualizado al jugador
+    durante la batalla o misión. Cada operación devuelve el estado actualizado, pero este
+    servicio no lo muestra ni lo expone por HTTP: la barra o el número es de la interfaz y
+    depende del contrato de tiempo real de Combat (ADR-020). Queda pendiente.
