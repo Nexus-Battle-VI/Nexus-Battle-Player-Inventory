@@ -357,12 +357,14 @@ y probada que se puede cambiar sin tocar el resto.
    que RF-11 no define (solo cubre consumo, +2 y restauración). La definirá quien
    integre esos efectos (HU-19 / HU-31), respetando el mismo rango.
 5. **Momento del +2.** La HU dice «+2 por turno» sin precisar si al inicio o al final;
-   lo determina el contexto de combate (HU-14) al invocar `regenPower`.
+   lo determina el contexto de combate al invocar `regenPower`; los turnos llegan con
+   HU-17.
 6. **Dónde vive el estado y cómo lo consume Combat.** ADR-019 asigna la batalla —con
-   su Poder— a Combat, cuyo README lista HU-11 entre sus historias. Combat es otro
-   repositorio y no puede importar código de este (ADR-001, sin paquetes comunes). Este
-   módulo es la regla y su especificación ejecutable; falta decidir si Combat la
-   reimplementa contra estas pruebas como vectores o si la historia se reubica.
+   su Poder— a Combat. Combat es otro repositorio y no puede importar código de este
+   (ADR-001, sin paquetes comunes). Este módulo es la regla y su especificación
+   ejecutable, y la HU se cerró con esta entrega; a Combat le queda aplicarla al Poder
+   de cada participante. Falta decidir cómo la obtiene: reimplementarla contra estas
+   pruebas como vectores u otra vía.
 7. **Fórmula de Poder para niveles superiores.** No está definida; no se inventa.
 8. **Datos reales.** El ambiente debe publicar héroes y habilidades reales mediante
    Catalog. La interfaz Web productiva se conecta al contrato real de combate; no usa el
