@@ -36,8 +36,8 @@ El ataque básico interesa aquí solo por su costo 0 y porque sustituye a la hab
 impagable; su daño, sus dados y su precisión son de Combat. Tampoco se muestra el Poder
 al jugador: ver «Decisiones abiertas», punto 10.
 
-Quién conserva el estado durante la actividad y cómo consume esta regla el contexto de
-Combat es una decisión abierta: ver «Decisiones abiertas», punto 6.
+Quién conserva el estado durante la actividad es el contexto de Combat, que reimplementa
+esta regla con estas pruebas como vectores: ver «Decisiones abiertas», punto 6.
 
 ## Contrato de dominio
 
@@ -278,20 +278,20 @@ Cada restricción de la HU #20 frente a lo que la cumple y a los bloques de prue
 ejercitan (CA-02). Los bloques están en `test/unit/hero-power.spec.ts`, salvo el último,
 que está en `test/unit/hero-power-hero-definition.spec.ts`.
 
-| Regla de la HU #20 / RF-11                                            | Cómo se cumple                                                                     | Bloque de pruebas                                           |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Conocer el Poder disponible antes de permitir una acción que lo gasta | `getPower`, `getMaxPower`, `canAfford`                                             | consulta del Poder de un héroe concreto; consulta previa    |
-| Una habilidad que requiere Poder no se ejecuta si no alcanza          | `spendPower` devuelve `insufficient` y `basic_attack` sin tocar el saldo           | Poder insuficiente; reanimación                             |
-| Al consumir, se descuenta el costo                                    | `spendPower` con `ok: true`                                                        | consumo válido                                              |
-| El ataque básico no reduce el Poder                                   | costo `NONE`                                                                       | el ataque básico no consume Poder                           |
-| Regeneración solo en los momentos y cantidades de las reglas          | `regenPower` (+2 con tope) y `restorePower` (máximo)                               | regeneración de +2; restauración total                      |
-| El valor se mantiene coherente durante toda la batalla                | el estado inmutable que devuelve cada operación                                    | secuencia completa; invariante `0 ≤ actual ≤ máximo`        |
-| El Poder es del héroe y no se mezcla con el de otro del mismo jugador | `heroId` dentro del estado; ninguna operación recibe dos héroes                    | aislamiento                                                 |
-| Nunca por debajo de cero ni por encima del máximo                     | validación de entrada, `min` en la regeneración, un costo solo se paga si ≤ saldo  | invariante; validación de estados                           |
-| Una acción rechazada, cancelada o no ejecutada no descuenta           | `CANCELLED` e `INVALID`                                                            | acción cancelada, rechazada o no ejecutada                  |
-| El nuevo valor valida de inmediato la siguiente acción                | la siguiente operación recibe el estado devuelto por la anterior                   | el nuevo valor se usa de inmediato                          |
-| El máximo lo da la definición aprobada del héroe                      | `createHeroPower(heroId, effectiveStats.power)`                                    | el máximo sale de la definición del héroe (segundo archivo) |
-| El valor debe mostrarse actualizado al jugador                        | **No se implementa aquí**: la presentación es de la interfaz (decisión abierta 10) | —                                                           |
+| Regla de la HU #20 / RF-11                                            | Cómo se cumple                                                                               | Bloque de pruebas                                           |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Conocer el Poder disponible antes de permitir una acción que lo gasta | `getPower`, `getMaxPower`, `canAfford`                                                       | consulta del Poder de un héroe concreto; consulta previa    |
+| Una habilidad que requiere Poder no se ejecuta si no alcanza          | `spendPower` devuelve `insufficient` y `basic_attack` sin tocar el saldo                     | Poder insuficiente; reanimación                             |
+| Al consumir, se descuenta el costo                                    | `spendPower` con `ok: true`                                                                  | consumo válido                                              |
+| El ataque básico no reduce el Poder                                   | costo `NONE`                                                                                 | el ataque básico no consume Poder                           |
+| Regeneración solo en los momentos y cantidades de las reglas          | `regenPower` (+2 con tope) y `restorePower` (máximo)                                         | regeneración de +2; restauración total                      |
+| El valor se mantiene coherente durante toda la batalla                | el estado inmutable que devuelve cada operación                                              | secuencia completa; invariante `0 ≤ actual ≤ máximo`        |
+| El Poder es del héroe y no se mezcla con el de otro del mismo jugador | `heroId` dentro del estado; ninguna operación recibe dos héroes                              | aislamiento                                                 |
+| Nunca por debajo de cero ni por encima del máximo                     | validación de entrada, `min` en la regeneración, un costo solo se paga si ≤ saldo            | invariante; validación de estados                           |
+| Una acción rechazada, cancelada o no ejecutada no descuenta           | `CANCELLED` e `INVALID`                                                                      | acción cancelada, rechazada o no ejecutada                  |
+| El nuevo valor valida de inmediato la siguiente acción                | la siguiente operación recibe el estado devuelto por la anterior                             | el nuevo valor se usa de inmediato                          |
+| El máximo lo da la definición aprobada del héroe                      | `createHeroPower(heroId, effectiveStats.power)`                                              | el máximo sale de la definición del héroe (segundo archivo) |
+| El valor debe mostrarse actualizado al jugador                        | **No se implementa aquí**: lo muestra la interfaz, `PowerMeter` en Web (decisión abierta 10) | —                                                           |
 
 - **CA-01:** Poder actual y costo producen el Poder actualizado, y un costo mayor que el
   saldo bloquea la habilidad y degrada a ataque básico: filas 2 y 3.
@@ -323,6 +323,11 @@ Además incluye controles que fallarían si la regla fuera falsa:
 HU-15 con dos héroes del mismo jugador: el máximo sale de la definición del héroe, un
 ítem que sube el Poder de forma permanente sube el máximo y el tope de regeneración, y
 gastar en un héroe no altera al otro.
+
+`test/unit/hero-power.spec.ts` es además el **vector de conformidad de Combat**: se copia en
+`test/unit/hero-power-policy.spec.ts` de ese repositorio (Nexus-Battle-Combat#21) y las dos
+implementaciones se mantienen alineadas con esos casos. Si cambia la regla o esos casos, hay
+que cambiar también la copia de Combat.
 
 El demo local usa los máximos y costos de las Tablas 6 y 7 como datos de demostración,
 no como una nueva fuente de producción:
@@ -359,12 +364,13 @@ y probada que se puede cambiar sin tocar el resto.
 5. **Momento del +2.** La HU dice «+2 por turno» sin precisar si al inicio o al final;
    lo determina el contexto de combate al invocar `regenPower`; los turnos llegan con
    HU-17.
-6. **Dónde vive el estado y cómo lo consume Combat.** ADR-019 asigna la batalla —con
-   su Poder— a Combat. Combat es otro repositorio y no puede importar código de este
-   (ADR-001, sin paquetes comunes). Este módulo es la regla y su especificación
-   ejecutable, y la HU se cerró con esta entrega; a Combat le queda aplicarla al Poder
-   de cada participante. Falta decidir cómo la obtiene: reimplementarla contra estas
-   pruebas como vectores u otra vía.
+6. **Cómo obtiene Combat la regla.** ADR-019 asigna la batalla —con su Poder— a Combat, y
+   Combat no puede importar código de este repositorio (ADR-001, sin paquetes comunes). La
+   regla se **reimplementa allí** (`HeroPowerPolicy`, Nexus-Battle-Combat#21) usando estas
+   pruebas como vectores de conformidad, a la espera de la revisión de Team Alfa. Este
+   módulo sigue siendo la especificación ejecutable: si la regla cambia, cambia en los dos
+   repositorios. Falta el agregado de batalla de Combat, que guarde el Poder de cada
+   participante y llame a la política.
 7. **Fórmula de Poder para niveles superiores.** No está definida; no se inventa.
 8. **Datos reales.** El ambiente debe publicar héroes y habilidades reales mediante
    Catalog. La interfaz Web productiva se conecta al contrato real de combate; no usa el
@@ -374,5 +380,7 @@ y probada que se puede cambiar sin tocar el resto.
    una misión.
 10. **Presentación del Poder.** La HU pide que el valor se muestre actualizado al jugador
     durante la batalla o misión. Cada operación devuelve el estado actualizado, pero este
-    servicio no lo muestra ni lo expone por HTTP: la barra o el número es de la interfaz y
-    depende del contrato de tiempo real de Combat (ADR-020). Queda pendiente.
+    servicio no lo muestra ni lo expone por HTTP. El medidor está hecho en la interfaz
+    (`PowerMeter`, Nexus-Battle-Web#110): muestra el `{ current, max }` que reciba y se ve
+    actualizado en el mismo renderizado. **No está montado en ninguna pantalla**, porque no
+    existen el inicio de batalla ni un evento de Combat que lleve el Poder (ADR-020).
