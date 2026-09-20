@@ -124,7 +124,7 @@ const escenario = (
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
     equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
-    forCombat: new GetEquippedHeroForCombat(current),
+    forCombat: new GetEquippedHeroForCombat(current, loadouts),
   }
 }
 
@@ -146,6 +146,8 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     expect(resultado.baseStats).toMatchObject({ power: 5, health: 40, defense: 8 })
     expect(resultado.effectiveStats).toMatchObject({ power: 5, health: 40, defense: 8 })
     expect(resultado.ready).toBe(true)
+    expect(resultado.blockers).toEqual([])
+    expect(resultado.loadoutVersion).toBe(0)
     expect(resultado.selectedAt).toBe('2026-09-19T12:00:00.000Z')
   })
 
@@ -166,6 +168,8 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
 
     expect(resultado.baseStats.attack).toBe(10)
     expect(resultado.effectiveStats.attack).toBe(13)
+    // Equipar escribe el loadout: la version pasa de 0 (nunca persistido) a 1.
+    expect(resultado.loadoutVersion).toBe(1)
   })
 
   it('jugador sin heroe equipado: 404 logico (NoHeroSelectedError)', async () => {
@@ -203,6 +207,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
+      loadouts,
     )
 
     await select.execute('jugador-1', 'guerrero-tanque')
@@ -227,6 +232,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const catalogAbajo = new InMemoryCatalogReadClient([], true)
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalogAbajo, loadouts, selections),
+      loadouts,
     )
 
     await expect(forCombat.execute('jugador-1')).rejects.toBeInstanceOf(CatalogUnavailableError)
@@ -275,6 +281,8 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
         'effectiveStats',
         'activeEffects',
         'ready',
+        'blockers',
+        'loadoutVersion',
         'selectedAt',
       ].sort(),
     )
@@ -286,6 +294,55 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     expect(resultado).not.toHaveProperty('imageUrl')
     expect(resultado).not.toHaveProperty('lifecycleStatus')
     expect(resultado).not.toHaveProperty('level')
+  })
+
+  it('blockers reutiliza los MISMOS codigos de HeroReadinessPolicy: no crea una segunda taxonomia', async () => {
+    // Producto equipado que luego se vende: HeroReadinessPolicy debe marcar
+    // EQUIPPED_PRODUCT_NOT_OWNED, y ese MISMO codigo debe llegar a Combat.
+    const inventarios: Record<string, readonly string[]> = {
+      'jugador-1': ['guerrero-tanque', 'espada'],
+    }
+    const inventories = new FakeInventoryQuery(inventarios)
+    const catalog = new InMemoryCatalogReadClient([
+      hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque'),
+      weapon('espada'),
+    ])
+    const loadouts = new InMemoryHeroLoadoutRepository()
+    const selections = new InMemoryHeroSelectionRepository()
+    const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
+    const equip = new EquipItemOnHero(inventories, catalog, loadouts, clock)
+    const forCombat = new GetEquippedHeroForCombat(
+      new GetHeroSelection(inventories, catalog, loadouts, selections),
+      loadouts,
+    )
+
+    await select.execute('jugador-1', 'guerrero-tanque')
+    await equip.execute({
+      ownerId: 'jugador-1',
+      heroReference: 'guerrero-tanque',
+      slot: 'WEAPON_1',
+      productReference: 'espada',
+    })
+    inventarios['jugador-1'] = ['guerrero-tanque']
+
+    const resultado = await forCombat.execute('jugador-1')
+
+    expect(resultado.ready).toBe(false)
+    expect(resultado.blockers).toEqual([
+      expect.objectContaining({ code: 'EQUIPPED_PRODUCT_NOT_OWNED', reference: 'espada' }),
+    ])
+  })
+
+  it('loadoutVersion nunca persistido (heroe sin equipamiento) es 0, no ausente ni inventado', async () => {
+    const { select, forCombat } = escenario(
+      [hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque')],
+      { 'jugador-1': ['guerrero-tanque'] },
+    )
+    await select.execute('jugador-1', 'guerrero-tanque')
+
+    const resultado = await forCombat.execute('jugador-1')
+
+    expect(resultado.loadoutVersion).toBe(0)
   })
 })
 
@@ -366,7 +423,7 @@ const preparado = (
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
     equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
-    forCombat: new GetEquippedHeroForCombat(current),
+    forCombat: new GetEquippedHeroForCombat(current, loadouts),
     current,
     catalog,
   }

@@ -381,9 +381,11 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     // verdad-, sin abrir un segundo camino de lectura al agregado.
     {
       provide: GET_EQUIPPED_HERO_FOR_COMBAT,
-      useFactory: (getHeroSelection: GetHeroSelection): GetEquippedHeroForCombat =>
-        new GetEquippedHeroForCombat(getHeroSelection),
-      inject: [GET_HERO_SELECTION],
+      useFactory: (
+        getHeroSelection: GetHeroSelection,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetEquippedHeroForCombat => new GetEquippedHeroForCombat(getHeroSelection, loadouts),
+      inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY],
     },
     {
       provide: SELECT_HERO,
