@@ -231,6 +231,8 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
       name: 'Guerrero Tanque',
       baseStats: { power: 5, health: 40, defense: 8, attack: 10 },
       ready: true,
+      blockers: [],
+      loadoutVersion: 0,
     })
     expect(typeof response.body.selectedAt).toBe('string')
   })
@@ -254,6 +256,8 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
         'effectiveStats',
         'activeEffects',
         'ready',
+        'blockers',
+        'loadoutVersion',
         'selectedAt',
       ].sort(),
     )
@@ -264,6 +268,27 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
     expect(response.body).not.toHaveProperty('level')
     // Heroe sin equipamiento: la lista viaja vacia, no ausente.
     expect(response.body.activeEffects).toEqual([])
+    expect(response.body.blockers).toEqual([])
+    expect(response.body.loadoutVersion).toBe(0)
+  })
+
+  it('HU-16.1/HU-16.2: loadoutVersion aumenta al equipar, para que Combat detecte cambios (DP-6)', async () => {
+    const jugador = 'combat-toctou-version'
+    await own(jugador, 'guerrero-tanque')
+    await select(jugador, 'guerrero-tanque')
+    await own(jugador, 'hacha-de-guerra')
+
+    const antes = await signedGet(equippedHeroPath(jugador))
+    expect(antes.body.loadoutVersion).toBe(0)
+
+    await request(app.getHttpServer())
+      .put('/api/inventories/me/heroes/guerrero-tanque/equipment/WEAPON_1')
+      .set('Authorization', bearer(jugador))
+      .send({ productReference: 'hacha-de-guerra' })
+      .expect(200)
+
+    const despues = await signedGet(equippedHeroPath(jugador))
+    expect(despues.body.loadoutVersion).toBe(1)
   })
 
   it('HU-25: el equipamiento real llega como activeEffects normalizados, sin raw ni ranura', async () => {

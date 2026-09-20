@@ -1,5 +1,7 @@
+import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { EquippedEffect } from '../../domain/value-objects/equipment-effects'
 import type { EquippedHeroDto, EquippedHeroEffectDto } from '../dto/EquippedHeroDto'
+import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
 import type { GetHeroSelection } from './GetHeroSelection'
 
 /**
@@ -25,16 +27,33 @@ import type { GetHeroSelection } from './GetHeroSelection'
  * verificado). Este caso de uso no la deriva de ningun otro sitio ni acepta
  * un heroId: solo un identificador de jugador, exactamente igual que
  * `GetHeroSelection.execute`.
+ *
+ * AMPLIACION ADITIVA (HU-16.1/HU-16.2, Management#401/#402): ademas de
+ * `GetHeroSelection`, este caso de uso lee `HeroLoadoutRepositoryPort`
+ * DIRECTAMENTE para obtener `HeroLoadout.version`. No es una segunda
+ * implementacion de HU-28 (no valida nada del loadout, solo lee su version):
+ * es la MISMA politica ya tolerada en `assembleSelectionView` (una segunda
+ * lectura del inventario para la vista de capacidad). Es una unica llamada
+ * adicional de solo lectura por peticion, no un segundo camino de escritura
+ * ni de calculo. `blockers` reutiliza la MISMA lista de
+ * `HeroReadinessPolicy` que ya expone el contrato publico de HU-07: no crea
+ * una segunda taxonomia de motivos de bloqueo.
  */
 export class GetEquippedHeroForCombat {
-  constructor(private readonly getHeroSelection: GetHeroSelection) {}
+  constructor(
+    private readonly getHeroSelection: GetHeroSelection,
+    private readonly loadouts: HeroLoadoutRepositoryPort,
+  ) {}
 
   async execute(playerId: string): Promise<EquippedHeroDto> {
     const selection = await this.getHeroSelection.execute(playerId)
+    const heroId = selection.configuration.hero.heroId
+
+    const loadout = await this.loadouts.findByHero(PlayerId.create(playerId), heroId)
 
     return {
       playerId,
-      heroId: selection.configuration.hero.heroId,
+      heroId,
       reference: selection.configuration.hero.reference,
       subtype: selection.configuration.hero.subtype,
       name: selection.configuration.hero.name,
@@ -42,6 +61,8 @@ export class GetEquippedHeroForCombat {
       effectiveStats: selection.configuration.effectiveStats,
       activeEffects: selection.configuration.activeEffects.map(toEffectDto),
       ready: selection.readiness.ready,
+      blockers: selection.readiness.blockers,
+      loadoutVersion: loadout?.version ?? 0,
       selectedAt: selection.selectedAt,
     }
   }

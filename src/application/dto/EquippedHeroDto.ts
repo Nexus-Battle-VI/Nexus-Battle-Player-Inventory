@@ -1,4 +1,5 @@
 import type { Magnitude } from '../../domain/value-objects/equipment-effects'
+import type { HeroReadinessBlocker } from '../../domain/policies/HeroReadinessPolicy'
 import type { HeroStatsDto } from './HeroEquipmentDto'
 
 /**
@@ -73,6 +74,24 @@ export interface EquippedHeroEffectDto {
  * (auditoria HU-15.2, hallazgo DP-3, confirmado de nuevo por grep exhaustivo
  * al implementar este contrato). Anadirlo aqui seria inventar un dato que
  * ninguna otra parte del sistema produce.
+ *
+ * AMPLIACION ADITIVA (HU-16.1/HU-16.2, auditoria de elegibilidad precombate,
+ * Management#401/#402):
+ *
+ *  - `blockers`: la MISMA lista de `HeroReadinessPolicy.assessHeroReadiness`
+ *    que ya viaja en el contrato publico de HU-07 (`HeroSelectionDto.readiness`).
+ *    Antes de esta ampliacion, Combat solo recibia `ready: boolean` y no podia
+ *    distinguir POR QUE un heroe no esta listo. Los codigos
+ *    (`HeroReadinessBlockerCode`) son los MISMOS de siempre: esta ampliacion no
+ *    crea una segunda taxonomia de errores de equipamiento, solo deja de
+ *    ocultarla a Combat.
+ *  - `loadoutVersion`: la version real de `HeroLoadout` (bloqueo optimista que
+ *    ya usa la escritura de HU-28, ver `HeroLoadout.version`). No existia en
+ *    ningun contrato -ni siquiera en el publico de HU-07- hasta ahora. Permite
+ *    a un consumidor (Combat) verificar que la configuracion de equipamiento
+ *    validada en un momento sigue siendo la misma mas tarde, sin copiar el
+ *    inventario. `0` cuando el heroe nunca tuvo loadout persistido (equivalente
+ *    a `HeroLoadout.createEmpty`).
  */
 export interface EquippedHeroDto {
   readonly playerId: string
@@ -84,5 +103,7 @@ export interface EquippedHeroDto {
   readonly effectiveStats: HeroStatsDto
   readonly activeEffects: readonly EquippedHeroEffectDto[]
   readonly ready: boolean
+  readonly blockers: readonly HeroReadinessBlocker[]
+  readonly loadoutVersion: number
   readonly selectedAt: string
 }

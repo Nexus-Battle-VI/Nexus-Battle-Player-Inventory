@@ -69,6 +69,8 @@ GET /api/internal/v1/players/{playerId}/equipped-hero
     }
   ],
   "ready": true,
+  "blockers": [],
+  "loadoutVersion": 0,
   "selectedAt": "2026-09-19T12:00:00.000Z"
 }
 ```
@@ -76,6 +78,27 @@ GET /api/internal/v1/players/{playerId}/equipped-hero
 `playerId` lo rellena Combat con el sujeto de **su propio** testimonio ya verificado; no
 se acepta `heroId` en ninguna parte: el héroe se resuelve por el jugador. No existe
 «nivel de héroe» en este dominio y el contrato no lo inventa.
+
+### `blockers` y `loadoutVersion` (HU-16.1/HU-16.2, Management#401/#402)
+
+Ampliación **aditiva** para que Combat pueda resolver elegibilidad precombate (HU-16) sin
+recalcular reglas que ya son autoridad de este servicio:
+
+- **`blockers`**: la MISMA lista que produce `HeroReadinessPolicy.assessHeroReadiness` y que
+  ya viajaba en el contrato público de HU-07 (`HeroSelectionDto.readiness.blockers`). Antes
+  de esta ampliación, `ready=false` no explicaba el motivo; ahora Combat recibe los mismos
+  códigos que el jugador ya ve en `/inventories/me/heroes/selection`
+  (`HERO_NOT_ACTIVE`, `EQUIPPED_PRODUCT_NOT_OWNED`, `EQUIPPED_PRODUCT_NOT_ACTIVE`). **No es
+  una segunda taxonomía**: Combat debe reenviar estos códigos tal cual en su propia
+  respuesta de elegibilidad, no reinterpretarlos ni inventar equivalentes.
+- **`loadoutVersion`**: la versión real de bloqueo optimista de `HeroLoadout` (la misma que
+  usa la escritura de HU-28 para detectar conflictos concurrentes). `0` cuando el héroe
+  nunca tuvo loadout persistido. Permite a Combat capturar, en el momento de validar
+  elegibilidad, una referencia verificable de la configuración aprobada y detectar más
+  tarde si cambió (TOCTOU, DP-6 de la auditoría HU-16.1) **sin copiar el inventario**.
+
+Un consumidor que ignore estos dos campos no se rompe (compatibilidad hacia atrás
+preservada, ver [Compatibilidad y orden de despliegue](#compatibilidad-y-orden-de-despliegue)).
 
 | Respuesta | Cuándo                                                                                       |
 | --------- | -------------------------------------------------------------------------------------------- |
