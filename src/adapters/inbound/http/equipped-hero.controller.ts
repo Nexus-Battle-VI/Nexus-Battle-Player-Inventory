@@ -52,6 +52,11 @@ import { InternalOnly } from './auth/decorators'
  * heroe y calcular con sus estadisticas, no el inventario completo del
  * jugador.
  *
+ * `activeEffects` (HU-25) SI viaja, normalizado y sin el objeto crudo de
+ * Catalog (`raw`): son los efectos que HU-28 ya calculo para este equipamiento.
+ * Este endpoint los proyecta; no los recalcula ni define su semantica de
+ * combate. Ver `docs/equipped-hero-contract.md`.
+ *
  * NO EXISTE "nivel de heroe" EN ESTE DOMINIO (auditoria HU-15.2, hallazgo
  * DP-3, reconfirmado por grep exhaustivo al construir este contrato: no hay
  * `level`, `heroLevel`, `powerLevel` ni `experienceLevel` en ningun lugar del
