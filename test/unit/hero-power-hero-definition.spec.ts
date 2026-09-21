@@ -133,6 +133,7 @@ const escenario = (
     forCombat: new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
       loadouts,
+      catalog,
     ),
   }
 }

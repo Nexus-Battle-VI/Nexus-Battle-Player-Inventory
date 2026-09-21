@@ -1,13 +1,15 @@
-# Contrato interno: héroe equipado para Combat (HU-15, HU-25)
+# Contrato interno: héroe equipado para Combat (HU-15, HU-25, HU-19)
 
 Contrato interno de solo lectura con el que Combat obtiene el héroe preparado de un
-jugador: quién es, sus estadísticas y los efectos de su equipamiento.
+jugador: quién es, sus estadísticas, los efectos de su equipamiento y sus habilidades
+especiales.
 
 | Elemento                     | Referencia                                                                                                                                                                                                                                                |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Héroe preparado (HU-15)      | [Management#24](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/24) · [TASK #392](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/392)                                                                                |
 | Efectos del equipamiento     | HU-28 [Management#75](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/75) · [TASK #152](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/152): tras equipar «deben recalcularse las estadísticas y efectos aplicables» |
 | Consumidor: tabla de efectos | HU-25 [Management#72](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/72): la tabla corresponde «al tipo de héroe y a sus modificadores vigentes»                                                                                       |
+| Habilidades especiales       | HU-19 [Management#63](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/63) · [TASK #413](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/413): Combat las congela al iniciar la batalla y las ejecuta                  |
 | Consumidor posterior         | HU-20 [Management#64](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/64)                                                                                                                                                               |
 
 **Este contrato transporta datos. No define semántica de combate.** Lo que Combat hace
@@ -66,6 +68,25 @@ GET /api/internal/v1/players/{playerId}/equipped-hero
       "magnitude": { "mode": "PERCENTAGE", "basisPoints": 300 },
       "hasActivationCondition": false,
       "appliedToStats": false
+    }
+  ],
+  "abilities": [
+    {
+      "abilityId": "2e97537a-675c-461a-b902-4fcf369083a8",
+      "reference": "golpe-con-escudo",
+      "name": "Golpe con escudo",
+      "powerCost": { "mode": "FIXED", "amount": 2 },
+      "chargeTurns": 1,
+      "effects": [
+        {
+          "kind": "STAT_MODIFIER",
+          "target": "SELF",
+          "statistic": "ATTACK",
+          "operation": "INCREASE",
+          "magnitude": { "mode": "FIXED", "amount": 2 },
+          "hasActivationCondition": false
+        }
+      ]
     }
   ],
   "ready": true,
@@ -204,6 +225,46 @@ El contrato **público** de HU-07/HU-28 (`GET /inventories/me/heroes/selection`,
 `.../equipment`) **no cambia**: sigue exponiendo `raw` y `sourceSlot` al propio jugador.
 Una prueba de integración lo fija.
 
+## `abilities` (HU-19)
+
+Las tres acciones especiales del héroe (Tabla 7 del documento oficial), resueltas desde
+Catalog para que Combat las congele al iniciar la batalla y las ejecute
+(`hu-19-skills-v1` en Infrastructure, §10). **Este contrato transporta datos; no ejecuta
+nada ni decide qué efecto es soportado.**
+
+### De dónde salen
+
+Las habilidades **no son equipamiento** (no están en `effectiveStats` ni en `activeEffects`)
+y `GetHeroSelection` (HU-07) solo conserva sus referencias. Por eso `GetEquippedHeroForCombat`
+las resuelve a través del puerto de lectura de Catalog con **dos llamadas más** que
+HU-07: `getByReference` del producto del héroe (sus referencias `abilities`) y **una sola**
+`lookup` por todas las habilidades (`type: HABILIDAD`), nunca una por habilidad. El
+equipamiento **no** se vuelve a leer.
+
+### Campos
+
+| Campo         | Significado                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `abilityId`   | `productId` de Catalog. Es el identificador que el cliente envía en `useSkill`.                                                           |
+| `reference`   | Alias (`sku`) de Catalog.                                                                                                                 |
+| `name`        | Texto para mostrar.                                                                                                                       |
+| `powerCost`   | `{ mode: 'FIXED', amount }` (entero ≥ 1) o `{ mode: 'ALL_AVAILABLE' }` («todos los puntos de poder»). Tal como lo publica Catalog.        |
+| `chargeTurns` | Turnos de carga (Catalog v1: 1). Entero ≥ 1.                                                                                              |
+| `effects[]`   | `kind`, `target`, `statistic`, `operation`, `magnitude`, `durationTurns` y `hasActivationCondition`. Sin procedencia ni `appliedToStats`. |
+
+Orden: el de las referencias `abilities` del héroe en Catalog (no el alfabético de la
+`lookup`). Lista blanca campo a campo: **no viajan `raw`, la condición de activación, el
+código de una inmunidad ni el de un estado**; solo `hasActivationCondition`.
+
+### Qué se omite y qué se propaga
+
+- Una referencia que Catalog no resuelve, un producto que no es `HABILIDAD` o una habilidad
+  cuyos atributos no cumplen el contrato canónico (costo sin monto entero ≥ 1, recarga que no
+  es un entero ≥ 1) **se omite**: el héroe simplemente no la tiene; no se inventa un costo ni
+  una recarga y no se tumba la respuesta.
+- Si Catalog **no responde**, se propaga (`503`), igual que el resto del contrato: sin sus
+  datos no se inventan habilidades.
+
 ## Lo que este contrato no define
 
 Estos puntos **no están definidos** por ningún requisito aprobado y este contrato no los
@@ -217,6 +278,9 @@ resuelve. Que un efecto viaje aquí no significa que Combat sepa aplicarlo.
 2. **Apilamiento** de varios efectos de la misma estadística (varias piezas).
 3. **Evaluación** de condiciones de activación y de efectos temporales.
 4. **Efectos que no son `STAT_MODIFIER`** (`DAMAGE`, `HEALING`, `REFLECT_DAMAGE`, ...).
+5. **Semántica de las habilidades** (`abilities`): qué efecto de una habilidad se ejecuta y
+   cuál se rechaza lo decide Combat (`hu-19-skills-v1`, §10.2). La **épica** no viaja aquí: no
+   existe fuente ni estado de «épica activa» (HU-31, auditoría en Management#78).
 
 El punto 1 está registrado también en Combat (`docs/hu-25-effect-control-table.md`). Lo
 decide el PO; no está aceptado.
@@ -241,6 +305,10 @@ reinterpretar un `STAT_MODIFIER` que llegue sin `statistic`.
   1. Player-Inventory con activeEffects   ─►  verificar el endpoint interno
   2. Combat que exige activeEffects
   ```
+
+- **HU-19: `abilities` sigue el mismo orden.** Combat exige `abilities` (no lo sustituye por
+  `[]`: un héroe sin sus habilidades por un despliegue mal ordenado parecería no tenerlas).
+  Desplegar Combat antes de esta versión haría fallar el ingreso a salas (`503`).
 
 ## Pruebas
 

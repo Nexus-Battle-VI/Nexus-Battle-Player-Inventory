@@ -97,6 +97,29 @@ export interface HeroAttributeView {
   readonly abilities: readonly string[]
 }
 
+/**
+ * Costo de Poder de una habilidad tal como lo publica Catalog v1
+ * (`powerCostMode` + `powerCost`): un monto fijo o «todos los puntos» (Tabla 7,
+ * Reanimacion). Es el mismo vocabulario de `HeroPowerCost` (HU-11).
+ */
+export type AbilityPowerCost =
+  { readonly mode: 'FIXED'; readonly amount: number } | { readonly mode: 'ALL_AVAILABLE' }
+
+/**
+ * Vista minima de `attributes` de un producto `HABILIDAD` (HU-19): las tres
+ * acciones especiales de un heroe (Tabla 7 del documento oficial). Player-Inventory
+ * NO las ejecuta ni interpreta sus efectos: las normaliza para que Combat, que es
+ * quien las ejecuta, las reciba con su costo, su recarga y sus efectos.
+ */
+export interface AbilityAttributeView {
+  readonly kind: 'HABILIDAD'
+  readonly compatibleHeroSubtypes: readonly string[]
+  readonly powerCost: AbilityPowerCost
+  /** Turnos de carga (Catalog v1 lo fija en 1). Entero >= 1. */
+  readonly chargeTurns: number
+  readonly effects: readonly ParsedEffect[]
+}
+
 export interface EquippableAttributeView {
   readonly kind: 'ARMA' | 'ARMADURA' | 'ITEM'
   /** Codigo `ArmorSlot` de Catalog (`HEAD`, `CHEST`, ...). Solo en `ARMADURA`. */
@@ -220,6 +243,59 @@ export const parseHeroAttributes = (attributes: unknown): HeroAttributeView => {
       healing: parseMagnitude(values.baseHealing) ?? null,
     },
   }
+}
+
+/**
+ * Interpreta `attributes` de un producto `HABILIDAD` (HU-19). Lanza `DomainError`
+ * si el sobre no cumple el contrato canonico de Catalog v1: un costo sin modo o
+ * con un monto que no es un entero >= 1, o una recarga que no es un entero >= 1.
+ * NO se corrige nada en silencio: quien la consume (`GetEquippedHeroForCombat`)
+ * omite la habilidad mal formada en lugar de inventarle un costo o una recarga.
+ */
+export const parseAbilityAttributes = (attributes: unknown): AbilityAttributeView => {
+  const envelope = asRecord(attributes)
+  const values = asRecord(envelope?.values)
+
+  if (values?.kind !== 'HABILIDAD') {
+    throw new DomainError('El producto de referencia no es una habilidad canonica valida.')
+  }
+
+  const chargeTurns = asFiniteNumber(values.chargeTurns)
+
+  if (chargeTurns === null || !Number.isInteger(chargeTurns) || chargeTurns < 1) {
+    throw new DomainError('La habilidad no declara una recarga entera de al menos 1 turno.')
+  }
+
+  const compatibleRaw = values.compatibleHeroSubtypes
+
+  return {
+    kind: 'HABILIDAD',
+    compatibleHeroSubtypes: Array.isArray(compatibleRaw)
+      ? compatibleRaw.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    powerCost: parseAbilityPowerCost(values),
+    chargeTurns,
+    effects: parseEffects(values.effects),
+  }
+}
+
+const parseAbilityPowerCost = (values: Record<string, unknown>): AbilityPowerCost => {
+  if (values.powerCostMode === 'ALL_AVAILABLE') {
+    return { mode: 'ALL_AVAILABLE' }
+  }
+
+  const amount = asFiniteNumber(values.powerCost)
+
+  if (
+    values.powerCostMode !== 'FIXED' ||
+    amount === null ||
+    !Number.isInteger(amount) ||
+    amount < 1
+  ) {
+    throw new DomainError('La habilidad no declara un costo de Poder valido.')
+  }
+
+  return { mode: 'FIXED', amount }
 }
 
 /**

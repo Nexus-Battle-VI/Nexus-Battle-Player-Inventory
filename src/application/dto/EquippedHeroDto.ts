@@ -1,4 +1,4 @@
-import type { Magnitude } from '../../domain/value-objects/equipment-effects'
+import type { AbilityPowerCost, Magnitude } from '../../domain/value-objects/equipment-effects'
 import type { HeroReadinessBlocker } from '../../domain/policies/HeroReadinessPolicy'
 import type { HeroStatsDto } from './HeroEquipmentDto'
 
@@ -93,6 +93,45 @@ export interface EquippedHeroEffectDto {
  *    inventario. `0` cuando el heroe nunca tuvo loadout persistido (equivalente
  *    a `HeroLoadout.createEmpty`).
  */
+/**
+ * Efecto de una HABILIDAD del heroe (HU-19), normalizado para Combat.
+ *
+ * Mismos campos que `EquippedHeroEffectDto` MENOS los de procedencia y
+ * `appliedToStats`, que no aplican: una habilidad no forma parte de las
+ * estadisticas efectivas, se ejecuta como accion. Lista blanca campo a campo,
+ * sin `raw`, y la condicion de activacion (y el codigo de una inmunidad o de un
+ * estado) NO cruza la frontera: solo su indicador. Este DTO no define
+ * semantica de combate: que efecto sabe ejecutar Combat lo decide Combat.
+ */
+export interface EquippedHeroAbilityEffectDto {
+  readonly kind: string
+  readonly target: string
+  readonly statistic?: string
+  readonly operation?: string
+  readonly magnitude?: Magnitude
+  readonly durationTurns?: number
+  readonly hasActivationCondition: boolean
+}
+
+/**
+ * Habilidad especial de un heroe (HU-19, Management#63; Tabla 7 del documento
+ * oficial): identidad, costo de Poder, turnos de carga y efectos, tal como los
+ * publica Catalog v1. Player-Inventory las RESUELVE (una llamada a Catalog por
+ * peticion) y las entrega a Combat, que las congela al iniciar la batalla y las
+ * ejecuta. No ejecuta nada ni decide que efecto es soportado.
+ *
+ * `abilityId` es el `productId` de Catalog: es el identificador que el cliente
+ * envia en `useSkill`. `name` es texto para mostrar.
+ */
+export interface EquippedHeroAbilityDto {
+  readonly abilityId: string
+  readonly reference: string
+  readonly name: string
+  readonly powerCost: AbilityPowerCost
+  readonly chargeTurns: number
+  readonly effects: readonly EquippedHeroAbilityEffectDto[]
+}
+
 export interface EquippedHeroDto {
   readonly playerId: string
   readonly heroId: string
@@ -102,6 +141,13 @@ export interface EquippedHeroDto {
   readonly baseStats: HeroStatsDto
   readonly effectiveStats: HeroStatsDto
   readonly activeEffects: readonly EquippedHeroEffectDto[]
+  /**
+   * Habilidades especiales del heroe (HU-19), en el orden en que Catalog las
+   * declara. Una que Catalog no resuelva o cuyos atributos no cumplan el
+   * contrato canonico se OMITE (no se inventa). Ampliacion aditiva: Combat la
+   * exige, asi que este servicio se despliega primero.
+   */
+  readonly abilities: readonly EquippedHeroAbilityDto[]
   readonly ready: boolean
   readonly blockers: readonly HeroReadinessBlocker[]
   readonly loadoutVersion: number

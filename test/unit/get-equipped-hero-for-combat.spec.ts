@@ -124,7 +124,7 @@ const escenario = (
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
     equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
-    forCombat: new GetEquippedHeroForCombat(current, loadouts),
+    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
   }
 }
 
@@ -208,6 +208,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
       loadouts,
+      catalog,
     )
 
     await select.execute('jugador-1', 'guerrero-tanque')
@@ -233,6 +234,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalogAbajo, loadouts, selections),
       loadouts,
+      catalogAbajo,
     )
 
     await expect(forCombat.execute('jugador-1')).rejects.toBeInstanceOf(CatalogUnavailableError)
@@ -280,6 +282,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
         'baseStats',
         'effectiveStats',
         'activeEffects',
+        'abilities',
         'ready',
         'blockers',
         'loadoutVersion',
@@ -314,6 +317,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
       loadouts,
+      catalog,
     )
 
     await select.execute('jugador-1', 'guerrero-tanque')
@@ -423,7 +427,7 @@ const preparado = (
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
     equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
-    forCombat: new GetEquippedHeroForCombat(current, loadouts),
+    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
     current,
     catalog,
   }
@@ -853,7 +857,7 @@ describe('HU-25 — activeEffects del heroe equipado (contrato interno, Manageme
     expect(interno).toEqual(esperado)
   })
 
-  it('no hay un segundo calculo ni una segunda consulta a Catalog: mismas llamadas que HU-07', async () => {
+  it('el equipamiento no se vuelve a leer: las mismas llamadas que HU-07 mas DOS por las habilidades (HU-19)', async () => {
     const e = preparado(
       [
         HEROE,
@@ -875,7 +879,11 @@ describe('HU-25 — activeEffects del heroe equipado (contrato interno, Manageme
     const llamadasParaCombat = e.catalog.calls
 
     expect(llamadasDeHu07).toBeGreaterThan(0)
-    expect(llamadasParaCombat).toBe(llamadasDeHu07)
+    // HU-19: las habilidades no son equipamiento y GetHeroSelection solo conserva sus
+    // referencias. Se resuelven con EXACTAMENTE dos llamadas mas: getByReference del producto
+    // del heroe (sus referencias) y UNA sola lookup por todas sus habilidades (nunca una por
+    // habilidad). El equipamiento NO se vuelve a leer: sigue viniendo de la seleccion.
+    expect(llamadasParaCombat).toBe(llamadasDeHu07 + 2)
   })
 
   it('aislamiento: los efectos de un jugador no aparecen en el heroe de otro', async () => {
