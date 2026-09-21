@@ -384,8 +384,10 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (
         getHeroSelection: GetHeroSelection,
         loadouts: HeroLoadoutRepositoryPort,
-      ): GetEquippedHeroForCombat => new GetEquippedHeroForCombat(getHeroSelection, loadouts),
-      inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY],
+        catalog: CatalogReadPort,
+      ): GetEquippedHeroForCombat =>
+        new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog),
+      inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY, CATALOG_READ],
     },
     {
       provide: SELECT_HERO,

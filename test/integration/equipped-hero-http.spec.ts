@@ -66,6 +66,49 @@ const hero = (sku: string, subtype: string, name: string): CatalogProductView =>
   },
 })
 
+/** Habilidad canonica de Catalog v1 (HU-19): costo, recarga y efectos. */
+const ability = (
+  sku: string,
+  name: string,
+  values: Readonly<Record<string, unknown>>,
+): CatalogProductView => ({
+  productId: `pid-${sku}`,
+  sku,
+  name,
+  imageUrl: '',
+  description: name,
+  type: 'HABILIDAD',
+  lifecycleStatus: 'ACTIVE',
+  creditsPrice: 0,
+  premium: false,
+  realMoneyPrice: null,
+  attributes: {
+    schemaVersion: '1',
+    values: {
+      kind: 'HABILIDAD',
+      compatibleHeroSubtypes: ['GUERRERO_TANQUE'],
+      chargeTurns: 1,
+      ...values,
+    },
+  },
+})
+
+/** El heroe de siempre, pero con habilidades que SI existen en el Catalog de la prueba. */
+const heroWithAbilities = (
+  sku: string,
+  subtype: string,
+  name: string,
+  abilities: readonly string[],
+): CatalogProductView => {
+  const base = hero(sku, subtype, name)
+  const attributes = base.attributes as { values: Record<string, unknown> }
+
+  return {
+    ...base,
+    attributes: { ...attributes, values: { ...attributes.values, abilities } },
+  }
+}
+
 const weapon = (sku: string, name: string, amount: number): CatalogProductView => ({
   productId: `pid-${sku}`,
   sku,
@@ -109,8 +152,46 @@ const weaponWithEffects = (
 })
 
 const CATALOG: CatalogProductView[] = [
-  hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque'),
+  heroWithAbilities('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque', [
+    'pid-golpe-con-escudo',
+    'pid-mano-de-piedra',
+    'pid-defensa-feroz',
+  ]),
   hero('chaman', 'CHAMAN', 'Chaman'),
+  ability('golpe-con-escudo', 'Golpe con escudo', {
+    powerCostMode: 'FIXED',
+    powerCost: 2,
+    effects: [
+      {
+        kind: 'STAT_MODIFIER',
+        target: 'SELF',
+        statistic: 'ATTACK',
+        operation: 'INCREASE',
+        magnitude: { mode: 'FIXED', amount: 2 },
+        stackable: false,
+      },
+    ],
+  }),
+  ability('mano-de-piedra', 'Mano de piedra', {
+    powerCostMode: 'FIXED',
+    powerCost: 4,
+    effects: [
+      {
+        kind: 'STAT_MODIFIER',
+        target: 'SELF',
+        statistic: 'DEFENSE',
+        operation: 'INCREASE',
+        magnitude: { mode: 'FIXED', amount: 12 },
+        durationTurns: 2,
+        activationCondition: { kind: 'PREVIOUS_TURN_DAMAGE_RECEIVED' },
+        stackable: false,
+      },
+    ],
+  }),
+  ability('defensa-feroz', 'Defensa feroz', {
+    powerCostMode: 'ALL_AVAILABLE',
+    effects: [{ kind: 'IMMUNITY', target: 'SELF', immunityCode: 'DANIO_FISICO', stackable: false }],
+  }),
   weapon('hacha-de-guerra', 'Hacha de guerra', 4),
   weaponWithEffects('espada-de-dos-manos', 'Espada de dos manos', [
     {
@@ -255,6 +336,7 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
         'baseStats',
         'effectiveStats',
         'activeEffects',
+        'abilities',
         'ready',
         'blockers',
         'loadoutVersion',
@@ -289,6 +371,76 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
 
     const despues = await signedGet(equippedHeroPath(jugador))
     expect(despues.body.loadoutVersion).toBe(1)
+  })
+
+  it('HU-19: las habilidades del heroe llegan normalizadas (costo, recarga, efectos), sin raw, condicion ni codigo de inmunidad', async () => {
+    const jugador = 'combat-con-habilidades'
+    await own(jugador, 'guerrero-tanque')
+    await select(jugador, 'guerrero-tanque')
+
+    const response = await signedGet(equippedHeroPath(jugador))
+
+    expect(response.status).toBe(200)
+    // Mismo orden que las referencias del heroe en Catalog, no el alfabetico de la lookup.
+    expect(response.body.abilities).toEqual([
+      {
+        abilityId: 'pid-golpe-con-escudo',
+        reference: 'golpe-con-escudo',
+        name: 'Golpe con escudo',
+        powerCost: { mode: 'FIXED', amount: 2 },
+        chargeTurns: 1,
+        effects: [
+          {
+            kind: 'STAT_MODIFIER',
+            target: 'SELF',
+            statistic: 'ATTACK',
+            operation: 'INCREASE',
+            magnitude: { mode: 'FIXED', amount: 2 },
+            hasActivationCondition: false,
+          },
+        ],
+      },
+      {
+        abilityId: 'pid-mano-de-piedra',
+        reference: 'mano-de-piedra',
+        name: 'Mano de piedra',
+        powerCost: { mode: 'FIXED', amount: 4 },
+        chargeTurns: 1,
+        effects: [
+          {
+            kind: 'STAT_MODIFIER',
+            target: 'SELF',
+            statistic: 'DEFENSE',
+            operation: 'INCREASE',
+            magnitude: { mode: 'FIXED', amount: 12 },
+            durationTurns: 2,
+            hasActivationCondition: true,
+          },
+        ],
+      },
+      {
+        abilityId: 'pid-defensa-feroz',
+        reference: 'defensa-feroz',
+        name: 'Defensa feroz',
+        powerCost: { mode: 'ALL_AVAILABLE' },
+        chargeTurns: 1,
+        effects: [{ kind: 'IMMUNITY', target: 'SELF', hasActivationCondition: false }],
+      },
+    ])
+    expect(JSON.stringify(response.body.abilities)).not.toMatch(
+      /raw|immunityCode|DANIO_FISICO|stackable|PREVIOUS_TURN/,
+    )
+  })
+
+  it('HU-19: un heroe cuyas habilidades Catalog no resuelve responde abilities [] (no se inventan)', async () => {
+    const jugador = 'combat-sin-habilidades'
+    await own(jugador, 'chaman')
+    await select(jugador, 'chaman')
+
+    const response = await signedGet(equippedHeroPath(jugador))
+
+    expect(response.status).toBe(200)
+    expect(response.body.abilities).toEqual([])
   })
 
   it('HU-25: el equipamiento real llega como activeEffects normalizados, sin raw ni ranura', async () => {
