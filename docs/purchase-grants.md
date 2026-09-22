@@ -4,6 +4,8 @@ Para probar sin Docker puede definirse `MONGO_TEST_URI` apuntando a un Mongo rep
 
 Commerce entrega un lote mediante `POST /api/internal/v1/inventory/grants`. El servicio no descuenta Catalog: la reserva y su confirmacion pertenecen al coordinador de Commerce.
 
+**HU-22 (Task #430) reutiliza este mismo contrato, sin cambiarlo**, para entregar la recompensa del cofre: Combat llama con `x-internal-service: combat`, un `operationId` determinista propio (`battle:{battleId}:player:{playerId}:chest:{secuencia}:grant`) y `items` con un unico `{productId, quantity: 1}` — el producto real que sorteo, tomado de la reward table versionada de [hu-22-reward-contract-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-22-reward-contract-v1.md). No existe una ruta de grants separada para el cofre.
+
 ```json
 {
   "operationId": "22222222-2222-4222-8222-222222222222",
@@ -16,7 +18,7 @@ El lote admite 1..200 productos distintos, UUID v1-5 y cantidades 1..9999. Las r
 
 ## Autenticacion
 
-Solo se admite `x-internal-service: commerce`, con `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada es:
+Se admite `x-internal-service: commerce` (HU-59) o `x-internal-service: combat` (HU-22, cofre) — el guard de autenticacion interna es global a toda ruta `@InternalOnly()` del servicio, no exclusivo de esta ruta — con `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada usa el nombre del servicio que llama, por ejemplo:
 
 ```text
 commerce
