@@ -259,6 +259,10 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           // dirigir notificaciones de suspension/reactivacion.
           // 'combat': HU-15, resuelve el heroe preparado/equipado del jugador
           // para que Combat pueda cargar la partida (Management#24, #392).
+          // Este guard es GLOBAL a toda ruta @InternalOnly(): 'combat' ya
+          // autoriza tambien POST /internal/v1/inventory/grants, que HU-22
+          // (Task #430, Management#430) reutiliza sin cambiar este arreglo
+          // para entregar la recompensa del cofre. Ver docs/purchase-grants.md.
           allowedServices: ['commerce', 'notifications', 'combat'],
           clock,
           logger,
