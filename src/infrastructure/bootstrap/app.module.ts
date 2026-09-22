@@ -4,6 +4,7 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 import { InventoriesController } from '../../adapters/inbound/http/inventories.controller'
 import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
+import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
 import {
   INVENTORY_GRANTS,
@@ -14,6 +15,7 @@ import {
   GrantPurchasedItems,
 } from '../../application/use-cases/GrantPurchasedItems'
 import { GET_PRODUCT_OWNERS, GetProductOwners } from '../../application/use-cases/GetProductOwners'
+import { GetEquippedHeroForCombat } from '../../application/use-cases/GetEquippedHeroForCombat'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
@@ -24,6 +26,7 @@ import {
   GET_HERO_EQUIPMENT,
   GET_HERO_SELECTION,
   GET_INVENTORY,
+  GET_EQUIPPED_HERO_FOR_COMBAT,
   GET_ITEM_DETAIL,
   LIST_AVAILABLE_HEROES,
   LIST_OWNED_ITEMS,
@@ -110,6 +113,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     HealthController,
     InventoryGrantsController,
     ProductOwnersController,
+    EquippedHeroController,
   ],
   providers: [
     {
@@ -253,7 +257,13 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           secret: config.internalServiceAuthSecret,
           // 'notifications': HU-38, resuelve propietarios de un producto para
           // dirigir notificaciones de suspension/reactivacion.
-          allowedServices: ['commerce', 'notifications'],
+          // 'combat': HU-15, resuelve el heroe preparado/equipado del jugador
+          // para que Combat pueda cargar la partida (Management#24, #392).
+          // Este guard es GLOBAL a toda ruta @InternalOnly(): 'combat' ya
+          // autoriza tambien POST /internal/v1/inventory/grants, que HU-22
+          // (Task #430, Management#430) reutiliza sin cambiar este arreglo
+          // para entregar la recompensa del cofre. Ver docs/purchase-grants.md.
+          allowedServices: ['commerce', 'notifications', 'combat'],
           clock,
           logger,
         }),
@@ -369,6 +379,19 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         selections: HeroSelectionRepositoryPort,
       ): GetHeroSelection => new GetHeroSelection(inventories, catalog, loadouts, selections),
       inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_SELECTION_REPOSITORY],
+    },
+    // HU-15: contrato interno de Combat. Reutiliza el MISMO GetHeroSelection
+    // de arriba -una unica instancia por peticion, una unica fuente de
+    // verdad-, sin abrir un segundo camino de lectura al agregado.
+    {
+      provide: GET_EQUIPPED_HERO_FOR_COMBAT,
+      useFactory: (
+        getHeroSelection: GetHeroSelection,
+        loadouts: HeroLoadoutRepositoryPort,
+        catalog: CatalogReadPort,
+      ): GetEquippedHeroForCombat =>
+        new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog),
+      inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY, CATALOG_READ],
     },
     {
       provide: SELECT_HERO,

@@ -8,7 +8,9 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **Arquitectura interna:** Clean + Hexagonal, con puertos y adaptadores
 - **Base de datos objetivo:** MongoDB (ver limitaciones más abajo)
 - **Documentación técnica del sistema:** [Nexus-Battle-Infrastructure](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure)
+- **HU-11:** [Gestión y demo ejecutable del recurso Poder](docs/hu-11-power.md).
 - **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
+- **HU-15 / HU-25:** [Contrato interno del héroe equipado para Combat](docs/equipped-hero-contract.md), con los efectos activos del equipamiento.
 
 ## La regla central: capacidad y apilado
 

@@ -62,6 +62,22 @@ describe('Contrato HTTP interno de entrega', () => {
     expect((await signed(body, 'web')).status).toBe(401)
     expect((await signed(body, 'commerce', '0')).status).toBe(401)
   })
+  it('acepta a combat como llamador autorizado (HU-22: entrega del cofre reutiliza este contrato)', async () => {
+    // 'combat' entro al allow-list para HU-15 (heroe equipado), pero el guard
+    // es GLOBAL a todas las rutas @InternalOnly(): por eso ya autoriza
+    // tambien esta ruta, sin cambiar el codigo para HU-22. Esta prueba deja
+    // esa dependencia expresa: si alguien retira 'combat' pensando que solo
+    // sirve para HU-15, esto rompe y avisa.
+    const response = await signed(
+      {
+        ...body,
+        operationId: '44444444-4444-4444-8444-444444444444',
+      },
+      'combat',
+    )
+    expect(response.status).toBe(200)
+    expect(response.body.applied).toBe(true)
+  })
   it('rechaza cambio de payload y no confunde conflicto con entrega rechazada', async () => {
     expect((await signed({ ...body, playerId: 'player-b' })).status).toBe(409)
     const tooMany = {
