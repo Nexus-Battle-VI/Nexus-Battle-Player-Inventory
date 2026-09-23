@@ -6,7 +6,7 @@
   "supersededFormula": {
     "expression": "100 x 1,2^(Nivel - 1)",
     "series": [100, 120, 144, 172.8, 207.36, 248.832, 298.5984],
-    "where": "CA-03 de la HU #17 (Management). Sustituida por la tabla aprobada; la divergencia esta medida en docs/hu-08-progresion.md.",
+    "where": "CA-03 de la HU #17 (Management). Sustituida por la tabla vigente; la divergencia esta medida en docs/hu-08-progresion.md.",
     "note": "No es una diferencia de redondeo: el cociente entre la tabla y esta serie no es constante."
   },
   "generatedAt": "2026-09-23",

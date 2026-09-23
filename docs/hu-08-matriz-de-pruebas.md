@@ -14,13 +14,15 @@ que cubre.
 junto con la implementación, y esta matriz es su índice verificable: **109 casos unitarios y 12
 contra MongoDB real**, todos dentro de las suites de HU-08.
 
-## 2. Qué se prueba: la tabla aprobada, no la fórmula de `CA-03`
+## 2. Qué se prueba: la tabla vigente, no la fórmula de `CA-03`
 
-El comportamiento verificado es el que aprobó el Product Owner en su aclaración funcional posterior
-al enunciado:
+El comportamiento verificado es el de la aclaración funcional posterior al enunciado:
 
 - **Tabla de umbrales acumulados:** `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, uno por
-  nivel de 1 a 8, enteros.
+  nivel de 1 a 8, enteros y sin decimales.
+- **Fronteras de nivel:** nivel 1 desde `0` (es el suelo), nivel 2 desde `200`, nivel 3 desde `400`,
+  nivel 4 desde `800`, nivel 5 desde `1.600`, nivel 6 desde `3.200`, nivel 7 desde `6.400` y nivel 8
+  desde `12.800`. **`749` sigue siendo nivel 3**, porque el nivel 4 exige `800`.
 - **Nivel desde el acumulado:** el mayor `L` cuyo umbral no supere la experiencia; el nivel 1 es el
   suelo.
 - **La experiencia solo crece:** subir de nivel no la descuenta.
@@ -77,19 +79,19 @@ Leyenda de tipo:
 
 ### Las reglas del PO sobre la experiencia acumulada
 
-| RF    | Regla del PO                                   | Escenario                       | Entrada                       | Resultado esperado                              | Tipo     | Script                                                     |
-| ----- | ---------------------------------------------- | ------------------------------- | ----------------------------- | ----------------------------------------------- | -------- | ---------------------------------------------------------- |
-| RF-08 | Nivel desde el acumulado                       | Los cuatro vectores aprobados   | `749`, `3500`, `890`, `13000` | `3`, `6`, `4`, `8`                              | U        | `experience-policy.spec.ts`                                |
-| RF-08 | El nivel 1 es el suelo                         | Por debajo del primer umbral    | `0`, `99`, `100`, `199`       | Siempre `1`                                     | U        | `experience-policy.spec.ts`                                |
-| RF-08 | Cada umbral se alcanza en su valor             | Fronteras exactas               | `200`, `400`, … `12800`       | El nivel de ese umbral, y uno menos justo antes | U        | `experience-policy.spec.ts`                                |
-| RF-08 | Es monótona                                    | Barrido de 0 a 14.000           | paso 25                       | El nivel nunca decrece                          | U        | `experience-policy.spec.ts`                                |
-| RF-08 | El tope no descarta experiencia                | Por encima de la tabla          | `13500`, `1.000.000`          | Nivel `8`, sin rechazo                          | U        | `experience-policy.spec.ts`                                |
-| RF-08 | La XP no se resta al subir                     | `749 + 100`                     | —                             | Acumulado `849`, nivel `4`                      | U, U-int | `hero-progression.spec.ts`, `get-hero-progression.spec.ts` |
-| RF-08 | Un otorgamiento cruza varios umbrales          | `190 + 700`                     | —                             | Acumulado `890`, nivel `4`                      | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | En el tope la XP sigue creciendo               | `13.000 + 500`                  | —                             | Acumulado `13.500`, nivel `8`                   | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | La recompensa es entera                        | `14,4` rechazado, `14` aceptado | —                             | `DomainError` / acumulado `14`                  | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | Acreditar no muta ni versiona                  | Tras `awardExperience`          | —                             | Instancia nueva, `version` intacta              | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | Los tres ejemplos del PO, contra la referencia | Acreditación                    | —                             | Acumulado y nivel del fixture                   | U        | `experience-threshold-reference.spec.ts`                   |
+| RF    | Regla del PO                                   | Escenario                            | Entrada                       | Resultado esperado                              | Tipo     | Script                                                     |
+| ----- | ---------------------------------------------- | ------------------------------------ | ----------------------------- | ----------------------------------------------- | -------- | ---------------------------------------------------------- |
+| RF-08 | Nivel desde el acumulado                       | Los cuatro vectores de la aclaración | `749`, `3500`, `890`, `13000` | `3`, `6`, `4`, `8`                              | U        | `experience-policy.spec.ts`                                |
+| RF-08 | El nivel 1 es el suelo                         | Por debajo del primer umbral         | `0`, `99`, `100`, `199`       | Siempre `1`                                     | U        | `experience-policy.spec.ts`                                |
+| RF-08 | Cada umbral se alcanza en su valor             | Fronteras exactas                    | `200`, `400`, … `12800`       | El nivel de ese umbral, y uno menos justo antes | U        | `experience-policy.spec.ts`                                |
+| RF-08 | Es monótona                                    | Barrido de 0 a 14.000                | paso 25                       | El nivel nunca decrece                          | U        | `experience-policy.spec.ts`                                |
+| RF-08 | El tope no descarta experiencia                | Por encima de la tabla               | `13500`, `1.000.000`          | Nivel `8`, sin rechazo                          | U        | `experience-policy.spec.ts`                                |
+| RF-08 | La XP no se resta al subir                     | `749 + 100`                          | —                             | Acumulado `849`, nivel `4`                      | U, U-int | `hero-progression.spec.ts`, `get-hero-progression.spec.ts` |
+| RF-08 | Un otorgamiento cruza varios umbrales          | `190 + 700`                          | —                             | Acumulado `890`, nivel `4`                      | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | En el tope la XP sigue creciendo               | `13.000 + 500`                       | —                             | Acumulado `13.500`, nivel `8`                   | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | La recompensa es entera                        | `14,4` rechazado, `14` aceptado      | —                             | `DomainError` / acumulado `14`                  | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | Acreditar no muta ni versiona                  | Tras `awardExperience`               | —                             | Instancia nueva, `version` intacta              | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | Los tres ejemplos del PO, contra la referencia | Acreditación                         | —                             | Acumulado y nivel del fixture                   | U        | `experience-threshold-reference.spec.ts`                   |
 
 ### CA-04 — la entrada es el nivel actual, y solo eso
 
@@ -172,7 +174,7 @@ No se obtuvieron ejecutando `ExperiencePolicy` ni ninguna otra parte del reposit
 
 > **Qué cambió respecto de la versión anterior de esta prueba.** Antes el fixture almacenaba la
 > serie de `100 × 1,2^(Nivel − 1)` derivada **fuera del repositorio** con aritmética decimal de 50
-> dígitos, precisamente para no compartir una sola línea con la política. Con la tabla aprobada, la
+> dígitos, precisamente para no compartir una sola línea con la política. Con la tabla vigente, la
 > referencia ya no es una derivación sino una **decisión del PO**: el valor de la prueba es que
 > viene de fuera del código, y ese origen es ahora más fuerte, no más débil. La serie antigua se
 > conserva en el campo `supersededFormula` como registro de lo sustituido.
@@ -240,7 +242,7 @@ no obligatorio.
 
 ## 8. `CA-03` es divergente, y no se prueba como cumplido
 
-`CA-03` sigue enunciando `100 × 1,2^(Nivel − 1)` y el código aplica la tabla aprobada. Las dos
+`CA-03` sigue enunciando `100 × 1,2^(Nivel − 1)` y el código aplica la tabla vigente. Las dos
 series no coinciden más allá del primer valor, y **no es una diferencia de redondeo**: el cociente
 entre ellas no es constante (1,667 en el nivel 2, 2,778 en el nivel 3), así que ninguna precisión
 convierte una en la otra. La divergencia está medida en `docs/hu-08-progresion.md`, sección 3.
@@ -248,7 +250,7 @@ convierte una en la otra. La divergencia está medida en `docs/hu-08-progresion.
 **Qué hace esta suite al respecto, y qué no.**
 
 - **Sí** conserva la serie sustituida en el fixture (`supersededFormula`, con su expresión, su serie
-  y el criterio del que sale) y comprueba que la tabla aprobada **no** la reproduce. Si alguien
+  y el criterio del que sale) y comprueba que la tabla vigente **no** la reproduce. Si alguien
   «reconciliara» las dos series para dar `CA-03` por cumplido sin que el PO lo corrija, esa
   comprobación falla.
 - **No** hay ningún caso que declare `CA-03` verificado, porque no lo está. Automatizarlo fijaría
@@ -283,16 +285,16 @@ Se registran aquí los hallazgos de la ejecución, según el punto 14 del Enfoqu
 El diseño inicial aplicaba `100 × 1,2^(Nivel − 1)` porque era lo que decía `CA-03`. La aclaración
 del PO fijó una tabla de umbrales **acumulados y enteros** que no reproduce esa serie.
 
-| Nivel | `100 × 1,2^(n−1)` | Tabla aprobada |
-| ----: | ----------------: | -------------: |
-|     1 |               100 |            100 |
-|     2 |               120 |            200 |
-|     3 |               144 |            400 |
-|     4 |             172,8 |            800 |
-|     5 |            207,36 |          1.600 |
-|     6 |           248,832 |          3.200 |
-|     7 |          298,5984 |          6.400 |
-|     8 |         358,31808 |         12.800 |
+| Nivel | `100 × 1,2^(n−1)` | Tabla vigente |
+| ----: | ----------------: | ------------: |
+|     1 |               100 |           100 |
+|     2 |               120 |           200 |
+|     3 |               144 |           400 |
+|     4 |             172,8 |           800 |
+|     5 |            207,36 |         1.600 |
+|     6 |           248,832 |         3.200 |
+|     7 |          298,5984 |         6.400 |
+|     8 |         358,31808 |        12.800 |
 
 **Estado: corregido.** La política aplica la tabla y la suite fija los ocho valores. **Lo que no
 está corregido, porque no es de este repositorio, es el enunciado de `CA-03`** (sección 8).

@@ -214,7 +214,7 @@ describe('HU-08 — regresion contra valores de referencia', () => {
       expect(reference.supersededFormula.where).toContain('CA-03')
     })
 
-    it('la serie sustituida NO es la tabla aprobada: la divergencia es real', () => {
+    it('la serie sustituida NO es la tabla vigente: la divergencia es real', () => {
       // Si alguien "reconciliara" las dos series para dar CA-03 por cumplido sin
       // que el PO lo corrija, esta comprobacion falla.
       const superseded = reference.supersededFormula.series
