@@ -11,6 +11,7 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **HU-11:** [Gestión y demo ejecutable del recurso Poder](docs/hu-11-power.md).
 - **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
 - **HU-15 / HU-25:** [Contrato interno del héroe equipado para Combat](docs/equipped-hero-contract.md), con los efectos activos del equipamiento.
+- **HU-29:** [Diseño del bloqueo de equipamiento durante el combate](docs/hu-29-bloqueo-equipamiento-combate.md): el loadout de entrada permanece fijo mientras la batalla está activa.
 
 ## La regla central: capacidad y apilado
 
