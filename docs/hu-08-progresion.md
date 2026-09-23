@@ -31,14 +31,17 @@ otras sin tener que reconstruir el historial.
 | No se calcula un siguiente nivel fuera del rango                                | `CA-05` de `#17` |
 | El nivel actúa como **factor multiplicador** sobre el resto de las estadísticas | `CA-06` de `#17` |
 
-### 0.2 Aclaración funcional del Product Owner (posterior al enunciado, y aprobada)
+### 0.2 Aclaración funcional del Product Owner (posterior al enunciado, y vigente)
 
 **No forma parte de la HU original ni de su documentación fuente: es una aclaración del PO
-posterior.** Es la que gobierna hoy el cálculo, y sustituye a la fórmula de `CA-03`.
+posterior.** El documento original solo fija que el héroe **empieza en el nivel 1**, que el
+**máximo es el 8** y que el nivel **multiplica sus estadísticas** (`CA-02` y `CA-06` de la HU);
+la serie de umbrales **no está en él y no se le atribuye**. Es la aclaración la que gobierna hoy
+el cálculo, y sustituye a la fórmula de `CA-03`.
 
 | Punto aclarado                                      | Contenido                                                                                                                          |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Tabla de umbrales aprobada**                      | `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, acumulados, uno por nivel de 1 a 8, **enteros**                          |
+| **Tabla de umbrales vigente**                       | `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, acumulados, uno por nivel de 1 a 8, **enteros**                          |
 | **Nivel a partir del acumulado**                    | `nivel(xp) = mayor L de 1..8 tal que xp ≥ UMBRAL[L]`; por debajo del primer umbral, nivel 1                                        |
 | **La XP es acumulada y no se resta**                | Al subir de nivel no se descuenta nada: `749 + 100 = 849`, nivel 4, y el héroe conserva los 849                                    |
 | **Un solo otorgamiento puede subir varios niveles** | El nivel se calcula directamente sobre el acumulado nuevo: `190 + 700 = 890` deja al héroe en el nivel **4**, no en el 2           |
@@ -62,14 +65,14 @@ posterior.** Es la que gobierna hoy el cálculo, y sustituye a la fórmula de `C
 
 ### 0.4 Decisiones técnicas de este diseño (y solo estas)
 
-| Decisión                                                                                 | Por qué                                                                                                            |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| La tabla vive **únicamente** en `ExperiencePolicy`, como literal de ocho enteros         | La Task `#188` exige un **único punto conceptual**; una tabla literal se contrasta línea a línea con lo aprobado   |
-| `amount` es la **XP acumulada necesaria para alcanzar** `forNextLevel`, no un incremento | Es lo que la tabla dice y lo que `levelFromTotalXp` compara; la otra lectura confundiría a HU-09                   |
-| Se **retira** el campo `decimal` y la aritmética racional con `BigInt`                   | Existían para representar sin error `100 × 1,2^(n−1)`. Con la tabla entera no hay fracción que representar         |
-| `restore` rechaza un documento cuyo nivel no corresponda a su acumulado                  | El nivel es la tabla aplicada al acumulado: si no cuadra, el dato está corrupto                                    |
-| `awardExperience` **no** incrementa `version`                                            | El bloqueo optimista lo gobierna el repositorio, que es quien conoce la versión almacenada                         |
-| Se implementa `awardExperience` aquí y no en HU-09                                       | Es aritmética del agregado y mantiene la invariante en un solo sitio; **quién** otorga XP sigue siendo HU-09/HU-10 |
+| Decisión                                                                                 | Por qué                                                                                                                      |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| La tabla vive **únicamente** en `ExperiencePolicy`, como literal de ocho enteros         | La Task `#188` exige un **único punto conceptual**; una tabla literal se contrasta línea a línea con la aclaración funcional |
+| `amount` es la **XP acumulada necesaria para alcanzar** `forNextLevel`, no un incremento | Es lo que la tabla dice y lo que `levelFromTotalXp` compara; la otra lectura confundiría a HU-09                             |
+| Se **retira** el campo `decimal` y la aritmética racional con `BigInt`                   | Existían para representar sin error `100 × 1,2^(n−1)`. Con la tabla entera no hay fracción que representar                   |
+| `restore` rechaza un documento cuyo nivel no corresponda a su acumulado                  | El nivel es la tabla aplicada al acumulado: si no cuadra, el dato está corrupto                                              |
+| `awardExperience` **no** incrementa `version`                                            | El bloqueo optimista lo gobierna el repositorio, que es quien conoce la versión almacenada                                   |
+| Se implementa `awardExperience` aquí y no en HU-09                                       | Es aritmética del agregado y mantiene la invariante en un solo sitio; **quién** otorga XP sigue siendo HU-09/HU-10           |
 
 ## 1. Qué está implementado y qué no
 
@@ -99,17 +102,17 @@ se resta, así que el nivel se conoce comparando el acumulado con la tabla.
 Es una función determinística del nivel: no depende del héroe concreto, de su equipamiento, de la
 batalla ni del azar.
 
-| Regla                                    | Comportamiento                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------- |
-| Tabla institucional (aprobada por el PO) | `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, acumulada por nivel     |
-| Rango de niveles                         | El héroe progresa de **nivel 1 a nivel 8**                                        |
-| Entrada del umbral                       | El **nivel actual** del héroe                                                     |
-| Entrada del nivel                        | La **experiencia acumulada** del héroe                                            |
-| Salida                                   | El **umbral** para alcanzar el siguiente nivel, cuando ese siguiente nivel exista |
-| Nivel máximo                             | **No** se calcula un umbral para un nivel fuera del rango                         |
-| Tipo de cálculo                          | Determinístico, sin azar, sin estado, sin efectos                                 |
-| Disponibilidad del resultado             | El valor queda disponible como umbral del siguiente nivel                         |
-| Multiplicador de estadísticas (`CA-06`)  | **Fuera de alcance.** Ver la sección 12                                           |
+| Regla                                                | Comportamiento                                                                    |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Tabla institucional (aclaración funcional posterior) | `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, acumulada por nivel     |
+| Rango de niveles                                     | El héroe progresa de **nivel 1 a nivel 8**                                        |
+| Entrada del umbral                                   | El **nivel actual** del héroe                                                     |
+| Entrada del nivel                                    | La **experiencia acumulada** del héroe                                            |
+| Salida                                               | El **umbral** para alcanzar el siguiente nivel, cuando ese siguiente nivel exista |
+| Nivel máximo                                         | **No** se calcula un umbral para un nivel fuera del rango                         |
+| Tipo de cálculo                                      | Determinístico, sin azar, sin estado, sin efectos                                 |
+| Disponibilidad del resultado                         | El valor queda disponible como umbral del siguiente nivel                         |
+| Multiplicador de estadísticas (`CA-06`)              | **Fuera de alcance.** Ver la sección 12                                           |
 
 ### La tabla, nivel a nivel
 
@@ -126,7 +129,22 @@ batalla ni del azar.
 | 7         |       6.400 | —                                                                  |
 | 8         |      12.800 | `13.000` y `13.500` acumulados → nivel 8, y no hay nivel 9         |
 
-**Los ocho valores son los aprobados.** La serie es exactamente `100 × 2^(L−1)`: conserva la
+Las **fronteras de nivel** que se desprenden de la tabla, dichas como se leen:
+
+```text
+nivel 1  desde 0          (el nivel 1 es el suelo: no hace falta experiencia para tenerlo)
+nivel 2  desde 200
+nivel 3  desde 400
+nivel 4  desde 800
+nivel 5  desde 1.600
+nivel 6  desde 3.200
+nivel 7  desde 6.400
+nivel 8  desde 12.800     y ya no hay nivel 9
+```
+
+Todas las fronteras son **enteras** y la serie **duplica**: `100 → 200 → 400 → 800 → 1.600 → 3.200 → 6.400 → 12.800`. **No hay ningún `128.000`**: el último umbral es `12.800`. La primera fila (`100`) coincide con el suelo del nivel 1 y por eso **no crea una frontera propia** — con `100` acumulados el héroe sigue en el nivel 1, porque el nivel 2 empieza en `200` (ver la observación de la sección 5).
+
+**Los ocho valores son los de la aclaración funcional posterior.** La serie es exactamente `100 × 2^(L−1)`: conserva la
 estructura `100 × base^(exponente)` del enunciado original, y lo que cambia es la **base** (2 en
 lugar de 1,2) y el **significado del subíndice** (acumulado para estar en el nivel, no incremento
 para pasar al siguiente). Ver la sección 3 para la divergencia, que **no** se tapa aquí.
@@ -138,7 +156,7 @@ nivel(xp) = el mayor L de 1..8 tal que xp ≥ UMBRAL[L]
             y si ningún umbral se alcanza, nivel 1
 ```
 
-Ejemplos aprobados, que son los que la suite fija:
+Ejemplos de la aclaración, que son los que la suite fija:
 
 | Acumulado     | Nivel | Por qué                                                   |
 | ------------- | ----: | --------------------------------------------------------- |
@@ -154,25 +172,25 @@ Ejemplos aprobados, que son los que la suite fija:
 ## 3. Divergencia con `CA-03`, que necesita corrección del PO
 
 `CA-03` de la HU `#17` dice literalmente que el umbral se calcula con
-`100 × 1,2^(Nivel − 1)`. Esa fórmula y la tabla aprobada **no producen la misma serie**:
+`100 × 1,2^(Nivel − 1)`. Esa fórmula y la tabla vigente **no producen la misma serie**:
 
-| Nivel | Fórmula `100 × 1,2^(n−1)` | Tabla aprobada | ¿Coinciden? |
-| ----: | ------------------------: | -------------: | ----------- |
-|     1 |                       100 |            100 | Sí          |
-|     2 |                       120 |            200 | **No**      |
-|     3 |                       144 |            400 | **No**      |
-|     4 |                     172,8 |            800 | **No**      |
-|     5 |                    207,36 |          1.600 | **No**      |
-|     6 |                   248,832 |          3.200 | **No**      |
-|     7 |                  298,5984 |          6.400 | **No**      |
-|     8 |                 358,31808 |         12.800 | **No**      |
+| Nivel | Fórmula `100 × 1,2^(n−1)` | Tabla vigente | ¿Coinciden? |
+| ----: | ------------------------: | ------------: | ----------- |
+|     1 |                       100 |           100 | Sí          |
+|     2 |                       120 |           200 | **No**      |
+|     3 |                       144 |           400 | **No**      |
+|     4 |                     172,8 |           800 | **No**      |
+|     5 |                    207,36 |         1.600 | **No**      |
+|     6 |                   248,832 |         3.200 | **No**      |
+|     7 |                  298,5984 |         6.400 | **No**      |
+|     8 |                 358,31808 |        12.800 | **No**      |
 
 **No es una diferencia de redondeo**: es otra sucesión. El cociente entre la tabla y la fórmula no
 es constante (1,667 en el nivel 2 y 2,778 en el nivel 3), así que ninguna regla de redondeo —ni
 siquiera ninguna elección de precisión— convierte una en la otra.
 
-**Qué se hizo, y por qué.** La tabla gobierna el cálculo, porque es una aclaración **posterior y
-aprobada** del PO, y la Task `#188` prohíbe expresamente tomar por cuenta propia decisiones
+**Qué se hizo, y por qué.** La tabla gobierna el cálculo, porque es la aclaración funcional
+**posterior** del PO, y la Task `#188` prohíbe expresamente tomar por cuenta propia decisiones
 funcionales que no estén aprobadas. La fórmula **no se conserva en el código**: se retiró junto
 con la aritmética racional y el campo `decimal`, porque mantener dos reglas vivas es exactamente
 lo que la Task prohíbe. Lo que sí se conserva es su **rastro documental**: esta sección, el
@@ -181,10 +199,10 @@ comentario de cabecera de `ExperiencePolicy` y la matriz de pruebas.
 **Lo que falta, y no lo puede cerrar este repositorio:** `CA-03` sigue enunciado con la fórmula
 antigua. Mientras no se corrija, la HU no puede declararse aceptada aunque el código esté en
 verde, porque `CA-08` establece que un criterio obligatorio fallido impide aceptarla. La petición
-concreta al PO es **reescribir `CA-03`** para que diga «el umbral se obtiene de la tabla aprobada
+concreta al PO es **reescribir `CA-03`** para que diga «el umbral se obtiene de la tabla vigente
 `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`». No se ha modificado el Issue.
 
-> **Nota de aritmética, por si ayuda a decidir.** La tabla aprobada también es una fórmula:
+> **Nota de aritmética, por si ayuda a decidir.** La tabla vigente también es una fórmula:
 > `100 × 2^(L−1)`. Si el PO prefiere que `CA-03` siga nombrándose como fórmula en lugar de como
 > tabla, la corrección mínima es cambiar la base y aclarar que el subíndice es el nivel
 > **alcanzado**, no el nivel de partida.
@@ -222,7 +240,7 @@ entre llamadas, ninguna conoce el reloj, la persistencia, el azar ni el framewor
 export const MIN_HERO_LEVEL = 1
 export const MAX_HERO_LEVEL = 8
 
-/** Tabla aprobada: `EXPERIENCE_THRESHOLDS[L - 1]` es la XP acumulada para estar en `L`. */
+/** Tabla vigente: `EXPERIENCE_THRESHOLDS[L - 1]` es la XP acumulada para estar en `L`. */
 export const EXPERIENCE_THRESHOLDS: readonly number[] // 100, 200, 400, 800, 1600, 3200, 6400, 12800
 
 /** Resultado discriminado: el nivel máximo es un resultado, no un error. */
@@ -289,7 +307,7 @@ formas del mismo número, porque `1,2` **no es representable en coma flotante bi
 100 * 1.2 ** 3  ===  172.79999999999998     // no 172.8
 ```
 
-Con la tabla aprobada **el problema desaparece en lugar de resolverse**: los ocho umbrales son
+Con la tabla vigente **el problema desaparece en lugar de resolverse**: los ocho umbrales son
 enteros, no hay ninguna operación en coma flotante que los produzca y no hay nada que redondear.
 El campo `decimal` y la aritmética con `BigInt` se retiraron con la fórmula que los necesitaba;
 conservarlos habría dejado en el código la maquinaria de una regla que ya no se aplica.
@@ -323,7 +341,7 @@ héroe ya no puede subir» de «me han pasado un nivel inválido», que son situ
 > **Observación registrada sobre la tabla.** La fila del nivel 1 (`UMBRAL[1] = 100`) es, en la
 > práctica, redundante: por debajo de 100 el nivel también es 1, porque el nivel 1 es el suelo y
 > no hace falta experiencia para tenerlo. No se ha «corregido» ni reinterpretado: los ocho valores
-> son los aprobados y el cálculo los usa tal cual. Se deja escrito porque es el único punto de la
+> son los de la aclaración y el cálculo los usa tal cual. Se deja escrito porque es el único punto de la
 > tabla que admite dos lecturas y conviene que la próxima revisión lo vea.
 
 ## 6. La experiencia que se otorga: quién la calcula y quién la acredita
@@ -331,16 +349,16 @@ héroe ya no puede subir» de «me han pasado un nivel inválido», que son situ
 Esta sección **no implementa nada**: fija la frontera, porque es la parte que la aclaración del PO
 situó fuera de HU-08 y conviene que quede escrita antes de que HU-09 la dé por supuesta.
 
-| Paso | Quién            | Qué hace                                                                  | ¿Está en HU-08?  |
-| ---- | ---------------- | ------------------------------------------------------------------------- | ---------------- |
-| 1    | Missions         | Enfrentamiento **JvE**: muerte de NPC. No es PvP ni «Jugar Online»        | No               |
-| 2    | Combat           | Simula el combate y determina que el NPC fue derrotado                    | No               |
-| 3    | Combat           | Obtiene la tirada **`1d8`** con `BATTLE_RANDOM.nextInt(8) + 1` (ADR-021)  | No               |
-| 4    | Combat           | **Persiste la tirada antes de cualquier efecto remoto**                   | No               |
-| 5    | Combat           | Publica la tirada como valor autoritativo                                 | No               |
-| 6    | Missions         | Coordina la recompensa y calcula `10 × 1,2^(1d8)`, redondeado a entero    | No               |
-| 7    | Player/Inventory | Acredita la XP al **`heroId`** y recalcula el nivel con la tabla aprobada | **Sí, la tabla** |
-| 8    | Missions         | Confirma al jugador                                                       | No               |
+| Paso | Quién            | Qué hace                                                                 | ¿Está en HU-08?  |
+| ---- | ---------------- | ------------------------------------------------------------------------ | ---------------- |
+| 1    | Missions         | Enfrentamiento **JvE**: muerte de NPC. No es PvP ni «Jugar Online»       | No               |
+| 2    | Combat           | Simula el combate y determina que el NPC fue derrotado                   | No               |
+| 3    | Combat           | Obtiene la tirada **`1d8`** con `BATTLE_RANDOM.nextInt(8) + 1` (ADR-021) | No               |
+| 4    | Combat           | **Persiste la tirada antes de cualquier efecto remoto**                  | No               |
+| 5    | Combat           | Publica la tirada como valor autoritativo                                | No               |
+| 6    | Missions         | Coordina la recompensa y calcula `10 × 1,2^(1d8)`, redondeado a entero   | No               |
+| 7    | Player/Inventory | Acredita la XP al **`heroId`** y recalcula el nivel con la tabla vigente | **Sí, la tabla** |
+| 8    | Missions         | Confirma al jugador                                                      | No               |
 
 **Combat NO calcula la recompensa de experiencia.** Es la consecuencia directa de `ADR-021`
 (Combat es la autoridad de aleatoriedad, no de progresión) y de `ADR-019` (Player/Inventory es
@@ -459,7 +477,7 @@ a decidir:
 | **No se guarda** | El **umbral**, ni como campo, ni como caché, ni como proyección                                               |
 | Herramienta      | Migración `008-hero-progressions`, numerada después de `007-auction-commitments` (HU-65), que ya ocupa el 007 |
 
-`currentXp` **no tiene techo en el esquema**, y es coherente con la regla aprobada: en el nivel 8 la
+`currentXp` **no tiene techo en el esquema**, y es coherente con la regla vigente: en el nivel 8 la
 experiencia sigue creciendo y no se descarta, así que un máximo fijo rechazaría recompensas
 legítimas. El único límite es el del tipo entero.
 
@@ -494,7 +512,7 @@ legítimas. El único límite es el del tipo entero.
 - **Postcondiciones:** se devuelve un resultado nuevo; **el nivel consultado no se modifica** (es
   un valor, no un estado mutable); no se persiste nada; no se otorga ni se consume experiencia; el
   resultado es el mismo ante entradas iguales.
-- **Reglas y aceptación:** `RF-08` y las restricciones de la HU `#17`; la tabla aprobada por el PO;
+- **Reglas y aceptación:** `RF-08` y las restricciones de la HU `#17`; la tabla vigente por el PO;
   `CA-01`, `CA-02`, `CA-04`, `CA-05` y `CA-07`. `CA-03` queda **divergente** (sección 3) y `CA-06`
   **fuera de alcance** (sección 12).
 - **Trazabilidad:** `RF-08` → HU-08 (`#17`) → Tasks `#188`, `#189`, `#190` → este documento y
@@ -510,7 +528,7 @@ flowchart TD
   C -->|No| Z
   C -->|Sí| D{Existe siguiente nivel, es decir nivel menor que 8?}
   D -->|No, el nivel es 8| E[Nivel máximo: no se calcula umbral ni un nivel 9]
-  D -->|Sí| F[Leer de la tabla aprobada el umbral del nivel siguiente]
+  D -->|Sí| F[Leer de la tabla vigente el umbral del nivel siguiente]
   F --> G[Obtener la XP acumulada necesaria y el nivel al que conduce]
   E --> H([Devolver el resultado MAX_LEVEL])
   G --> I([Devolver el resultado AVAILABLE])
@@ -658,7 +676,7 @@ Se evaluó guardar `experienceRequiredForNextLevel` dentro de `HeroProgression` 
 
 ### Alternativa considerada: no persistir el nivel y derivarlo siempre
 
-Con la tabla aprobada, el nivel es función del acumulado, así que **podría** no guardarse. Se
+Con la tabla vigente, el nivel es función del acumulado, así que **podría** no guardarse. Se
 mantiene el campo, y con él la invariante de `restore`, por tres razones: el nivel es el dato que
 el resto del sistema lee y recalcularlo en cada lectura repartiría la dependencia con la política
 por todo el servicio; el esquema de `008-hero-progressions` ya lo declara y no hay motivo para
@@ -829,20 +847,20 @@ resuelven el nivel, y comparan o acreditan con lo que devuelve esta operación.
 Cada restricción frente a lo que la cumple. Las pruebas son la Task `#190`; este documento fija la
 matriz que `#190` materializa.
 
-| Restricción de la HU `#17` / `RF-08` / PO                      | Cómo se cumple                                                             | Escenario de prueba           |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------- |
-| **[PO]** El umbral sale de la tabla aprobada                   | `EXPERIENCE_THRESHOLDS` en `ExperiencePolicy`, único punto conceptual      | niveles 1 a 8                 |
-| **[PO]** El nivel se obtiene del acumulado                     | `levelFromTotalXp` aplica la tabla de una vez                              | `749`, `849`, `890`, `13.000` |
-| **[PO]** Un otorgamiento puede subir varios niveles            | `awardExperience` recalcula el nivel sobre el acumulado nuevo              | `190 + 700 = 890` → nivel 4   |
-| **[PO]** La XP es acumulada y no se resta                      | `awardExperience` suma; no descuenta el umbral ni reinicia el acumulado    | `749 + 100 = 849`             |
-| **[PO]** Tope en 8: la XP sigue creciendo y no se descarta     | `levelFromTotalXp` acota el nivel, no el acumulado; no hay rechazo         | `13.000 + 500 = 13.500`       |
-| El cálculo usa como entrada el nivel actual                    | La firma recibe `currentLevel` y **nada más**                              | cualquier nivel válido        |
-| Los héroes progresan de nivel 1 a 8                            | `MIN_HERO_LEVEL` / `MAX_HERO_LEVEL`; `HeroLevel` valida la invariante      | 1, intermedio, 7, 8           |
-| El sistema no calcula un siguiente nivel fuera del rango       | `n = 8` → `MAX_LEVEL`; nunca se calcula el nivel 9                         | nivel 8                       |
-| El valor queda disponible como umbral del siguiente nivel      | `QueryExperienceThreshold` lo expone a los consumidores                    | lectura desde el caso de uso  |
-| **`CA-03`: el umbral se calcula con `100 × 1,2^(Nivel−1)`**    | **DIVERGENTE.** La tabla aprobada la sustituye. Requiere corrección del PO | **Ninguno: no se automatiza** |
-| **`CA-06`: el nivel multiplica las estadísticas**              | **FUERA DE ALCANCE** (sección 12)                                          | **Ninguno: no se automatiza** |
-| Un criterio obligatorio fallido impide aceptar la HU (`CA-08`) | Tabla de evidencia en Infrastructure, **sin declarar la HU aceptada**      | —                             |
+| Restricción de la HU `#17` / `RF-08` / PO                      | Cómo se cumple                                                            | Escenario de prueba           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------- |
+| **[PO]** El umbral sale de la tabla vigente                    | `EXPERIENCE_THRESHOLDS` en `ExperiencePolicy`, único punto conceptual     | niveles 1 a 8                 |
+| **[PO]** El nivel se obtiene del acumulado                     | `levelFromTotalXp` aplica la tabla de una vez                             | `749`, `849`, `890`, `13.000` |
+| **[PO]** Un otorgamiento puede subir varios niveles            | `awardExperience` recalcula el nivel sobre el acumulado nuevo             | `190 + 700 = 890` → nivel 4   |
+| **[PO]** La XP es acumulada y no se resta                      | `awardExperience` suma; no descuenta el umbral ni reinicia el acumulado   | `749 + 100 = 849`             |
+| **[PO]** Tope en 8: la XP sigue creciendo y no se descarta     | `levelFromTotalXp` acota el nivel, no el acumulado; no hay rechazo        | `13.000 + 500 = 13.500`       |
+| El cálculo usa como entrada el nivel actual                    | La firma recibe `currentLevel` y **nada más**                             | cualquier nivel válido        |
+| Los héroes progresan de nivel 1 a 8                            | `MIN_HERO_LEVEL` / `MAX_HERO_LEVEL`; `HeroLevel` valida la invariante     | 1, intermedio, 7, 8           |
+| El sistema no calcula un siguiente nivel fuera del rango       | `n = 8` → `MAX_LEVEL`; nunca se calcula el nivel 9                        | nivel 8                       |
+| El valor queda disponible como umbral del siguiente nivel      | `QueryExperienceThreshold` lo expone a los consumidores                   | lectura desde el caso de uso  |
+| **`CA-03`: el umbral se calcula con `100 × 1,2^(Nivel−1)`**    | **DIVERGENTE.** La tabla vigente la sustituye. Requiere corrección del PO | **Ninguno: no se automatiza** |
+| **`CA-06`: el nivel multiplica las estadísticas**              | **FUERA DE ALCANCE** (sección 12)                                         | **Ninguno: no se automatiza** |
+| Un criterio obligatorio fallido impide aceptar la HU (`CA-08`) | Tabla de evidencia en Infrastructure, **sin declarar la HU aceptada**     | —                             |
 
 - **`CA-01`:** el nivel de entrada produce el umbral del siguiente nivel — filas 1 y 9.
 - **`CA-02`:** el rango `1..8` está representado explícitamente — fila 7 y la tabla de niveles.
@@ -908,7 +926,7 @@ verificable es [hu-08-matriz-de-pruebas.md](hu-08-matriz-de-pruebas.md).
 Lo que este documento deja preparado:
 
 - la **matriz de 16 escenarios** de la sección anterior, con resultado esperado por escenario;
-- la **tabla de niveles 1..8** con los ocho valores aprobados que las pruebas deben fijar;
+- la **tabla de niveles 1..8** con los ocho valores de la aclaración que las pruebas deben fijar;
 - los **ocho vectores del PO** (`749→3`, `849→4`, `890→4`, `3.500→6`, `13.000→8`, `13.500→8`,
   `190+700`, `749+100`) como casos de regresión;
 - el **control de no-duplicación** de la tabla;
@@ -926,7 +944,7 @@ Ninguna de estas la ha decidido unilateralmente este documento. Las que afectan 
 una elección conservadora que se puede cambiar sin tocar el resto.
 
 1. **`CA-03` divergente (bloquea la aceptación).** El criterio sigue enunciando
-   `100 × 1,2^(Nivel−1)` y el código aplica la tabla aprobada. Requiere que el PO **reescriba
+   `100 × 1,2^(Nivel−1)` y el código aplica la tabla vigente. Requiere que el PO **reescriba
    `CA-03`**. La divergencia está medida en la sección 3 y no se ha modificado el Issue.
    **Implementado en la Task `#189` con la tabla**: `ExperiencePolicy` no contiene ya la fórmula ni
    la aritmética racional que la representaba.
