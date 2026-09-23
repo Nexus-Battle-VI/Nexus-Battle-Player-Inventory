@@ -335,7 +335,7 @@ describe('GET /api/internal/v1/players/:playerId/heroes/:heroId (HU-71)', () => 
     expect(response.status).toBe(401)
   })
 
-  it('CONTROL: la lista global NO se amplio; missions sigue sin poder llamar a grants', async () => {
+  it('CONTROL: la autorización de missions para grants es específica de la ruta', async () => {
     const grants = '/api/internal/v1/inventory/grants'
     const body = {
       operationId: '22222222-2222-4222-8222-222222222222',
@@ -354,8 +354,8 @@ describe('GET /api/internal/v1/players/:playerId/heroes/:heroId (HU-71)', () => 
         )
         .send(body)
 
-    expect((await post('missions')).status).toBe(401)
-    // `commerce` si puede: el 401 de arriba es por el llamante, no por la ruta.
+    expect((await post('missions')).status).toBe(200)
+    // Commerce conserva su permiso y el mismo operationId no duplica el grant.
     expect((await post('commerce')).status).toBe(200)
   })
 
