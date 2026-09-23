@@ -1,0 +1,204 @@
+import { randomUUID } from 'node:crypto'
+import type { ClientSession, Db } from 'mongodb'
+import { Int32, MongoServerError } from 'mongodb'
+import { Inventory } from '../../../domain/entities/Inventory'
+import { ItemId, PlayerId, Quantity } from '../../../domain/value-objects/identifiers'
+import type {
+  AuctionCommitmentPort,
+  AuctionCommitmentResult,
+  CreateAuctionCommitment,
+  PendingAuctionCommitment,
+  ReleaseAuctionCommitment,
+} from '../../../application/ports/AuctionCommitmentPort'
+import {
+  AuctionCommitmentConflictError,
+  AuctionCommitmentNotFoundError,
+  AuctionCommitmentRejectedError,
+  AuctionCommitmentStatus,
+} from '../../../application/ports/AuctionCommitmentPort'
+import { toDocument, toSnapshot, type InventoryDocument } from './mapping'
+
+interface Commitment {
+  commitmentId: string
+  auctionId: string
+  ownerId: string
+  productId: string
+  winnerId: string | null
+  status: AuctionCommitmentStatus
+  expiresAt: Date
+  createdAt: Date
+  updatedAt: Date
+}
+interface Operation {
+  operationId: string
+  fingerprint: string
+  result: AuctionCommitmentResult
+  createdAt: Date
+}
+const fingerprint = (value: unknown) => JSON.stringify(value)
+
+export class MongoAuctionCommitmentRepository implements AuctionCommitmentPort {
+  constructor(private readonly db: Db) {}
+  async commit(input: CreateAuctionCommitment): Promise<AuctionCommitmentResult> {
+    return this.transaction(input.operationId, input, async (session) => {
+      const inventoryDoc = await this.db
+        .collection<InventoryDocument>('inventories')
+        .findOne({ _id: input.ownerId }, { session })
+      const item = ItemId.create(input.productId)
+      if (!inventoryDoc)
+        throw new AuctionCommitmentRejectedError('El vendedor no posee el producto.')
+      const snapshot = toSnapshot(inventoryDoc)
+      const inventory = Inventory.restore({
+        ownerId: PlayerId.create(input.ownerId),
+        capacity: snapshot.capacity,
+        slots: snapshot.slots,
+      })
+      if (inventory.quantityOf(item) < 1)
+        throw new AuctionCommitmentRejectedError('El vendedor no posee el producto.')
+      inventory.remove(item, Quantity.create(1), new Date())
+      const next = {
+        ...toDocument(inventory.toSnapshot()),
+        revision: new Int32(Number(inventoryDoc.revision ?? 0) + 1),
+      }
+      const saved = await this.db
+        .collection<InventoryDocument>('inventories')
+        .replaceOne({ _id: input.ownerId, revision: inventoryDoc.revision }, next, { session })
+      if (saved.matchedCount !== 1)
+        throw new AuctionCommitmentConflictError('El inventario cambio durante la operacion.')
+      const now = new Date()
+      const commitment: Commitment = {
+        commitmentId: randomUUID(),
+        auctionId: input.auctionId,
+        ownerId: input.ownerId,
+        productId: input.productId,
+        winnerId: null,
+        status: AuctionCommitmentStatus.Active,
+        expiresAt: new Date(input.expiresAt),
+        createdAt: now,
+        updatedAt: now,
+      }
+      await this.db.collection<Commitment>('auction_commitments').insertOne(commitment, { session })
+      return {
+        operationId: input.operationId,
+        commitmentId: commitment.commitmentId,
+        status: commitment.status,
+        applied: true,
+      }
+    })
+  }
+  async release(input: ReleaseAuctionCommitment): Promise<AuctionCommitmentResult> {
+    return this.transition(input.operationId, input, async (c, session) => {
+      if (c.status !== AuctionCommitmentStatus.Active)
+        throw new AuctionCommitmentRejectedError(
+          'El commitment no puede liberarse en su estado actual.',
+        )
+      const doc = await this.db
+        .collection<InventoryDocument>('inventories')
+        .findOne({ _id: c.ownerId }, { session })
+      if (!doc) throw new AuctionCommitmentRejectedError('El inventario del vendedor no existe.')
+      const s = toSnapshot(doc)
+      const i = Inventory.restore({
+        ownerId: PlayerId.create(c.ownerId),
+        capacity: s.capacity,
+        slots: s.slots,
+      })
+      i.add(ItemId.create(c.productId), Quantity.create(1), new Date())
+      const saved = await this.db
+        .collection<InventoryDocument>('inventories')
+        .replaceOne(
+          { _id: c.ownerId, revision: doc.revision },
+          { ...toDocument(i.toSnapshot()), revision: new Int32(Number(doc.revision ?? 0) + 1) },
+          { session },
+        )
+      if (saved.matchedCount !== 1)
+        throw new AuctionCommitmentConflictError('El inventario cambio durante la operacion.')
+      await this.db
+        .collection<Commitment>('auction_commitments')
+        .updateOne(
+          { commitmentId: c.commitmentId },
+          { $set: { status: AuctionCommitmentStatus.Released, updatedAt: new Date() } },
+          { session },
+        )
+      return {
+        operationId: input.operationId,
+        commitmentId: c.commitmentId,
+        status: AuctionCommitmentStatus.Released,
+        applied: true,
+      }
+    })
+  }
+  async markPendingClaim(input: PendingAuctionCommitment): Promise<AuctionCommitmentResult> {
+    return this.transition(input.operationId, input, async (c, session) => {
+      if (c.status !== AuctionCommitmentStatus.Active)
+        throw new AuctionCommitmentRejectedError(
+          'El commitment no puede cambiar en su estado actual.',
+        )
+      await this.db.collection<Commitment>('auction_commitments').updateOne(
+        { commitmentId: c.commitmentId },
+        {
+          $set: {
+            status: AuctionCommitmentStatus.PendingClaim,
+            winnerId: input.winnerId,
+            updatedAt: new Date(),
+          },
+        },
+        { session },
+      )
+      return {
+        operationId: input.operationId,
+        commitmentId: c.commitmentId,
+        status: AuctionCommitmentStatus.PendingClaim,
+        winnerId: input.winnerId,
+        applied: true,
+      }
+    })
+  }
+  private async transition(
+    id: string,
+    input: ReleaseAuctionCommitment | PendingAuctionCommitment,
+    action: (c: Commitment, s: ClientSession) => Promise<AuctionCommitmentResult>,
+  ): Promise<AuctionCommitmentResult> {
+    return this.transaction(id, input, async (session) => {
+      const c = await this.db
+        .collection<Commitment>('auction_commitments')
+        .findOne({ commitmentId: input.commitmentId }, { session })
+      if (!c) throw new AuctionCommitmentNotFoundError()
+      const owner = 'ownerId' in input ? input.ownerId : input.sellerId
+      if (c.auctionId !== input.auctionId || c.ownerId !== owner || c.productId !== input.productId)
+        throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+      return action(c, session)
+    })
+  }
+  private async transaction(
+    id: string,
+    input: unknown,
+    action: (session: ClientSession) => Promise<AuctionCommitmentResult>,
+  ): Promise<AuctionCommitmentResult> {
+    const fp = fingerprint(input)
+    try {
+      return await this.db.client.withSession(async (session) =>
+        session.withTransaction(async () => {
+          const old = await this.db
+            .collection<Operation>('auction_commitment_operations')
+            .findOne({ operationId: id }, { session })
+          if (old) {
+            if (old.fingerprint !== fp) throw new AuctionCommitmentConflictError()
+            return { ...old.result, applied: false }
+          }
+          const result = await action(session)
+          await this.db
+            .collection<Operation>('auction_commitment_operations')
+            .insertOne(
+              { operationId: id, fingerprint: fp, result, createdAt: new Date() },
+              { session },
+            )
+          return result
+        }),
+      )
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11000)
+        throw new AuctionCommitmentConflictError()
+      throw error
+    }
+  }
+}
