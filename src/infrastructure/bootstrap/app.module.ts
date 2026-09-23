@@ -5,6 +5,15 @@ import { InventoriesController } from '../../adapters/inbound/http/inventories.c
 import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
+import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import {
+  AUCTION_COMMITMENTS,
+  type AuctionCommitmentPort,
+} from '../../application/ports/AuctionCommitmentPort'
+import {
+  AUCTION_COMMITMENT_USE_CASE,
+  AuctionCommitments,
+} from '../../application/use-cases/AuctionCommitments'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
 import {
   INVENTORY_GRANTS,
@@ -27,9 +36,11 @@ import {
   GET_HERO_SELECTION,
   GET_INVENTORY,
   GET_EQUIPPED_HERO_FOR_COMBAT,
+  GET_HERO_PROGRESSION,
   GET_ITEM_DETAIL,
   LIST_AVAILABLE_HEROES,
   LIST_OWNED_ITEMS,
+  QUERY_EXPERIENCE_THRESHOLD,
   REMOVE_ITEM,
   SELECT_HERO,
 } from '../../adapters/inbound/http/tokens'
@@ -47,25 +58,33 @@ import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
 import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
 import { SelectHero } from '../../application/use-cases/SelectHero'
+import { GetHeroProgression } from '../../application/use-cases/GetHeroProgression'
+import { QueryExperienceThreshold } from '../../application/use-cases/QueryExperienceThreshold'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
 import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
 import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
 import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
 import { HERO_SELECTION_REPOSITORY } from '../../application/ports/HeroSelectionRepositoryPort'
+import { HERO_PROGRESSION_REPOSITORY } from '../../application/ports/HeroProgressionRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
 import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
 import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
 import type { HeroSelectionRepositoryPort } from '../../application/ports/HeroSelectionRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../../application/ports/HeroProgressionRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
+import { InMemoryAuctionCommitmentRepository } from '../../adapters/outbound/persistence/InMemoryAuctionCommitmentRepository'
+import { MongoAuctionCommitmentRepository } from '../../adapters/outbound/persistence/MongoAuctionCommitmentRepository'
 import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
 import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
+import { InMemoryHeroProgressionRepository } from '../../adapters/outbound/persistence/InMemoryHeroProgressionRepository'
+import { MongoHeroProgressionRepository } from '../../adapters/outbound/persistence/MongoHeroProgressionRepository'
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
@@ -114,6 +133,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     InventoryGrantsController,
     ProductOwnersController,
     EquippedHeroController,
+    AuctionCommitmentsController,
   ],
   providers: [
     {
@@ -190,6 +210,14 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       provide: HERO_SELECTION_REPOSITORY,
       useFactory: (db: Db | null): HeroSelectionRepositoryPort =>
         db === null ? new InMemoryHeroSelectionRepository() : new MongoHeroSelectionRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_PROGRESSION_REPOSITORY,
+      useFactory: (db: Db | null): HeroProgressionRepositoryPort =>
+        db === null
+          ? new InMemoryHeroProgressionRepository()
+          : new MongoHeroProgressionRepository(db),
       inject: [MONGO_DATABASE],
     },
     {
@@ -270,6 +298,20 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       inject: [APP_CONFIG, Reflector, CLOCK, LOGGER],
     },
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
+    {
+      provide: AUCTION_COMMITMENTS,
+      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+        db === null
+          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          : new MongoAuctionCommitmentRepository(db),
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+    },
+    {
+      provide: AUCTION_COMMITMENT_USE_CASE,
+      useFactory: (commitments: AuctionCommitmentPort): AuctionCommitments =>
+        new AuctionCommitments(commitments),
+      inject: [AUCTION_COMMITMENTS],
+    },
     {
       provide: GRANT_PURCHASED_ITEMS,
       useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
@@ -392,6 +434,21 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       ): GetEquippedHeroForCombat =>
         new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog),
       inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY, CATALOG_READ],
+    },
+    // HU-08: la operacion reutilizable del umbral. NO tiene controlador a
+    // proposito --la Task #188 permite no exponerla por HTTP y no hay consumidor
+    // externo identificado todavia--, pero SI se registra: es el punto por el que
+    // HU-09 y HU-10 piden el umbral sin reimplementar la tabla vigente, y sin
+    // registro cualquier caso de uso futuro tendria que duplicarla.
+    {
+      provide: QUERY_EXPERIENCE_THRESHOLD,
+      useFactory: (): QueryExperienceThreshold => new QueryExperienceThreshold(),
+    },
+    {
+      provide: GET_HERO_PROGRESSION,
+      useFactory: (progressions: HeroProgressionRepositoryPort): GetHeroProgression =>
+        new GetHeroProgression(progressions),
+      inject: [HERO_PROGRESSION_REPOSITORY],
     },
     {
       provide: SELECT_HERO,

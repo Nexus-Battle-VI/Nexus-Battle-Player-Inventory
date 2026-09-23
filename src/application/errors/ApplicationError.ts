@@ -117,3 +117,19 @@ export class HeroSelectionConflictError extends Error {
     this.name = 'HeroSelectionConflictError'
   }
 }
+
+/**
+ * Otra escritura modifico la progresion del heroe entre la lectura y el guardado
+ * (bloqueo optimista). 409: la peticion es correcta y puede reintentarse.
+ *
+ * Existe aunque HU-08 no acredite experiencia por si misma: el bloqueo optimista
+ * es lo que impedira que dos recompensas simultaneas acrediten experiencia dos
+ * veces sobre el mismo estado, y HU-09 lo necesita ya definido. Sin el, la segunda
+ * escritura sumaria sobre un valor superado.
+ */
+export class HeroProgressionConflictError extends Error {
+  constructor(heroId: string) {
+    super(`La progresion del heroe ${heroId} cambio durante la operacion. Reintentelo.`)
+    this.name = 'HeroProgressionConflictError'
+  }
+}

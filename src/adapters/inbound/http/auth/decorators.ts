@@ -9,7 +9,10 @@ import type { Role, VerifiedIdentity } from '../../../../application/ports/Token
 
 export const IS_PUBLIC = 'auth:public'
 export const IS_INTERNAL = 'auth:internal'
+export const INTERNAL_CALLERS = 'auth:internal-callers'
 export const InternalOnly = (): MethodDecorator & ClassDecorator => SetMetadata(IS_INTERNAL, true)
+export const InternalCallers = (...callers: readonly string[]): MethodDecorator & ClassDecorator =>
+  SetMetadata(INTERNAL_CALLERS, callers)
 export const REQUIRED_ROLES = 'auth:roles'
 
 /**
