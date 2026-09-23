@@ -5,6 +5,15 @@ import { InventoriesController } from '../../adapters/inbound/http/inventories.c
 import { InventoryGrantsController } from '../../adapters/inbound/http/inventory-grants.controller'
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
+import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import {
+  AUCTION_COMMITMENTS,
+  type AuctionCommitmentPort,
+} from '../../application/ports/AuctionCommitmentPort'
+import {
+  AUCTION_COMMITMENT_USE_CASE,
+  AuctionCommitments,
+} from '../../application/use-cases/AuctionCommitments'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
 import {
   INVENTORY_GRANTS,
@@ -62,6 +71,8 @@ import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
+import { InMemoryAuctionCommitmentRepository } from '../../adapters/outbound/persistence/InMemoryAuctionCommitmentRepository'
+import { MongoAuctionCommitmentRepository } from '../../adapters/outbound/persistence/MongoAuctionCommitmentRepository'
 import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
 import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
@@ -114,6 +125,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     InventoryGrantsController,
     ProductOwnersController,
     EquippedHeroController,
+    AuctionCommitmentsController,
   ],
   providers: [
     {
@@ -270,6 +282,20 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       inject: [APP_CONFIG, Reflector, CLOCK, LOGGER],
     },
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
+    {
+      provide: AUCTION_COMMITMENTS,
+      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+        db === null
+          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          : new MongoAuctionCommitmentRepository(db),
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+    },
+    {
+      provide: AUCTION_COMMITMENT_USE_CASE,
+      useFactory: (commitments: AuctionCommitmentPort): AuctionCommitments =>
+        new AuctionCommitments(commitments),
+      inject: [AUCTION_COMMITMENTS],
+    },
     {
       provide: GRANT_PURCHASED_ITEMS,
       useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
