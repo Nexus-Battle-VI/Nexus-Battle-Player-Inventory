@@ -14,6 +14,11 @@ import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
 import { HeroLoadoutConflictError } from '../../src/application/errors/ApplicationError'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
 import { documentId } from '../../src/adapters/outbound/persistence/hero-loadout-mapping'
+import {
+  HeroCommittedError,
+  MissionCommitmentConcurrentError,
+  MissionCommitmentConflictError,
+} from '../../src/application/ports/MissionHeroCommitmentPort'
 
 /**
  * Adaptador del loadout de heroe contra un MongoDB REAL, en contenedor.
@@ -114,6 +119,55 @@ describe('MongoHeroLoadoutRepository', () => {
 
   it('devuelve null cuando el heroe no tiene loadout', async () => {
     expect(await repository.findByHero(owner(), 'sin-loadout')).toBeNull()
+  })
+
+  it('reserva y libera de forma idempotente, bloqueando la escritura del loadout mientras esta vigente', async () => {
+    const player = owner()
+    const input = {
+      operationId: crypto.randomUUID(),
+      playerId: player.value,
+      heroId: 'heroe-mision',
+      reference: 'enr-prueba',
+      expiresAt: new Date(Date.now() + 60_000),
+      completeLoadout: false,
+    }
+    const first = await repository.commit(input, 0)
+    expect(first.status).toBe('ACTIVE')
+    expect((await repository.commit(input, 0)).commitmentId).toBe(first.commitmentId)
+    await expect(repository.commit({ ...input, reference: 'otra' }, 0)).rejects.toBeInstanceOf(
+      MissionCommitmentConflictError,
+    )
+    await expect(
+      repository.commit({ ...input, operationId: crypto.randomUUID() }, 0),
+    ).rejects.toBeInstanceOf(HeroCommittedError)
+    await expect(
+      repository.save(HeroLoadout.createEmpty(player.value, input.heroId), 0),
+    ).rejects.toBeInstanceOf(HeroCommittedError)
+
+    await repository.release(input.operationId)
+    await repository.release(input.operationId)
+    expect(
+      (await repository.save(HeroLoadout.createEmpty(player.value, input.heroId), 0)).version,
+    ).toBe(1)
+    await expect(repository.commit(input, 1)).rejects.toBeInstanceOf(MissionCommitmentConflictError)
+  })
+
+  it('no reserva sobre una version antigua del loadout', async () => {
+    const player = owner()
+    await repository.save(HeroLoadout.createEmpty(player.value, 'heroe-cambiado'), 0)
+    await expect(
+      repository.commit(
+        {
+          operationId: crypto.randomUUID(),
+          playerId: player.value,
+          heroId: 'heroe-cambiado',
+          reference: 'enr-prueba',
+          expiresAt: new Date(Date.now() + 60_000),
+          completeLoadout: false,
+        },
+        0,
+      ),
+    ).rejects.toBeInstanceOf(MissionCommitmentConcurrentError)
   })
 
   it('actualiza en su sitio y sube la version, sin duplicar el documento', async () => {
