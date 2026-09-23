@@ -14,7 +14,7 @@ import { DomainError } from '../errors/DomainError'
  * ganando experiencia y su acumulado sigue creciendo (`13000 + 500 = 13500`,
  * nivel 8). Imponer aqui un maximo obligaria a descartar recompensas ya ganadas.
  * Lo unico que se exige es que sea un entero no negativo: no puede ser negativo
- * ni fraccionario, porque la tabla aprobada esta en enteros.
+ * ni fraccionario, porque la tabla vigente esta en enteros.
  *
  * QUIEN LO MUEVE. Este objeto de valor sabe SUMAR una recompensa, que es
  * aritmetica; quien decide cuando llega una recompensa y con que importe es

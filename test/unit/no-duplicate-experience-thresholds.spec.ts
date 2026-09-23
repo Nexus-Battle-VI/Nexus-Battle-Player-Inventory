@@ -33,7 +33,7 @@ const SRC = join(__dirname, '..', '..', 'src')
 /** La politica es el UNICO sitio donde la tabla puede estar escrita. */
 const OWNER = 'ExperiencePolicy.ts'
 
-/** Los ocho valores aprobados por el Product Owner, en orden de nivel. */
+/** Los ocho valores de la aclaracion funcional posterior, en orden de nivel. */
 const THRESHOLD_VALUES: readonly number[] = [100, 200, 400, 800, 1600, 3200, 6400, 12800]
 
 /**
@@ -78,7 +78,7 @@ const codeOf = (source: string): string =>
     })
     .join('\n')
 
-/** Cuantos de los ocho valores aprobados aparecen como literal en el codigo. */
+/** Cuantos de los ocho valores de la aclaracion aparecen como literal en el codigo. */
 const countThresholdLiterals = (code: string): number =>
   THRESHOLD_VALUES.filter((value) => new RegExp(`\\b${String(value)}\\b`).test(code)).length
 

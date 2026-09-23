@@ -22,6 +22,6 @@ export const GET_HERO_PROGRESSION = Symbol('GetHeroProgression')
  * Operacion reutilizable de consulta del umbral (HU-08). Es el punto por el que
  * HU-09 y HU-10 piden el umbral sin conocer la tabla, y no tiene controlador: se
  * registra para que otros casos de uso de este servicio puedan depender de ella
- * en lugar de reimplementar los ocho valores aprobados.
+ * en lugar de reimplementar los ocho valores de la aclaracion.
  */
 export const QUERY_EXPERIENCE_THRESHOLD = Symbol('QueryExperienceThreshold')

@@ -438,7 +438,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     // HU-08: la operacion reutilizable del umbral. NO tiene controlador a
     // proposito --la Task #188 permite no exponerla por HTTP y no hay consumidor
     // externo identificado todavia--, pero SI se registra: es el punto por el que
-    // HU-09 y HU-10 piden el umbral sin reimplementar la tabla aprobada, y sin
+    // HU-09 y HU-10 piden el umbral sin reimplementar la tabla vigente, y sin
     // registro cualquier caso de uso futuro tendria que duplicarla.
     {
       provide: QUERY_EXPERIENCE_THRESHOLD,

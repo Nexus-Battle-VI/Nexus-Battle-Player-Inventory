@@ -28,8 +28,8 @@ import {
  * `docs/hu-08-progresion.md`, seccion 3.
  */
 describe('ExperiencePolicy — HU-08 / RF-08', () => {
-  describe('la tabla aprobada', () => {
-    it('son los ocho valores aprobados, uno por nivel y de 1 a 8', () => {
+  describe('la tabla vigente', () => {
+    it('son los ocho valores de la aclaracion, uno por nivel y de 1 a 8', () => {
       expect(EXPERIENCE_THRESHOLDS).toEqual([100, 200, 400, 800, 1600, 3200, 6400, 12800])
       expect(EXPERIENCE_THRESHOLDS).toHaveLength(MAX_HERO_LEVEL - MIN_HERO_LEVEL + 1)
     })

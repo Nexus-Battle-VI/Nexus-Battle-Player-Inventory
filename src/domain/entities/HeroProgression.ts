@@ -39,7 +39,7 @@ export interface HeroProgressionSnapshot {
  *     producto.
  *
  * EL NIVEL ES LA TABLA APLICADA AL ACUMULADO, Y ESO ES UNA INVARIANTE DEL
- * AGREGADO, no una coincidencia. La tabla aprobada por el PO dice que el nivel
+ * AGREGADO, no una coincidencia. La tabla vigente dice que el nivel
  * depende solo de la experiencia acumulada, asi que un documento que declare un
  * nivel que no corresponde a su acumulado esta corrupto y se rechaza al
  * restaurarlo en lugar de aceptarse en silencio. La consecuencia hay que decirla:

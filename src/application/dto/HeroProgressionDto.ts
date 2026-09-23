@@ -33,7 +33,7 @@ export interface HeroProgressionDto {
   readonly currentXp: number
   /**
    * Umbral del siguiente nivel -- la experiencia acumulada necesaria para
-   * alcanzarlo -- o `MAX_LEVEL`. Derivado de la tabla aprobada, nunca persistido.
+   * alcanzarlo -- o `MAX_LEVEL`. Derivado de la tabla vigente, nunca persistido.
    */
   readonly nextLevel: ExperienceThreshold
   readonly maxLevel: number

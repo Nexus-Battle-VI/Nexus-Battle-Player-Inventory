@@ -37,7 +37,7 @@ import { MAX_HERO_LEVEL, MIN_HERO_LEVEL, HeroLevel } from '../value-objects/hero
 export { MAX_HERO_LEVEL, MIN_HERO_LEVEL }
 
 /**
- * TABLA INSTITUCIONAL DEL UMBRAL, APROBADA POR EL PRODUCT OWNER.
+ * TABLA VIGENTE DEL UMBRAL, FIJADA POR LA ACLARACION FUNCIONAL DEL PRODUCT OWNER (POSTERIOR AL ENUNCIADO).
  *
  * `EXPERIENCE_THRESHOLDS[L - 1]` es la experiencia ACUMULADA que el heroe
  * necesita para estar en el nivel `L`:
@@ -53,7 +53,7 @@ export { MAX_HERO_LEVEL, MIN_HERO_LEVEL }
  *
  * POR QUE NO SE CALCULA CON UNA FORMULA. La Task #188 prohibe "introducir una
  * politica de redondeo definitiva mientras no exista una decision funcional
- * aprobada". Con la tabla aprobada el problema desaparece: no hay nada que
+ * aprobada". Con la tabla vigente el problema desaparece: no hay nada que
  * redondear porque no hay coma flotante, y la regla queda escrita con los ocho
  * valores que el PO aprobo en lugar de con una expresion que los reproduzca. Una
  * tabla literal es ademas lo unico que se puede contrastar linea a linea contra
@@ -61,7 +61,7 @@ export { MAX_HERO_LEVEL, MIN_HERO_LEVEL }
  *
  * DIVERGENCIA VIGENTE QUE NO SE TAPA AQUI. `CA-03` de la HU #17 exige el umbral
  * `100 x 1,2^(Nivel - 1)`, que produce `100, 120, 144, 172,8, 207,36, 248,832,
- * 298,5984` -- otra serie, y con decimales. La tabla aprobada la sustituye. La
+ * 298,5984` -- otra serie, y con decimales. La tabla vigente la sustituye. La
  * Task #188 manda no decidir esto por cuenta propia y la aclaracion del PO es
  * posterior al enunciado, asi que la tabla gobierna el calculo y la divergencia
  * queda registrada en `docs/hu-08-progresion.md` para que el PO corrija `CA-03`
@@ -87,7 +87,7 @@ export const EXPERIENCE_THRESHOLDS: readonly number[] = Object.freeze([
  * `MAX_HERO_LEVEL`: la politica jamas calcula el umbral de un nivel 9 (CA-05), y
  * `amount` es la experiencia acumulada necesaria para ALCANZAR ese nivel.
  *
- * `amount` es un entero, no un decimal exacto: la tabla aprobada no tiene
+ * `amount` es un entero, no un decimal exacto: la tabla vigente no tiene
  * fracciones. La version anterior de esta politica devolvia ademas un campo
  * `decimal` con la representacion exacta de `100 x 1,2^(n-1)`; se retiro junto
  * con la formula, porque ya no hay ningun valor fraccionario que representar.
@@ -99,7 +99,7 @@ export type ExperienceThreshold =
       readonly forNextLevel: number
       /**
        * Experiencia ACUMULADA TOTAL necesaria para estar en `forNextLevel`,
-       * segun la tabla aprobada. Es el mismo numero que `levelFromTotalXp`
+       * segun la tabla vigente. Es el mismo numero que `levelFromTotalXp`
        * compara: llegar a el es lo que produce el ascenso.
        */
       readonly amount: number
