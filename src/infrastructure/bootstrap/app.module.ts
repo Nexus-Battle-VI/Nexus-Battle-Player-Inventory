@@ -6,6 +6,7 @@ import { InventoryGrantsController } from '../../adapters/inbound/http/inventory
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.controller'
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
 import {
   EXPERIENCE_GRANTS,
@@ -43,6 +44,7 @@ import {
   GET_INVENTORY,
   GET_EQUIPPED_HERO_FOR_COMBAT,
   GET_HERO_PROGRESSION,
+  GET_HERO_PROFILE_FOR_MISSION,
   GET_ITEM_DETAIL,
   GRANT_HERO_EXPERIENCE,
   LIST_AVAILABLE_HEROES,
@@ -61,6 +63,7 @@ import {
 import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
 import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
+import { GetHeroProfileForMission } from '../../application/use-cases/GetHeroProfileForMission'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
 import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
@@ -143,6 +146,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     ProductOwnersController,
     EquippedHeroController,
     AuctionCommitmentsController,
+    HeroProfileController,
     HeroExperienceController,
   ],
   providers: [
@@ -415,6 +419,19 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
       ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+    },
+    // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
+    // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el
+    // equipamiento y las habilidades se resuelven con las mismas piezas, no con
+    // un camino paralelo.
+    {
+      provide: GET_HERO_PROFILE_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetHeroProfileForMission => new GetHeroProfileForMission(inventories, catalog, loadouts),
       inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
     },
     {
