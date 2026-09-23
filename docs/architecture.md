@@ -16,6 +16,10 @@ Esa doble frontera es deliberada: evita duplicar el catálogo y el modelo de cue
 
 Player/Inventory es propietario exclusivo de los inventarios: propietario, capacidad y ranuras. Ningún otro servicio accede a este almacén, ni directamente ni mediante claves foráneas.
 
+Posee además, como agregados propios y almacenes propios, el **equipamiento** del héroe (`HeroLoadout`, por jugador y héroe), la **selección** del héroe preparado (`HeroSelection`, una por jugador) y la **progresión** del héroe: su nivel y su experiencia acumulada (`HeroProgression`, por jugador y héroe).
+
+El **umbral** de experiencia requerido para el siguiente nivel **no se posee ni se almacena**: se calcula con `ExperiencePolicy` a partir del nivel. Un valor derivado que se guarda es una segunda versión de la misma verdad.
+
 ## Capas
 
 ```text
@@ -64,6 +68,24 @@ Modelarlo así tiene una consecuencia verificable: un inventario completo **sí*
 
 `ItemId` exige kebab-case, que es el formato del catálogo. `PlayerId` solo exige no estar vacío, porque su formato lo define el contexto Account y este servicio no debe imponerle uno.
 
+`HeroLevel` es un entero dentro de `1..8` y **no normaliza en silencio**: un `2.5` no se trunca, un `"3"` no se convierte y un `9` no se recorta. `Experience` es la experiencia **acumulada**: un entero no negativo, sin techo, porque su techo es el umbral del nivel vigente, que es derivado.
+
+## Progresión del héroe (HU-08, RF-08)
+
+El nivel pertenece **al héroe, no al jugador**: un jugador puede tener varios héroes y cada uno progresa por su cuenta. Es la misma decisión que HU-11 tomó para el Poder.
+
+```text
+Jugador
+  ├── Inventory        (qué posee)                    HU-27, HU-38
+  ├── HeroSelection    (qué héroe tiene preparado)    HU-07   una por jugador
+  ├── HeroLoadout      (qué lleva equipado)           HU-28   una por (jugador, héroe)
+  └── HeroProgression  (nivel y experiencia)          HU-08   una por (jugador, héroe)
+```
+
+La progresión es un **agregado aparte** y no un campo de los otros dos. `HeroSelection` documenta expresamente que no guarda estadísticas ni equipamiento porque duplicarlos daría dos versiones de la misma verdad, y el nivel no es una excepción. `HeroLoadout` cambia por motivos y con ritmos distintos, y compartir agregado haría que subir de nivel compitiera por el bloqueo optimista con equipar un arma.
+
+La regla vive en `src/domain/policies/ExperiencePolicy.ts` como **política pura**: no persiste, no expone HTTP y no otorga experiencia. Su diseño completo, con el caso de uso, los diagramas y las decisiones abiertas, está en [hu-08-progresion.md](hu-08-progresion.md).
+
 ## Patrones aplicados
 
 | Patrón             | Dónde                                            | Por qué                                                |
@@ -96,5 +118,7 @@ Registro JSON estructurado por línea, emitido exclusivamente desde `infrastruct
 - La persistencia es en memoria y se pierde al reiniciar. El adaptador MongoDB depende de ADR-005, que debe decidir el ODM antes de escribir esquema y migraciones.
 - No se valida la existencia del objeto en Catalog ni del jugador en Account. Hacerlo exige una llamada sincrónica entre servicios o una réplica local del catálogo, y ambas son decisiones de integración que corresponden a ADR-006.
 - La capacidad es única para todos los jugadores. El modelo admite capacidades distintas sin cambios estructurales, pero no forma parte de este alcance.
+- **La política de redondeo del umbral de experiencia no está decidida.** La fórmula `100 × 1,2^(Nivel−1)` produce valores fraccionarios (nivel 4 → `172,8`; nivel 7 → `298,5984`). `ExperiencePolicy` devuelve el valor **exacto** en forma decimal canónica y **no redondea**; el redondeo lo decidirá el Product Owner y se aplicará en la frontera que corresponda. Como el umbral no se persiste, cambiarlo después no exige migración de datos.
+- **`CA-06` de HU-08 (el nivel como multiplicador de las estadísticas) queda fuera de alcance y sin resolver.** El umbral es función del nivel y **no** interviene en `computeEffectiveStats`, que sigue recibiendo solo estadísticas base y equipamiento. Ver [hu-08-progresion.md](hu-08-progresion.md).
 
 Estas limitaciones están declaradas de forma explícita para que la arquitectura de demo no se confunda con la arquitectura objetivo.
