@@ -20,10 +20,11 @@ import {
   GRANT_PURCHASED_ITEMS,
   GrantPurchasedItems,
 } from '../../../application/use-cases/GrantPurchasedItems'
-import { InternalOnly } from './auth/decorators'
+import { InternalCallers, InternalOnly } from './auth/decorators'
 import { InventoryGrantRequest } from './inventory-grants.dto'
 
 @InternalOnly()
+@InternalCallers('commerce', 'notifications', 'combat', 'missions')
 @Controller('internal/v1/inventory/grants')
 export class InventoryGrantsController {
   constructor(@Inject(GRANT_PURCHASED_ITEMS) private readonly grantItems: GrantPurchasedItems) {}

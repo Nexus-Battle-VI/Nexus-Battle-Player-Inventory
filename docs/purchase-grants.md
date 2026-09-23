@@ -18,7 +18,7 @@ El lote admite 1..200 productos distintos, UUID v1-5 y cantidades 1..9999. Las r
 
 ## Autenticacion
 
-Se admite `x-internal-service: commerce` (HU-59) o `x-internal-service: combat` (HU-22, cofre) — el guard de autenticacion interna es global a toda ruta `@InternalOnly()` del servicio, no exclusivo de esta ruta — con `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada usa el nombre del servicio que llama, por ejemplo:
+Se admite `x-internal-service: commerce` (HU-59), `combat` (HU-22) o `missions` (HU-73/HU-76). El permiso de `missions` se acota a esta ruta con `@InternalCallers`, sin incorporarlo a la lista global del servicio. Los llamadores anteriores, incluido `notifications`, conservan su acceso vigente. Cada llamada lleva `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada usa el nombre del servicio que llama, por ejemplo:
 
 ```text
 commerce

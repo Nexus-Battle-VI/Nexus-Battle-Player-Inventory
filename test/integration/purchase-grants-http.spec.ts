@@ -78,6 +78,16 @@ describe('Contrato HTTP interno de entrega', () => {
     expect(response.status).toBe(200)
     expect(response.body.applied).toBe(true)
   })
+  it('acepta a missions para la recompensa epica y conserva la idempotencia', async () => {
+    const payload = { ...body, operationId: '55555555-5555-4555-8555-555555555555' }
+    const first = await signed(payload, 'missions')
+    const replay = await signed(payload, 'missions')
+
+    expect(first.status).toBe(200)
+    expect(first.body).toMatchObject({ operationId: payload.operationId, applied: true })
+    expect(replay.status).toBe(200)
+    expect(replay.body).toEqual(first.body)
+  })
   it('rechaza cambio de payload y no confunde conflicto con entrega rechazada', async () => {
     expect((await signed({ ...body, playerId: 'player-b' })).status).toBe(409)
     const tooMany = {
