@@ -10,6 +10,7 @@ import {
   migrateToLatest,
 } from '../../src/infrastructure/persistence/database'
 import { MongoHeroProgressionRepository } from '../../src/adapters/outbound/persistence/MongoHeroProgressionRepository'
+import { HeroProgressionMappingError } from '../../src/adapters/outbound/persistence/hero-progression-mapping'
 import { HeroProgression } from '../../src/domain/entities/HeroProgression'
 import { DomainError } from '../../src/domain/errors/DomainError'
 import { HeroProgressionConflictError } from '../../src/application/errors/ApplicationError'
@@ -272,6 +273,62 @@ describe('MongoHeroProgressionRepository', () => {
 
     await expect(repository.findByHero(jugador, 'pid-guerrero-tanque')).rejects.toBeInstanceOf(
       DomainError,
+    )
+  })
+
+  /**
+   * Punto 4 de la Task #190: verificar que el consumidor reciba el umbral valido,
+   * la condicion de nivel maximo y un ERROR CONTROLADO ante un dato invalido.
+   * Aqui la cadena completa es persistencia -> regla -> consumidor, que es la
+   * interaccion que la Task pide automatizar.
+   */
+  it('un consumidor obtiene el umbral valido al leer un heroe por debajo del maximo', async () => {
+    const jugador = owner()
+
+    await repository.save(
+      HeroProgression.restore({
+        ownerId: jugador.value,
+        heroId: 'pid-guerrero-tanque',
+        level: 7,
+        currentXp: 6400,
+        version: 0,
+      }),
+      0,
+    )
+
+    const recuperada = await repository.findByHero(jugador, 'pid-guerrero-tanque')
+
+    expect(recuperada?.thresholdForNextLevel()).toEqual({
+      status: 'AVAILABLE',
+      forNextLevel: 8,
+      amount: 12800,
+    })
+  })
+
+  it('un documento corrupto da error controlado en vez de un umbral inventado', async () => {
+    const jugador = owner()
+    const clave = `${jugador.value}::pid-guerrero-tanque`
+
+    // Se escribe con el `level` fuera de rango saltandose el validador: es lo que
+    // ocurriria con un documento anterior a esta migracion o editado a mano. El
+    // validador del motor lo impide hoy, asi que para provocarlo se desactiva
+    // solo para esta insercion.
+    await db.command({ collMod: 'hero-progressions', validationLevel: 'off' })
+    try {
+      await progressions().insertOne({
+        _id: clave,
+        ownerId: jugador.value,
+        heroId: 'pid-guerrero-tanque',
+        level: 9,
+        currentXp: 0,
+        version: 0,
+      })
+    } finally {
+      await db.command({ collMod: 'hero-progressions', validationLevel: 'strict' })
+    }
+
+    await expect(repository.findByHero(jugador, 'pid-guerrero-tanque')).rejects.toBeInstanceOf(
+      HeroProgressionMappingError,
     )
   })
 })
