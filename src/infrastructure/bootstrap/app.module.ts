@@ -6,6 +6,12 @@ import { InventoryGrantsController } from '../../adapters/inbound/http/inventory
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
+import {
+  EXPERIENCE_GRANTS,
+  type ExperienceGrantPort,
+} from '../../application/ports/ExperienceGrantPort'
+import { GrantHeroExperience } from '../../application/use-cases/GrantHeroExperience'
 import {
   AUCTION_COMMITMENTS,
   type AuctionCommitmentPort,
@@ -38,6 +44,7 @@ import {
   GET_EQUIPPED_HERO_FOR_COMBAT,
   GET_HERO_PROGRESSION,
   GET_ITEM_DETAIL,
+  GRANT_HERO_EXPERIENCE,
   LIST_AVAILABLE_HEROES,
   LIST_OWNED_ITEMS,
   QUERY_EXPERIENCE_THRESHOLD,
@@ -84,6 +91,8 @@ import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/
 import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
 import { InMemoryHeroProgressionRepository } from '../../adapters/outbound/persistence/InMemoryHeroProgressionRepository'
+import { InMemoryExperienceGrantRepository } from '../../adapters/outbound/persistence/InMemoryExperienceGrantRepository'
+import { MongoExperienceGrantRepository } from '../../adapters/outbound/persistence/MongoExperienceGrantRepository'
 import { MongoHeroProgressionRepository } from '../../adapters/outbound/persistence/MongoHeroProgressionRepository'
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
@@ -134,6 +143,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     ProductOwnersController,
     EquippedHeroController,
     AuctionCommitmentsController,
+    HeroExperienceController,
   ],
   providers: [
     {
@@ -219,6 +229,23 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           ? new InMemoryHeroProgressionRepository()
           : new MongoHeroProgressionRepository(db),
       inject: [MONGO_DATABASE],
+    },
+    // HU-09 (Task HU-09.3, `hu-09-experience-reward-v1` §7): acreditacion
+    // idempotente de experiencia. El adaptador es quien hace atomico el par
+    // ledger + progresion; el caso de uso solo valida y delega.
+    {
+      provide: EXPERIENCE_GRANTS,
+      useFactory: (db: Db | null): ExperienceGrantPort =>
+        db === null
+          ? new InMemoryExperienceGrantRepository()
+          : new MongoExperienceGrantRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: GRANT_HERO_EXPERIENCE,
+      useFactory: (grants: ExperienceGrantPort): GrantHeroExperience =>
+        new GrantHeroExperience(grants),
+      inject: [EXPERIENCE_GRANTS],
     },
     {
       provide: TOKEN_VERIFIER,
