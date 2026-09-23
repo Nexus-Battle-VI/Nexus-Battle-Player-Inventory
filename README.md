@@ -11,6 +11,8 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **HU-11:** [Gestión y demo ejecutable del recurso Poder](docs/hu-11-power.md).
 - **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
 - **HU-15 / HU-25:** [Contrato interno del héroe equipado para Combat](docs/equipped-hero-contract.md), con los efectos activos del equipamiento.
+- **HU-08:** [Diseño de la progresión: experiencia requerida por nivel](docs/hu-08-progresion.md), con el modelo de nivel y experiencia acumulada del héroe.
+- **HU-29:** [Diseño del bloqueo de equipamiento durante el combate](docs/hu-29-bloqueo-equipamiento-combate.md): el loadout de entrada permanece fijo mientras la batalla está activa.
 - **HU-08:** [Diseño de la progresión: experiencia requerida por nivel](docs/hu-08-progresion.md), con el modelo de nivel y experiencia acumulada del héroe, y su [matriz de trazabilidad y criterios de prueba](docs/hu-08-matriz-de-pruebas.md).
 
 ## La regla central: capacidad y apilado
