@@ -43,7 +43,10 @@ const config: Config = {
     '!src/infrastructure/persistence/**',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text-summary', 'lcov', 'json-summary'],
+  // `json` es el detalle por linea: sin el, `json-summary` da porcentajes pero
+  // no permite saber QUE linea quedo sin cubrir, que es lo que hace falta para
+  // no anadir pruebas triviales solo para subir un numero (Task #190, punto 7).
+  coverageReporters: ['text-summary', 'lcov', 'json-summary', 'json'],
   coverageThreshold: {
     global: { branches: 80, functions: 80, lines: 80, statements: 80 },
   },
