@@ -32,6 +32,7 @@ export const QUERY_EXPERIENCE_THRESHOLD = Symbol('QueryExperienceThreshold')
  * el unico camino por el que la experiencia entra en un heroe.
  */
 export const GRANT_HERO_EXPERIENCE = Symbol('GrantHeroExperience')
+export const COMMIT_HERO_FOR_MISSION = Symbol('CommitHeroForMission')
 
 /**
  * Perfil de un heroe concreto del jugador (HU-71, Task HU-71.2). Es la lectura

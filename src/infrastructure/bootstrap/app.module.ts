@@ -8,6 +8,12 @@ import { EquippedHeroController } from '../../adapters/inbound/http/equipped-her
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
 import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.controller'
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
+import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
+import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
+import {
+  MISSION_HERO_COMMITMENTS,
+  type MissionHeroCommitmentPort,
+} from '../../application/ports/MissionHeroCommitmentPort'
 import {
   EXPERIENCE_GRANTS,
   type ExperienceGrantPort,
@@ -38,6 +44,7 @@ import { HeroSelectionController } from '../../adapters/inbound/http/hero-select
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
+  COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
   GET_HERO_SELECTION,
@@ -148,6 +155,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     AuctionCommitmentsController,
     HeroProfileController,
     HeroExperienceController,
+    MissionCommitmentsController,
   ],
   providers: [
     {
@@ -219,6 +227,25 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (db: Db | null): HeroLoadoutRepositoryPort =>
         db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
       inject: [MONGO_DATABASE],
+    },
+    { provide: MISSION_HERO_COMMITMENTS, useExisting: HERO_LOADOUT_REPOSITORY },
+    {
+      provide: COMMIT_HERO_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        commitments: MissionHeroCommitmentPort,
+        clock: ClockPort,
+      ): CommitHeroForMission =>
+        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        MISSION_HERO_COMMITMENTS,
+        CLOCK,
+      ],
     },
     {
       provide: HERO_SELECTION_REPOSITORY,
@@ -331,11 +358,18 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
     {
       provide: AUCTION_COMMITMENTS,
-      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+      useFactory: (
+        db: Db | null,
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): AuctionCommitmentPort =>
         db === null
-          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          ? new InMemoryAuctionCommitmentRepository(
+              inventories as InMemoryInventoryRepository,
+              loadouts as InMemoryHeroLoadoutRepository,
+            )
           : new MongoAuctionCommitmentRepository(db),
-      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     {
       provide: AUCTION_COMMITMENT_USE_CASE,
