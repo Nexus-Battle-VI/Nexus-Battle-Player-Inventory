@@ -3,6 +3,7 @@ import { Int32, MongoServerError, type ClientSession, type Collection, type Db }
 
 import { HeroLoadout } from '../../../domain/entities/HeroLoadout'
 import type { PlayerId } from '../../../domain/value-objects/identifiers'
+import { ItemId } from '../../../domain/value-objects/identifiers'
 import { HeroLoadoutConflictError } from '../../../application/errors/ApplicationError'
 import type { HeroLoadoutRepositoryPort } from '../../../application/ports/HeroLoadoutRepositoryPort'
 import type {
@@ -22,6 +23,7 @@ import {
   toSnapshot,
   type HeroLoadoutDocument,
 } from './hero-loadout-mapping'
+import type { InventoryDocument } from './mapping'
 
 /**
  * Repositorio del loadout de heroe sobre MongoDB (RF-28, §12 atomicidad).
@@ -142,6 +144,25 @@ export class MongoHeroLoadoutRepository
         }
         const loadout = await this.loadouts.findOne({ _id: key }, { session })
         if (Number(loadout?.version ?? 0) !== expectedLoadoutVersion) {
+          throw new MissionCommitmentConcurrentError()
+        }
+
+        // La comprobacion de propiedad del caso de uso sucede antes de esta
+        // transaccion. Auction puede retirar el heroe o una pieza equipada
+        // entre esa lectura y la reserva; se vuelve a verificar aqui, bajo
+        // los mismos gates que toca Auction al retirar el producto.
+        const inventory = await this.db
+          .collection<InventoryDocument>('inventories')
+          .findOne({ _id: input.playerId }, { session })
+        const owned = new Set(
+          inventory?.slots.filter((slot) => Number(slot.quantity) > 0).map((slot) => slot.itemId) ??
+            [],
+        )
+        const required = [
+          ItemId.create(input.heroId).value,
+          ...(loadout?.entries.map((entry) => ItemId.create(entry.itemId).value) ?? []),
+        ]
+        if (required.some((itemId) => !owned.has(itemId))) {
           throw new MissionCommitmentConcurrentError()
         }
 

@@ -10,7 +10,9 @@ import {
   migrateToLatest,
 } from '../../src/infrastructure/persistence/database'
 import { MongoHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/MongoHeroLoadoutRepository'
+import { MongoInventoryRepository } from '../../src/adapters/outbound/persistence/MongoInventoryRepository'
 import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
+import { Inventory } from '../../src/domain/entities/Inventory'
 import { HeroLoadoutConflictError } from '../../src/application/errors/ApplicationError'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
 import { documentId } from '../../src/adapters/outbound/persistence/hero-loadout-mapping'
@@ -44,6 +46,16 @@ describe('MongoHeroLoadoutRepository', () => {
 
   const loadouts = (): Collection<Record<string, unknown> & { _id: string }> =>
     db.collection<Record<string, unknown> & { _id: string }>('hero-loadouts')
+
+  const seedHero = async (player: PlayerId, heroId: string): Promise<void> => {
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: player,
+        capacity: 30,
+        slots: [{ itemId: heroId, quantity: 1 }],
+      }),
+    )
+  }
 
   beforeAll(async () => {
     container = await new MongoDBContainer('mongo:8.0').start()
@@ -123,6 +135,7 @@ describe('MongoHeroLoadoutRepository', () => {
 
   it('reserva y libera de forma idempotente, bloqueando la escritura del loadout mientras esta vigente', async () => {
     const player = owner()
+    await seedHero(player, 'heroe-mision')
     const input = {
       operationId: crypto.randomUUID(),
       playerId: player.value,
@@ -154,6 +167,7 @@ describe('MongoHeroLoadoutRepository', () => {
 
   it('no reserva sobre una version antigua del loadout', async () => {
     const player = owner()
+    await seedHero(player, 'heroe-cambiado')
     await repository.save(HeroLoadout.createEmpty(player.value, 'heroe-cambiado'), 0)
     await expect(
       repository.commit(

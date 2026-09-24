@@ -21,7 +21,14 @@ con el reloj en cada operación; el ledger permanece para la idempotencia. La
 persistencia de producción requiere el replica set que ya usan las entregas
 idempotentes del inventario.
 
-Esta operación solo conoce los compromisos `MISSION` de Player/Inventory.
-El bloqueo cruzado con batalla, torneo y subasta requiere que esos flujos
-publiquen su actividad en una frontera común. HU‑29 aún tiene una PR separada
-sin integrar. No se afirma que las cuatro actividades compartan un lock.
+Auction comparte el documento de exclusión al retirar un héroe o una pieza
+equipada por él. Si existe una reserva `MISSION` vigente, la publicación se
+rechaza. La reserva de Missions vuelve a comprobar dentro de la transacción que
+el jugador posee tanto el héroe como las piezas de su loadout; así no confirma
+un estado leído antes de que Auction retirara uno de esos productos. El
+adaptador en memoria reproduce el rechazo para las pruebas locales.
+
+Esta operación solo conoce los compromisos `MISSION` de Player/Inventory. La
+actividad de batalla y torneo todavía no se publica en esta frontera, de modo
+que el bloqueo cruzado con esos dos contextos sigue pendiente. HU‑29 aún tiene
+una PR separada sin integrar.

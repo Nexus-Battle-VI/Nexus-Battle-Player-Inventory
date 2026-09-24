@@ -354,11 +354,18 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
     {
       provide: AUCTION_COMMITMENTS,
-      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+      useFactory: (
+        db: Db | null,
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): AuctionCommitmentPort =>
         db === null
-          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          ? new InMemoryAuctionCommitmentRepository(
+              inventories as InMemoryInventoryRepository,
+              loadouts as InMemoryHeroLoadoutRepository,
+            )
           : new MongoAuctionCommitmentRepository(db),
-      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     {
       provide: AUCTION_COMMITMENT_USE_CASE,

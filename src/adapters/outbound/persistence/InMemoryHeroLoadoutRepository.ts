@@ -34,6 +34,25 @@ export class InMemoryHeroLoadoutRepository
     return `${ownerId}::${heroId}`
   }
 
+  hasActiveMission(ownerId: string, heroId: string): boolean {
+    const operationId = this.activeByHero.get(InMemoryHeroLoadoutRepository.key(ownerId, heroId))
+    const commitment = operationId === undefined ? null : this.commitments.get(operationId)
+    return commitment?.status === 'ACTIVE' && commitment.expiresAt.getTime() > Date.now()
+  }
+
+  isEquippedByActiveMission(ownerId: string, itemId: string): boolean {
+    for (const snapshot of this.byKey.values()) {
+      if (
+        snapshot.ownerId === ownerId &&
+        snapshot.entries.some((entry) => entry.itemId === itemId) &&
+        this.hasActiveMission(ownerId, snapshot.heroId)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
   findByHero(ownerId: PlayerId, heroId: string): Promise<HeroLoadout | null> {
     const snapshot = this.byKey.get(InMemoryHeroLoadoutRepository.key(ownerId.value, heroId))
 
