@@ -6,7 +6,7 @@ import {
   GetProductOwners,
   type ProductOwnersResult,
 } from '../../../application/use-cases/GetProductOwners'
-import { InternalOnly } from './auth/decorators'
+import { InternalCallers, InternalOnly } from './auth/decorators'
 
 /**
  * Contrato interno de solo lectura para HU-38 (Management #46, TASK #175).
@@ -30,6 +30,7 @@ import { InternalOnly } from './auth/decorators'
  * suspension/reactivacion a quien posee el producto.
  */
 @InternalOnly()
+@InternalCallers('commerce', 'notifications', 'combat')
 @Controller('internal/v1/inventory/products')
 export class ProductOwnersController {
   constructor(@Inject(GET_PRODUCT_OWNERS) private readonly getProductOwners: GetProductOwners) {}
