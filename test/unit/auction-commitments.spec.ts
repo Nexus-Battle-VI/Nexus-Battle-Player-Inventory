@@ -149,4 +149,69 @@ describe('Auction commitments en memoria', () => {
       }),
     ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
   })
+  it('entrega el producto al ganador, reproduce el claim y no permite reclamar dos veces', async () => {
+    const { inventories, repository } = await setup()
+    const created = await repository.commit(commit())
+    await repository.markPendingClaim({
+      operationId: 'auction:a:inventory:pending-claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'a',
+      sellerId: owner,
+      winnerId: 'winner',
+      productId: product,
+    })
+    const claimInput = {
+      operationId: 'auction:a:inventory:claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'a',
+      winnerId: 'winner',
+      productId: product,
+    }
+    const claimed = await repository.claim(claimInput)
+    expect(claimed).toMatchObject({ status: 'CLAIMED', winnerId: 'winner', applied: true })
+    expect(
+      (await inventories.findByOwner(PlayerId.create('winner')))?.quantityOf({
+        value: product,
+      } as never),
+    ).toBe(1)
+    const replay = await repository.claim(claimInput)
+    expect(replay).toMatchObject({ ...claimed, applied: false })
+    await expect(
+      repository.claim({ ...claimInput, operationId: 'auction:a:inventory:claim:retry' }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+  })
+  it('rechaza reclamar un commitment que aun no esta en pending claim', async () => {
+    const { repository } = await setup()
+    const created = await repository.commit(commit())
+    await expect(
+      repository.claim({
+        operationId: 'auction:a:inventory:claim',
+        commitmentId: created.commitmentId,
+        auctionId: 'a',
+        winnerId: 'winner',
+        productId: product,
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+  })
+  it('rechaza reclamar con un winnerId que no coincide con el commitment', async () => {
+    const { repository } = await setup()
+    const created = await repository.commit(commit())
+    await repository.markPendingClaim({
+      operationId: 'auction:a:inventory:pending-claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'a',
+      sellerId: owner,
+      winnerId: 'winner',
+      productId: product,
+    })
+    await expect(
+      repository.claim({
+        operationId: 'auction:a:inventory:claim',
+        commitmentId: created.commitmentId,
+        auctionId: 'a',
+        winnerId: 'other-player',
+        productId: product,
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+  })
 })

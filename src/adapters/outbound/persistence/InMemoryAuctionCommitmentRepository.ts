@@ -1,6 +1,7 @@
 import type {
   AuctionCommitmentPort,
   AuctionCommitmentResult,
+  ClaimAuctionCommitment,
   CreateAuctionCommitment,
   PendingAuctionCommitment,
   ReleaseAuctionCommitment,
@@ -12,6 +13,8 @@ import {
   AuctionCommitmentStatus,
 } from '../../../application/ports/AuctionCommitmentPort'
 import type { InMemoryInventoryRepository } from './InMemoryInventoryRepository'
+import { Inventory } from '../../../domain/entities/Inventory'
+import { CapacityPolicy } from '../../../domain/policies/CapacityPolicy'
 import { ItemId, PlayerId, Quantity } from '../../../domain/value-objects/identifiers'
 import type { InMemoryHeroLoadoutRepository } from './InMemoryHeroLoadoutRepository'
 
@@ -114,6 +117,37 @@ export class InMemoryAuctionCommitmentRepository implements AuctionCommitmentPor
         applied: true,
       }),
     )
+  }
+  async claim(input: ClaimAuctionCommitment): Promise<AuctionCommitmentResult> {
+    const fingerprint = JSON.stringify(input)
+    const replay = this.replay(input.operationId, fingerprint)
+    if (replay) return replay
+    const c = this.commitments.get(input.commitmentId)
+    if (!c) throw new AuctionCommitmentNotFoundError()
+    if (
+      c.auctionId !== input.auctionId ||
+      c.productId !== input.productId ||
+      c.winnerId !== input.winnerId
+    )
+      throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+    if (c.status !== AuctionCommitmentStatus.PendingClaim)
+      throw new AuctionCommitmentRejectedError(
+        'El commitment no puede reclamarse en su estado actual.',
+      )
+    const winner = PlayerId.create(input.winnerId)
+    const inventory =
+      (await this.inventories.findByOwner(winner)) ??
+      Inventory.createEmpty(winner, CapacityPolicy.default())
+    inventory.add(ItemId.create(c.productId), Quantity.create(1), new Date())
+    await this.inventories.save(inventory)
+    c.status = AuctionCommitmentStatus.Claimed
+    return this.store(input.operationId, fingerprint, {
+      operationId: input.operationId,
+      commitmentId: c.id,
+      status: c.status,
+      winnerId: c.winnerId,
+      applied: true,
+    })
   }
   private must(id: string, auctionId: string, ownerId: string, productId: string): Commitment {
     const c = this.commitments.get(id)
