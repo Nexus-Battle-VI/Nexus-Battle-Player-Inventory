@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "2",
+  "source": "HU-08 (RF-08). Tabla de umbrales de experiencia acumulada por nivel.",
+  "origin": "Aclaracion funcional del Product Owner, posterior al enunciado original de la HU #17. Los ocho umbrales, los vectores de nivel y los tres ejemplos de acreditacion los fijo el PO. Ningun valor se obtuvo ejecutando ExperiencePolicy ni ninguna otra parte del repositorio.",
+  "semantics": "thresholds[L - 1].amount es la experiencia ACUMULADA necesaria para estar en el nivel L. La experiencia nunca se resta, asi que el nivel es el mayor L cuyo umbral no supere el acumulado. El nivel 1 es el suelo: por debajo del primer umbral tambien es 1.",
+  "supersededFormula": {
+    "expression": "100 x 1,2^(Nivel - 1)",
+    "series": [100, 120, 144, 172.8, 207.36, 248.832, 298.5984],
+    "where": "CA-03 de la HU #17 (Management). Sustituida por la tabla vigente; la divergencia esta medida en docs/hu-08-progresion.md.",
+    "note": "No es una diferencia de redondeo: el cociente entre la tabla y esta serie no es constante."
+  },
+  "generatedAt": "2026-09-23",
+  "maxLevel": 8,
+  "thresholds": [
+    { "level": 1, "amount": 100 },
+    { "level": 2, "amount": 200 },
+    { "level": 3, "amount": 400 },
+    { "level": 4, "amount": 800 },
+    { "level": 5, "amount": 1600 },
+    { "level": 6, "amount": 3200 },
+    { "level": 7, "amount": 6400 },
+    { "level": 8, "amount": 12800 }
+  ],
+  "levels": [
+    { "totalXp": 0, "level": 1 },
+    { "totalXp": 99, "level": 1 },
+    { "totalXp": 100, "level": 1 },
+    { "totalXp": 199, "level": 1 },
+    { "totalXp": 200, "level": 2 },
+    { "totalXp": 399, "level": 2 },
+    { "totalXp": 400, "level": 3 },
+    { "totalXp": 749, "level": 3 },
+    { "totalXp": 849, "level": 4 },
+    { "totalXp": 890, "level": 4 },
+    { "totalXp": 3500, "level": 6 },
+    { "totalXp": 12799, "level": 7 },
+    { "totalXp": 13000, "level": 8 },
+    { "totalXp": 13500, "level": 8 }
+  ],
+  "awards": [
+    {
+      "from": { "level": 3, "totalXp": 749 },
+      "amount": 100,
+      "to": { "level": 4, "totalXp": 849 },
+      "note": "Subir de nivel no descuenta experiencia: el acumulado sube a 849 y no baja a 49."
+    },
+    {
+      "from": { "level": 1, "totalXp": 190 },
+      "amount": 700,
+      "to": { "level": 4, "totalXp": 890 },
+      "note": "Un solo otorgamiento cruza tres umbrales y deja al heroe en el nivel mas alto alcanzado."
+    },
+    {
+      "from": { "level": 8, "totalXp": 13000 },
+      "amount": 500,
+      "to": { "level": 8, "totalXp": 13500 },
+      "note": "En el nivel maximo la experiencia sigue creciendo y no se descarta; la operacion no se rechaza."
+    }
+  ]
+}

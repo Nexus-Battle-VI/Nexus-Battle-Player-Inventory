@@ -1,6 +1,8 @@
 import { InMemoryAuctionCommitmentRepository } from '../../src/adapters/outbound/persistence/InMemoryAuctionCommitmentRepository'
 import { InMemoryInventoryRepository } from '../../src/adapters/outbound/persistence/InMemoryInventoryRepository'
+import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { Inventory } from '../../src/domain/entities/Inventory'
+import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
 import { AuctionCommitmentRejectedError } from '../../src/application/ports/AuctionCommitmentPort'
 
@@ -37,6 +39,71 @@ describe('Auction commitments en memoria', () => {
         value: product,
       } as never),
     ).toBe(1)
+  })
+  it('no retira un heroe que sigue reservado para Missions', async () => {
+    const inventories = new InMemoryInventoryRepository()
+    await inventories.save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [{ itemId: product, quantity: 1 }],
+      }),
+    )
+    const missions = new InMemoryHeroLoadoutRepository()
+    const operationId = crypto.randomUUID()
+    await missions.commit(
+      {
+        operationId,
+        playerId: owner,
+        heroId: product,
+        reference: 'enr-a',
+        expiresAt: new Date(Date.now() + 60_000),
+        completeLoadout: false,
+      },
+      0,
+    )
+    const auctions = new InMemoryAuctionCommitmentRepository(inventories, missions)
+    await expect(auctions.commit(commit())).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    await missions.release(operationId)
+    await expect(auctions.commit(commit())).resolves.toMatchObject({ status: 'ACTIVE' })
+  })
+  it('no retira una pieza equipada por un heroe reservado para Missions', async () => {
+    const heroId = '22222222-2222-4222-8222-222222222222'
+    const inventories = new InMemoryInventoryRepository()
+    await inventories.save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [
+          { itemId: product, quantity: 1 },
+          { itemId: heroId, quantity: 1 },
+        ],
+      }),
+    )
+    const missions = new InMemoryHeroLoadoutRepository()
+    const loadout = HeroLoadout.createEmpty(owner, heroId)
+    loadout.equip({
+      slot: 'WEAPON_1',
+      itemId: product,
+      productId: product,
+      category: 'WEAPON',
+      occurredAt: new Date(),
+    })
+    await missions.save(loadout, 0)
+    await missions.commit(
+      {
+        operationId: crypto.randomUUID(),
+        playerId: owner,
+        heroId,
+        reference: 'enr-equipped',
+        expiresAt: new Date(Date.now() + 60_000),
+        completeLoadout: false,
+      },
+      1,
+    )
+    await expect(
+      new InMemoryAuctionCommitmentRepository(inventories, missions).commit(commit()),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
   })
   it('permite dos unidades, libera una sola y no duplica replay', async () => {
     const { inventories, repository } = await setup(2)

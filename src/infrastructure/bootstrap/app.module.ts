@@ -6,6 +6,19 @@ import { InventoryGrantsController } from '../../adapters/inbound/http/inventory
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.controller'
+import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
+import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
+import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
+import {
+  MISSION_HERO_COMMITMENTS,
+  type MissionHeroCommitmentPort,
+} from '../../application/ports/MissionHeroCommitmentPort'
+import {
+  EXPERIENCE_GRANTS,
+  type ExperienceGrantPort,
+} from '../../application/ports/ExperienceGrantPort'
+import { GrantHeroExperience } from '../../application/use-cases/GrantHeroExperience'
 import {
   AUCTION_COMMITMENTS,
   type AuctionCommitmentPort,
@@ -31,14 +44,19 @@ import { HeroSelectionController } from '../../adapters/inbound/http/hero-select
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
+  COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
   GET_HERO_SELECTION,
   GET_INVENTORY,
   GET_EQUIPPED_HERO_FOR_COMBAT,
+  GET_HERO_PROGRESSION,
+  GET_HERO_PROFILE_FOR_MISSION,
   GET_ITEM_DETAIL,
+  GRANT_HERO_EXPERIENCE,
   LIST_AVAILABLE_HEROES,
   LIST_OWNED_ITEMS,
+  QUERY_EXPERIENCE_THRESHOLD,
   REMOVE_ITEM,
   SELECT_HERO,
 } from '../../adapters/inbound/http/tokens'
@@ -52,21 +70,26 @@ import {
 import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
 import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
+import { GetHeroProfileForMission } from '../../application/use-cases/GetHeroProfileForMission'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
 import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
 import { SelectHero } from '../../application/use-cases/SelectHero'
+import { GetHeroProgression } from '../../application/use-cases/GetHeroProgression'
+import { QueryExperienceThreshold } from '../../application/use-cases/QueryExperienceThreshold'
 import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositoryPort'
 import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
 import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
 import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
 import { HERO_SELECTION_REPOSITORY } from '../../application/ports/HeroSelectionRepositoryPort'
+import { HERO_PROGRESSION_REPOSITORY } from '../../application/ports/HeroProgressionRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
 import type { InventoryRepositoryPort } from '../../application/ports/InventoryRepositoryPort'
 import type { InventoryQueryPort } from '../../application/ports/InventoryQueryPort'
 import type { CatalogReadPort } from '../../application/ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../../application/ports/HeroLoadoutRepositoryPort'
 import type { HeroSelectionRepositoryPort } from '../../application/ports/HeroSelectionRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../../application/ports/HeroProgressionRepositoryPort'
 import type { ClockPort } from '../../application/ports/ClockPort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
@@ -77,6 +100,10 @@ import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persisten
 import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
 import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
+import { InMemoryHeroProgressionRepository } from '../../adapters/outbound/persistence/InMemoryHeroProgressionRepository'
+import { InMemoryExperienceGrantRepository } from '../../adapters/outbound/persistence/InMemoryExperienceGrantRepository'
+import { MongoExperienceGrantRepository } from '../../adapters/outbound/persistence/MongoExperienceGrantRepository'
+import { MongoHeroProgressionRepository } from '../../adapters/outbound/persistence/MongoHeroProgressionRepository'
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
@@ -126,6 +153,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     ProductOwnersController,
     EquippedHeroController,
     AuctionCommitmentsController,
+    HeroProfileController,
+    HeroExperienceController,
+    MissionCommitmentsController,
   ],
   providers: [
     {
@@ -198,11 +228,55 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
       inject: [MONGO_DATABASE],
     },
+    { provide: MISSION_HERO_COMMITMENTS, useExisting: HERO_LOADOUT_REPOSITORY },
+    {
+      provide: COMMIT_HERO_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        commitments: MissionHeroCommitmentPort,
+        clock: ClockPort,
+      ): CommitHeroForMission =>
+        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        MISSION_HERO_COMMITMENTS,
+        CLOCK,
+      ],
+    },
     {
       provide: HERO_SELECTION_REPOSITORY,
       useFactory: (db: Db | null): HeroSelectionRepositoryPort =>
         db === null ? new InMemoryHeroSelectionRepository() : new MongoHeroSelectionRepository(db),
       inject: [MONGO_DATABASE],
+    },
+    {
+      provide: HERO_PROGRESSION_REPOSITORY,
+      useFactory: (db: Db | null): HeroProgressionRepositoryPort =>
+        db === null
+          ? new InMemoryHeroProgressionRepository()
+          : new MongoHeroProgressionRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    // HU-09 (Task HU-09.3, `hu-09-experience-reward-v1` §7): acreditacion
+    // idempotente de experiencia. El adaptador es quien hace atomico el par
+    // ledger + progresion; el caso de uso solo valida y delega.
+    {
+      provide: EXPERIENCE_GRANTS,
+      useFactory: (db: Db | null): ExperienceGrantPort =>
+        db === null
+          ? new InMemoryExperienceGrantRepository()
+          : new MongoExperienceGrantRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: GRANT_HERO_EXPERIENCE,
+      useFactory: (grants: ExperienceGrantPort): GrantHeroExperience =>
+        new GrantHeroExperience(grants),
+      inject: [EXPERIENCE_GRANTS],
     },
     {
       provide: TOKEN_VERIFIER,
@@ -284,11 +358,18 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
     {
       provide: AUCTION_COMMITMENTS,
-      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+      useFactory: (
+        db: Db | null,
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): AuctionCommitmentPort =>
         db === null
-          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          ? new InMemoryAuctionCommitmentRepository(
+              inventories as InMemoryInventoryRepository,
+              loadouts as InMemoryHeroLoadoutRepository,
+            )
           : new MongoAuctionCommitmentRepository(db),
-      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     {
       provide: AUCTION_COMMITMENT_USE_CASE,
@@ -374,6 +455,19 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
       inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
     },
+    // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
+    // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el
+    // equipamiento y las habilidades se resuelven con las mismas piezas, no con
+    // un camino paralelo.
+    {
+      provide: GET_HERO_PROFILE_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetHeroProfileForMission => new GetHeroProfileForMission(inventories, catalog, loadouts),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+    },
     {
       provide: EQUIP_ITEM_ON_HERO,
       useFactory: (
@@ -418,6 +512,21 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       ): GetEquippedHeroForCombat =>
         new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog),
       inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY, CATALOG_READ],
+    },
+    // HU-08: la operacion reutilizable del umbral. NO tiene controlador a
+    // proposito --la Task #188 permite no exponerla por HTTP y no hay consumidor
+    // externo identificado todavia--, pero SI se registra: es el punto por el que
+    // HU-09 y HU-10 piden el umbral sin reimplementar la tabla vigente, y sin
+    // registro cualquier caso de uso futuro tendria que duplicarla.
+    {
+      provide: QUERY_EXPERIENCE_THRESHOLD,
+      useFactory: (): QueryExperienceThreshold => new QueryExperienceThreshold(),
+    },
+    {
+      provide: GET_HERO_PROGRESSION,
+      useFactory: (progressions: HeroProgressionRepositoryPort): GetHeroProgression =>
+        new GetHeroProgression(progressions),
+      inject: [HERO_PROGRESSION_REPOSITORY],
     },
     {
       provide: SELECT_HERO,

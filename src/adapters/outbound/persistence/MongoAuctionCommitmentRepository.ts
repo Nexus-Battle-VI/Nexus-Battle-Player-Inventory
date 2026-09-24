@@ -19,6 +19,14 @@ import {
   AuctionCommitmentStatus,
 } from '../../../application/ports/AuctionCommitmentPort'
 import { toDocument, toSnapshot, type InventoryDocument } from './mapping'
+import { documentId, type HeroLoadoutDocument } from './hero-loadout-mapping'
+
+interface HeroMissionGate {
+  readonly _id: string
+  readonly revision: Int32 | number
+  readonly operationId: string | null
+  readonly expiresAt: Date | null
+}
 
 interface Commitment {
   commitmentId: string
@@ -57,6 +65,20 @@ export class MongoAuctionCommitmentRepository implements AuctionCommitmentPort {
       })
       if (inventory.quantityOf(item) < 1)
         throw new AuctionCommitmentRejectedError('El vendedor no posee el producto.')
+      // Auction retira el producto del inventario. Si es el heroe de una
+      // mision, esta escritura comparte el gate de la reserva y evita que
+      // ambas transacciones confirmen a partir de lecturas anteriores.
+      const equippedBy = await this.db
+        .collection<HeroLoadoutDocument>('hero-loadouts')
+        .find({ ownerId: input.ownerId, 'entries.itemId': item.value }, { session })
+        .toArray()
+      const gateIds = new Set([
+        documentId(input.ownerId, item.value),
+        ...equippedBy.map((loadout) => loadout._id),
+      ])
+      for (const gateId of [...gateIds].sort()) {
+        await this.touchMissionGate(gateId, session)
+      }
       inventory.remove(item, Quantity.create(1), new Date())
       const next = {
         ...toDocument(inventory.toSnapshot()),
@@ -87,6 +109,32 @@ export class MongoAuctionCommitmentRepository implements AuctionCommitmentPort {
         applied: true,
       }
     })
+  }
+  private async touchMissionGate(gateId: string, session: ClientSession): Promise<void> {
+    const gates = this.db.collection<HeroMissionGate>('hero-mission-gates')
+    const gate = await gates.findOne({ _id: gateId }, { session })
+    if (gate?.operationId && gate.expiresAt && gate.expiresAt > new Date()) {
+      throw new AuctionCommitmentRejectedError('El heroe esta reservado para una mision.')
+    }
+    if (gate === null) {
+      await gates.insertOne(
+        { _id: gateId, revision: new Int32(1), operationId: null, expiresAt: null },
+        { session },
+      )
+      return
+    }
+    const touched = await gates.replaceOne(
+      { _id: gateId, revision: gate.revision },
+      {
+        revision: new Int32(Number(gate.revision) + 1),
+        operationId: gate.operationId,
+        expiresAt: gate.expiresAt,
+      },
+      { session },
+    )
+    if (touched.matchedCount !== 1) {
+      throw new AuctionCommitmentConflictError('El estado del heroe cambio durante la operacion.')
+    }
   }
   async release(input: ReleaseAuctionCommitment): Promise<AuctionCommitmentResult> {
     return this.transition(input.operationId, input, async (c, session) => {
