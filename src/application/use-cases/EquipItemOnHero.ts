@@ -135,6 +135,8 @@ export class EquipItemOnHero {
     const saved = await this.loadouts.save(loadout, expectedVersion)
 
     // 8. Nuevo estado consistente, suficiente para refrescar la interfaz.
-    return assembleEquipmentView(deps, hero, saved)
+    //    `locked` es `false` por construccion: si hubiera batalla activa, el paso
+    //    2 habria rechazado antes de llegar aqui.
+    return { ...(await assembleEquipmentView(deps, hero, saved)), locked: false }
   }
 }

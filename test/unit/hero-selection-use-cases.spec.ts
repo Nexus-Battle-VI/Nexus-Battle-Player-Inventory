@@ -4,7 +4,7 @@ import { SelectHero } from '../../src/application/use-cases/SelectHero'
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
-import { InMemoryBattleStateRegistry } from '../../src/adapters/outbound/battle/InMemoryBattleStateRegistry'
+import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import {
   CatalogUnavailableError,
@@ -153,13 +153,7 @@ const escenario = (
     list: new ListAvailableHeroes(inventories, catalog, selections),
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
     current: new GetHeroSelection(inventories, catalog, loadouts, selections),
-    equip: new EquipItemOnHero(
-      inventories,
-      catalog,
-      loadouts,
-      clock,
-      new InMemoryBattleStateRegistry(),
-    ),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
     loadouts,
   }
 }

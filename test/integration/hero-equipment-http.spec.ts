@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import 'reflect-metadata'
 
 import { ValidationPipe, type INestApplication } from '@nestjs/common'
@@ -5,6 +7,7 @@ import { Test } from '@nestjs/testing'
 import request from 'supertest'
 
 import { AppModule } from '../../src/infrastructure/bootstrap/app.module'
+import { LOGGER } from '../../src/infrastructure/observability/logger'
 import {
   Role,
   TOKEN_VERIFIER,
@@ -13,9 +16,8 @@ import {
 } from '../../src/application/ports/TokenVerifierPort'
 import { CATALOG_READ, type CatalogProductView } from '../../src/application/ports/CatalogReadPort'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
-import { InMemoryBattleStateRegistry } from '../../src/adapters/outbound/battle/InMemoryBattleStateRegistry'
-import { BATTLE_STATE } from '../../src/application/ports/BattleStatePort'
-import { PlayerId } from '../../src/domain/value-objects/identifiers'
+import { InMemoryBattleHeroCommitmentRepository } from '../../src/adapters/outbound/persistence/InMemoryBattleHeroCommitmentRepository'
+import { BATTLE_HERO_COMMITMENTS } from '../../src/application/ports/BattleHeroCommitmentPort'
 
 /**
  * HU-28 sobre HTTP con autenticacion activa y un doble sembrado de Catalog.
@@ -98,7 +100,9 @@ const CATALOG: CatalogProductView[] = [
 describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
   let app: INestApplication
   let previousEnv: Record<string, string | undefined>
-  let battleStates: InMemoryBattleStateRegistry
+  let battleStates: InMemoryBattleHeroCommitmentRepository
+  /** Lo que el controlador registro: la evidencia que pide la Task HU-29.2. */
+  let logged: { level: string; message: string; context: Record<string, unknown> }[]
 
   beforeAll(async () => {
     previousEnv = {
@@ -110,14 +114,29 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
     process.env.COGNITO_USER_POOL_ID = 'us-east-1_pruebas'
     process.env.COGNITO_CLIENT_ID = 'cliente-de-pruebas'
 
-    battleStates = new InMemoryBattleStateRegistry()
+    logged = []
+    const record =
+      (level: string) =>
+      (message: string, context: Record<string, unknown> = {}): void => {
+        logged.push({ level, message, context })
+      }
+    const logger = {
+      debug: record('debug'),
+      info: record('info'),
+      warn: record('warn'),
+      error: record('error'),
+    }
+
+    battleStates = new InMemoryBattleHeroCommitmentRepository()
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(TOKEN_VERIFIER)
       .useValue(stubVerifier)
       .overrideProvider(CATALOG_READ)
       .useValue(new InMemoryCatalogReadClient(CATALOG))
-      .overrideProvider(BATTLE_STATE)
+      .overrideProvider(BATTLE_HERO_COMMITMENTS)
       .useValue(battleStates)
+      .overrideProvider(LOGGER)
+      .useValue(logger)
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -136,6 +155,38 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
   })
 
   const bearer = (token: string): string => `Bearer ${token}`
+
+  /** La operacion con la que se comprometio a cada heroe, para poder liberarlo. */
+  const battleOperations = new Map<string, string>()
+
+  /**
+   * Arranca una batalla como la arranca Combat: COMPROMETIENDO al heroe. No hay
+   * atajo que marque el estado sin pasar por el compromiso, porque ese atajo
+   * probaria un camino que en produccion no existe.
+   */
+  const commitBattle = async (subject: string, heroId: string): Promise<void> => {
+    const operationId = randomUUID()
+
+    await battleStates.commit(
+      {
+        operationId,
+        playerId: subject,
+        heroId,
+        reference: 'room_prueba',
+        expiresAt: new Date(Date.now() + 3_600_000),
+      },
+      new Date(),
+    )
+    battleOperations.set(`${subject}::${heroId}`, operationId)
+  }
+
+  const releaseBattle = async (subject: string, heroId: string): Promise<void> => {
+    const operationId = battleOperations.get(`${subject}::${heroId}`)
+
+    expect(operationId).toBeDefined()
+    await battleStates.release(operationId ?? '')
+    battleOperations.delete(`${subject}::${heroId}`)
+  }
 
   const own = async (subject: string, itemId: string): Promise<void> => {
     const response = await request(app.getHttpServer())
@@ -242,7 +293,7 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
       const subject = `s-battle-${kind}`
       await own(subject, 'guerrero-tanque')
       await own(subject, sku)
-      battleStates.markBattleStarted(PlayerId.create(subject), 'pid-guerrero-tanque')
+      await commitBattle(subject, 'pid-guerrero-tanque')
 
       const blocked = await equip(subject, 'guerrero-tanque', slot, sku)
       expect(blocked.status).toBe(409)
@@ -251,23 +302,85 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
         message: expect.stringMatching(/batalla activa/),
       })
 
+      // La lectura publica el mismo dato, para que la interfaz deshabilite sin
+      // reimplementar la regla.
       const after = await getEquipment(subject, 'guerrero-tanque')
       expect(after.status).toBe(200)
+      expect(after.body.locked).toBe(true)
       expect(after.body.equipment.weapons).toEqual([])
       expect(after.body.equipment.items).toEqual([])
       expect(Object.values(after.body.equipment.armor).every((value) => value === null)).toBe(true)
     },
   )
 
-  it('HU-29: al finalizar la batalla libera el flujo normal de HU-28', async () => {
-    const subject = 's-battle-finished'
-    const owner = PlayerId.create(subject)
+  it('HU-29: el rechazo y el exito quedan registrados', async () => {
+    const subject = 's-battle-log'
     await own(subject, 'guerrero-tanque')
     await own(subject, 'espada-de-fuego')
-    battleStates.markBattleStarted(owner, 'pid-guerrero-tanque')
+
+    logged.length = 0
+    await commitBattle(subject, 'pid-guerrero-tanque')
     await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(409)
 
-    battleStates.markBattleFinished(owner, 'pid-guerrero-tanque')
+    expect(logged).toContainEqual({
+      level: 'warn',
+      message: 'equipment_change_rejected',
+      context: {
+        reason: 'battle_lock',
+        playerId: subject,
+        heroId: 'guerrero-tanque',
+        slot: 'WEAPON_1',
+      },
+    })
+
+    await releaseBattle(subject, 'pid-guerrero-tanque')
+    logged.length = 0
+    await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(200)
+
+    // El exito fuera de batalla tambien se registra: sin el, no se podria
+    // distinguir «no se intento» de «se intento y paso».
+    expect(logged).toContainEqual({
+      level: 'info',
+      message: 'equipment_change_applied',
+      context: { playerId: subject, heroId: 'guerrero-tanque', slot: 'WEAPON_1' },
+    })
+  })
+
+  it('HU-29: dos intentos seguidos en batalla no acumulan ningun cambio', async () => {
+    const subject = 's-battle-twice'
+    await own(subject, 'guerrero-tanque')
+    await own(subject, 'espada-de-fuego')
+    await commitBattle(subject, 'pid-guerrero-tanque')
+
+    await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(409)
+    await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(409)
+
+    const after = await getEquipment(subject, 'guerrero-tanque')
+
+    expect(after.body.locked).toBe(true)
+    expect(after.body.equipment.weapons).toEqual([])
+  })
+
+  it('HU-29: al terminar la batalla, la lectura deja de estar bloqueada', async () => {
+    const subject = 's-battle-unlocked'
+    await own(subject, 'guerrero-tanque')
+    await commitBattle(subject, 'pid-guerrero-tanque')
+
+    expect((await getEquipment(subject, 'guerrero-tanque')).body.locked).toBe(true)
+
+    await releaseBattle(subject, 'pid-guerrero-tanque')
+
+    expect((await getEquipment(subject, 'guerrero-tanque')).body.locked).toBe(false)
+  })
+
+  it('HU-29: al finalizar la batalla libera el flujo normal de HU-28', async () => {
+    const subject = 's-battle-finished'
+    await own(subject, 'guerrero-tanque')
+    await own(subject, 'espada-de-fuego')
+    await commitBattle(subject, 'pid-guerrero-tanque')
+    await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(409)
+
+    await releaseBattle(subject, 'pid-guerrero-tanque')
     const allowed = await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego')
 
     expect(allowed.status).toBe(200)

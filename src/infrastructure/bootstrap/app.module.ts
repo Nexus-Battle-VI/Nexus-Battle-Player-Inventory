@@ -10,7 +10,13 @@ import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.
 import { AuctionEligibilityController } from '../../adapters/inbound/http/auction-eligibility.controller'
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
 import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
+import { BattleCommitmentsController } from '../../adapters/inbound/http/battle-commitments.controller'
 import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
+import { CommitHeroForBattle } from '../../application/use-cases/CommitHeroForBattle'
+import {
+  BATTLE_HERO_COMMITMENTS,
+  type BattleHeroCommitmentPort,
+} from '../../application/ports/BattleHeroCommitmentPort'
 import {
   MISSION_HERO_COMMITMENTS,
   type MissionHeroCommitmentPort,
@@ -49,6 +55,7 @@ import { HeroSelectionController } from '../../adapters/inbound/http/hero-select
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
+  COMMIT_HERO_FOR_BATTLE,
   COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
@@ -113,13 +120,15 @@ import { MongoHeroProgressionRepository } from '../../adapters/outbound/persiste
 import { HttpCatalogReadClient } from '../../adapters/outbound/catalog/HttpCatalogReadClient'
 import { InMemoryCatalogReadClient } from '../../adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
-import { InMemoryBattleStateRegistry } from '../../adapters/outbound/battle/InMemoryBattleStateRegistry'
+import { BattleCommitmentStateAdapter } from '../../adapters/outbound/battle/BattleCommitmentStateAdapter'
+import { InMemoryBattleHeroCommitmentRepository } from '../../adapters/outbound/persistence/InMemoryBattleHeroCommitmentRepository'
+import { MongoBattleHeroCommitmentRepository } from '../../adapters/outbound/persistence/MongoBattleHeroCommitmentRepository'
 import { CapacityPolicy } from '../../domain/policies/CapacityPolicy'
 
 import type { Db } from 'mongodb'
 
 import { createMongoClient, databaseOf } from '../persistence/database'
-import { createLogger, type Logger } from '../observability/logger'
+import { createLogger, LOGGER, type Logger } from '../observability/logger'
 import { AuthMode, loadConfig, PersistenceDriver, type AppConfig } from '../config/env'
 
 import { JwtAuthGuard } from '../../adapters/inbound/http/auth/jwt-auth.guard'
@@ -131,7 +140,10 @@ import { CognitoTokenVerifier } from '../../adapters/outbound/identity/CognitoTo
 import type { ReadinessCheck, VersionReport } from '../health/health'
 
 export const APP_CONFIG = Symbol('AppConfig')
-export const LOGGER = Symbol('Logger')
+// Se define en `observability/logger` para que los adaptadores de entrada puedan
+// inyectarla sin crear un ciclo con este modulo; se reexporta para no romper a
+// quien la importaba de aqui.
+export { LOGGER }
 export const CAPACITY_POLICY = Symbol('CapacityPolicy')
 /**
  * Conexion a MongoDB compartida por los repositorios (inventario y loadout de
@@ -164,6 +176,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     AuctionEligibilityController,
     HeroExperienceController,
     MissionCommitmentsController,
+    BattleCommitmentsController,
   ],
   providers: [
     {
@@ -255,6 +268,27 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         CLOCK,
       ],
     },
+    // HU-29 (Task HU-29.2, `hu-29-battle-commitment-v1`): el compromiso de
+    // batalla que hace REAL el bloqueo. Ruta hermana de la de mision y con su
+    // propio permiso: `@InternalCallers('combat')` no abre la ruta de `missions`.
+    {
+      provide: BATTLE_HERO_COMMITMENTS,
+      useFactory: (db: Db | null): BattleHeroCommitmentPort =>
+        db === null
+          ? new InMemoryBattleHeroCommitmentRepository()
+          : new MongoBattleHeroCommitmentRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: COMMIT_HERO_FOR_BATTLE,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        commitments: BattleHeroCommitmentPort,
+        clock: ClockPort,
+      ): CommitHeroForBattle => new CommitHeroForBattle(inventories, catalog, commitments, clock),
+      inject: [INVENTORY_QUERY, CATALOG_READ, BATTLE_HERO_COMMITMENTS, CLOCK],
+    },
     {
       provide: HERO_SELECTION_REPOSITORY,
       useFactory: (db: Db | null): HeroSelectionRepositoryPort =>
@@ -339,10 +373,14 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (): ClockPort => new SystemClock(),
     },
     {
-      // Adaptador transitorio y reemplazable. HU-14 debe publicar su fuente de
-      // verdad antes de promover HU-29 a produccion; no se crea aqui un motor.
+      // HU-29: el estado de batalla NO se inventa aqui. Se lee del compromiso de
+      // batalla que Combat publica al iniciar y libera al terminar, que es lo que
+      // decidio ADR-019. Con Mongo configurado, el adaptador es el real; en
+      // memoria queda el doble, y entonces el compromiso lo crea quien prueba.
       provide: BATTLE_STATE,
-      useFactory: (): BattleStatePort => new InMemoryBattleStateRegistry(),
+      useFactory: (commitments: BattleHeroCommitmentPort, clock: ClockPort): BattleStatePort =>
+        new BattleCommitmentStateAdapter(commitments, clock),
+      inject: [BATTLE_HERO_COMMITMENTS, CLOCK],
     },
     {
       provide: APP_GUARD,
@@ -474,8 +512,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         inventories: InventoryQueryPort,
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
-      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+        battles: BattleStatePort,
+      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts, battles),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, BATTLE_STATE],
     },
     // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
     // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el

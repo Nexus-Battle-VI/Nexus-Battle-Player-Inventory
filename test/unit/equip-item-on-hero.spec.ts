@@ -17,7 +17,7 @@ import {
   InvalidEquipmentTypeError,
 } from '../../src/application/errors/ApplicationError'
 import { CatalogUnavailableError } from '../../src/application/ports/CatalogReadPort'
-import { InMemoryBattleStateRegistry } from '../../src/adapters/outbound/battle/InMemoryBattleStateRegistry'
+import { battleStateKit, type BattleStateKit } from '../fixtures/battle-state'
 
 const OWNER = 'sujeto-jugador'
 const clock: ClockPort = { now: () => new Date('2026-09-03T12:00:00.000Z') }
@@ -102,7 +102,7 @@ interface Kit {
   readonly equip: EquipItemOnHero
   readonly get: GetHeroEquipment
   readonly loadouts: InMemoryHeroLoadoutRepository
-  readonly battles: InMemoryBattleStateRegistry
+  readonly battles: BattleStateKit
 }
 
 const buildKit = (params: {
@@ -113,11 +113,11 @@ const buildKit = (params: {
   const inventories = new FakeInventoryQuery(params.owned)
   const catalog = new InMemoryCatalogReadClient(params.catalog, params.unavailable ?? false)
   const loadouts = new InMemoryHeroLoadoutRepository()
-  const battles = new InMemoryBattleStateRegistry()
+  const battles = battleStateKit(clock)
 
   return {
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battles),
-    get: new GetHeroEquipment(inventories, catalog, loadouts),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battles.state),
+    get: new GetHeroEquipment(inventories, catalog, loadouts, battles.state),
     loadouts,
     battles,
   }
@@ -315,7 +315,7 @@ describe('EquipItemOnHero (RF-29)', () => {
       owned: ['guerrero-tanque', sku],
       catalog: [hero('guerrero-tanque'), product],
     })
-    kit.battles.markBattleStarted({ value: OWNER } as PlayerId, 'pid-guerrero-tanque')
+    await kit.battles.startBattle(OWNER, 'pid-guerrero-tanque')
 
     await expect(
       kit.equip.execute({
@@ -336,8 +336,9 @@ describe('EquipItemOnHero (RF-29)', () => {
       catalog: [hero('guerrero-tanque'), equippable('espada-de-fuego', 'ARMA')],
     })
     const owner = { value: OWNER } as PlayerId
-    kit.battles.markBattleStarted(owner, 'pid-guerrero-tanque')
-    kit.battles.markBattleFinished(owner, 'pid-guerrero-tanque')
+
+    await kit.battles.startBattle(owner.value, 'pid-guerrero-tanque')
+    await kit.battles.finishBattle(owner.value, 'pid-guerrero-tanque')
 
     const state = await kit.equip.execute({
       ownerId: OWNER,
