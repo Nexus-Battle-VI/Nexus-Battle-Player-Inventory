@@ -33,3 +33,11 @@ export const QUERY_EXPERIENCE_THRESHOLD = Symbol('QueryExperienceThreshold')
  */
 export const GRANT_HERO_EXPERIENCE = Symbol('GrantHeroExperience')
 export const COMMIT_HERO_FOR_MISSION = Symbol('CommitHeroForMission')
+
+/**
+ * Perfil de un heroe concreto del jugador (HU-71, Task HU-71.2). Es la lectura
+ * interna que consume Missions para validar las habilidades de una estrategia de
+ * rotaciones y para congelar el perfil que enviara a Combat en HU-72. Distinta de
+ * `GET_EQUIPPED_HERO_FOR_COMBAT`, que sirve solo al heroe seleccionado.
+ */
+export const GET_HERO_PROFILE_FOR_MISSION = Symbol('GetHeroProfileForMission')
