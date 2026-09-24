@@ -16,3 +16,19 @@ export const LIST_AVAILABLE_HEROES = Symbol('ListAvailableHeroes')
 export const GET_HERO_SELECTION = Symbol('GetHeroSelection')
 export const SELECT_HERO = Symbol('SelectHero')
 export const GET_EQUIPPED_HERO_FOR_COMBAT = Symbol('GetEquippedHeroForCombat')
+export const GET_HERO_PROGRESSION = Symbol('GetHeroProgression')
+
+/**
+ * Operacion reutilizable de consulta del umbral (HU-08). Es el punto por el que
+ * HU-09 y HU-10 piden el umbral sin conocer la tabla, y no tiene controlador: se
+ * registra para que otros casos de uso de este servicio puedan depender de ella
+ * en lugar de reimplementar los ocho valores de la aclaracion.
+ */
+export const QUERY_EXPERIENCE_THRESHOLD = Symbol('QueryExperienceThreshold')
+
+/**
+ * Acreditacion idempotente de experiencia al heroe (HU-09, Task HU-09.3). Es la
+ * operacion interna que consume Missions, una vez por cada enemigo derrotado, y
+ * el unico camino por el que la experiencia entra en un heroe.
+ */
+export const GRANT_HERO_EXPERIENCE = Symbol('GrantHeroExperience')
