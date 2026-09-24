@@ -117,3 +117,54 @@ export class HeroSelectionConflictError extends Error {
     this.name = 'HeroSelectionConflictError'
   }
 }
+
+/**
+ * Otra escritura modifico la progresion del heroe entre la lectura y el guardado
+ * (bloqueo optimista). 409: la peticion es correcta y puede reintentarse.
+ *
+ * Existe aunque HU-08 no acredite experiencia por si misma: el bloqueo optimista
+ * es lo que impedira que dos recompensas simultaneas acrediten experiencia dos
+ * veces sobre el mismo estado, y HU-09 lo necesita ya definido. Sin el, la segunda
+ * escritura sumaria sobre un valor superado.
+ */
+export class HeroProgressionConflictError extends Error {
+  constructor(heroId: string) {
+    super(`La progresion del heroe ${heroId} cambio durante la operacion. Reintentelo.`)
+    this.name = 'HeroProgressionConflictError'
+  }
+}
+
+/**
+ * El mismo `operationId` de acreditacion llego con OTRO contenido (HU-09, Task
+ * HU-09.3). 409: la peticion es correcta pero no puede aplicarse.
+ *
+ * La clave de una acreditacion es determinista
+ * (`mission:{enrollmentId}:encounter:{encounterId}:enemy:{enemyInstanceId}:hero:{heroId}:xp`),
+ * asi que esto no deberia ocurrir en operacion normal: si ocurre es una anomalia
+ * --colision de datos o un defecto del llamante-- y reintentar con el mismo
+ * cuerpo no la resuelve. NUNCA se sobrescribe el asiento del ledger: devolver
+ * otro resultado por una acreditacion ya hecha seria regalar dos veces la misma
+ * recompensa.
+ */
+export class ExperienceGrantConflictError extends Error {
+  constructor(operationId: string) {
+    super(`La operacion "${operationId}" ya existe con otros datos.`)
+    this.name = 'ExperienceGrantConflictError'
+  }
+}
+
+/**
+ * La acreditacion no se puede aplicar: importe no entero o negativo, o heroe no
+ * acreditable (HU-09, Task HU-09.3). 422: el dato es valido como peticion pero
+ * incumple una regla, y reintentarlo tal cual no cambia el resultado.
+ *
+ * NO se redondea nada aqui. El importe lo calcula y lo redondea Missions: si
+ * llega fraccionario, el error es de la frontera y se dice, en lugar de
+ * acreditar una cantidad que nadie pidio.
+ */
+export class ExperienceGrantRejectedError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'ExperienceGrantRejectedError'
+  }
+}

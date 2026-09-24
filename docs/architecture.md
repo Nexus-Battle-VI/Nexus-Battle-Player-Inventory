@@ -16,6 +16,10 @@ Esa doble frontera es deliberada: evita duplicar el catálogo y el modelo de cue
 
 Player/Inventory es propietario exclusivo de los inventarios: propietario, capacidad y ranuras. Ningún otro servicio accede a este almacén, ni directamente ni mediante claves foráneas.
 
+Posee además, como agregados propios y almacenes propios, el **equipamiento** del héroe (`HeroLoadout`, por jugador y héroe), la **selección** del héroe preparado (`HeroSelection`, una por jugador) y la **progresión** del héroe: su nivel y su experiencia acumulada (`HeroProgression`, por jugador y héroe).
+
+El **umbral** de experiencia requerido para el siguiente nivel **no se posee ni se almacena**: se obtiene de la tabla vigente dentro de `ExperiencePolicy`, fijada por la aclaración funcional posterior del Product Owner. Un valor derivado que se guarda es una segunda versión de la misma verdad.
+
 ## Capas
 
 ```text
@@ -64,6 +68,24 @@ Modelarlo así tiene una consecuencia verificable: un inventario completo **sí*
 
 `ItemId` exige kebab-case, que es el formato del catálogo. `PlayerId` solo exige no estar vacío, porque su formato lo define el contexto Account y este servicio no debe imponerle uno.
 
+`HeroLevel` es un entero dentro de `1..8` y **no normaliza en silencio**: un `2.5` no se trunca, un `"3"` no se convierte y un `9` no se recorta. `Experience` es la experiencia **acumulada**: un entero no negativo, sin techo. Solo crece —subir de nivel no la descuenta— y en el nivel máximo sigue creciendo sin descartarse, así que su techo no es un número fijo.
+
+## Progresión del héroe (HU-08, RF-08)
+
+El nivel pertenece **al héroe, no al jugador**: un jugador puede tener varios héroes y cada uno progresa por su cuenta. Es la misma decisión que HU-11 tomó para el Poder.
+
+```text
+Jugador
+  ├── Inventory        (qué posee)                    HU-27, HU-38
+  ├── HeroSelection    (qué héroe tiene preparado)    HU-07   una por jugador
+  ├── HeroLoadout      (qué lleva equipado)           HU-28   una por (jugador, héroe)
+  └── HeroProgression  (nivel y experiencia)          HU-08   una por (jugador, héroe)
+```
+
+La progresión es un **agregado aparte** y no un campo de los otros dos. `HeroSelection` documenta expresamente que no guarda estadísticas ni equipamiento porque duplicarlos daría dos versiones de la misma verdad, y el nivel no es una excepción. `HeroLoadout` cambia por motivos y con ritmos distintos, y compartir agregado haría que subir de nivel compitiera por el bloqueo optimista con equipar un arma.
+
+La regla vive en `src/domain/policies/ExperiencePolicy.ts` como **política pura**: no persiste, no expone HTTP y no otorga experiencia por sí misma. Contiene la **tabla de umbrales vigente**, fijada por la aclaración funcional posterior del Product Owner —`100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, de experiencia **acumulada** por nivel— y las dos direcciones de esa tabla: el umbral de un nivel y el nivel de un acumulado. La XP se suma, nunca se resta, y un solo otorgamiento puede cruzar varios niveles. Su diseño completo, con el caso de uso, los diagramas y las decisiones abiertas, está en [hu-08-progresion.md](hu-08-progresion.md).
+
 ## Patrones aplicados
 
 | Patrón             | Dónde                                            | Por qué                                                |
@@ -96,5 +118,8 @@ Registro JSON estructurado por línea, emitido exclusivamente desde `infrastruct
 - La persistencia es en memoria y se pierde al reiniciar. El adaptador MongoDB depende de ADR-005, que debe decidir el ODM antes de escribir esquema y migraciones.
 - No se valida la existencia del objeto en Catalog ni del jugador en Account. Hacerlo exige una llamada sincrónica entre servicios o una réplica local del catálogo, y ambas son decisiones de integración que corresponden a ADR-006.
 - La capacidad es única para todos los jugadores. El modelo admite capacidades distintas sin cambios estructurales, pero no forma parte de este alcance.
+- **`CA-03` de HU-08 quedó divergente y necesita corrección del Product Owner.** El criterio sigue enunciando `100 × 1,2^(Nivel−1)` (nivel 4 → `172,8`; nivel 7 → `298,5984`) y el código aplica la tabla vigente posteriormente (`100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`). No es una diferencia de redondeo: son sucesiones distintas y ningún redondeo convierte una en la otra. La tabla gobierna el cálculo; la divergencia está medida en [hu-08-progresion.md](hu-08-progresion.md).
+- **La política de redondeo de la recompensa de experiencia sigue abierta, y no es de este servicio.** `10 × 1,2^(1d8)` —la XP por muerte de NPC en misiones JvE— es de Missions, y su tirada `1d8` es de Combat (`ADR-021`). Player/Inventory solo recibe un importe entero y lo acredita; la tabla de umbrales no tiene fracciones que redondear.
+- **`CA-06` de HU-08 (el nivel como multiplicador de las estadísticas) queda fuera de alcance.** El Product Owner ya dio la regla —estadística base del nivel 1 × nivel actual, con el equipamiento aplicado después—, pero implementarla tocaría `computeEffectiveStats` y el contrato interno `equipped-hero`, que hoy no lleva nivel, y no cubre las estadísticas expresadas como dados. `computeEffectiveStats` sigue recibiendo solo estadísticas base y equipamiento. Ver [hu-08-progresion.md](hu-08-progresion.md).
 
 Estas limitaciones están declaradas de forma explícita para que la arquitectura de demo no se confunda con la arquitectura objetivo.
