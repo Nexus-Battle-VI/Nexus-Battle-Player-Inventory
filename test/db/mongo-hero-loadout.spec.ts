@@ -184,6 +184,40 @@ describe('MongoHeroLoadoutRepository', () => {
     ).rejects.toBeInstanceOf(MissionCommitmentConcurrentError)
   })
 
+  it('findByOwner devuelve solo los loadouts del jugador y conserva el productId canonico', async () => {
+    const player = owner()
+    const otherPlayer = owner()
+    const productId = '088e6e86-5a7a-472a-8693-c11b946a8716'
+    const first = HeroLoadout.createEmpty(player.value, 'heroe-owner-1')
+    first.equip({
+      slot: 'WEAPON_1',
+      itemId: productId,
+      productId,
+      category: 'WEAPON',
+      occurredAt: AT,
+    })
+    const second = HeroLoadout.createEmpty(player.value, 'heroe-owner-2')
+    const unrelated = HeroLoadout.createEmpty(otherPlayer.value, 'heroe-other')
+
+    await Promise.all([
+      repository.save(first, 0),
+      repository.save(second, 0),
+      repository.save(unrelated, 0),
+    ])
+
+    const found = await repository.findByOwner(player)
+
+    expect(found.map((loadout) => loadout.heroId).sort()).toEqual([
+      'heroe-owner-1',
+      'heroe-owner-2',
+    ])
+    expect(
+      found.find((loadout) => loadout.heroId === 'heroe-owner-1')?.toSnapshot().entries[0]
+        ?.productId,
+    ).toBe(productId)
+    expect(await repository.findByOwner(PlayerId.create('jugador-sin-loadouts'))).toEqual([])
+  })
+
   it('actualiza en su sitio y sube la version, sin duplicar el documento', async () => {
     const player = owner()
     const first = HeroLoadout.createEmpty(player.value, 'heroe-2')

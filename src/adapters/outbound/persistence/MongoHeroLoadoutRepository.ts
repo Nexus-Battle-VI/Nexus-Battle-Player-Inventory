@@ -74,6 +74,11 @@ export class MongoHeroLoadoutRepository
     return document === null ? null : HeroLoadout.restore(toSnapshot(document))
   }
 
+  async findByOwner(ownerId: PlayerId): Promise<readonly HeroLoadout[]> {
+    const documents = await this.loadouts.find({ ownerId: ownerId.value }).toArray()
+    return documents.map((document) => HeroLoadout.restore(toSnapshot(document)))
+  }
+
   async save(loadout: HeroLoadout, expectedVersion: number): Promise<HeroLoadout> {
     const snapshot = loadout.toSnapshot()
     const nextDocument: HeroLoadoutDocument = {

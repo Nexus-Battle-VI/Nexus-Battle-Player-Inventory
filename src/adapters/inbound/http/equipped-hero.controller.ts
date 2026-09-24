@@ -18,7 +18,7 @@ import { CatalogUnavailableError } from '../../../application/ports/CatalogReadP
 import type { EquippedHeroDto } from '../../../application/dto/EquippedHeroDto'
 import type { GetEquippedHeroForCombat } from '../../../application/use-cases/GetEquippedHeroForCombat'
 import { GET_EQUIPPED_HERO_FOR_COMBAT } from './tokens'
-import { InternalOnly } from './auth/decorators'
+import { InternalCallers, InternalOnly } from './auth/decorators'
 
 /**
  * Contrato interno de solo lectura para que Combat obtenga el heroe
@@ -65,6 +65,7 @@ import { InternalOnly } from './auth/decorators'
  * contrato.
  */
 @InternalOnly()
+@InternalCallers('commerce', 'notifications', 'combat')
 @ApiTags('internal-combat')
 @Controller('internal/v1/players')
 export class EquippedHeroController {
