@@ -63,6 +63,43 @@ const weapon: CatalogProductView = {
   },
 }
 
+const equippable = (
+  sku: string,
+  type: 'ARMA' | 'ARMADURA',
+  extraValues: Record<string, unknown> = {},
+): CatalogProductView => ({
+  productId: `pid-${sku}`,
+  sku,
+  name: sku,
+  imageUrl: '',
+  description: '',
+  type,
+  lifecycleStatus: 'ACTIVE',
+  creditsPrice: 0,
+  premium: false,
+  realMoneyPrice: null,
+  attributes: {
+    schemaVersion: '1',
+    values: { kind: type, compatibilityScope: 'ALL_HEROES', effects: [], ...extraValues },
+  },
+})
+
+/** Lo que exige una mision: la segunda arma y las seis armaduras; ningun item. */
+const ARMOR_BY_SLOT: readonly (readonly [string, string])[] = [
+  ['HELMET', 'HEAD'],
+  ['CHEST', 'CHEST'],
+  ['GLOVES', 'GLOVES'],
+  ['BRACERS', 'BRACERS'],
+  ['PANTS', 'PANTS'],
+  ['SHOES', 'SHOES'],
+]
+const missionGear: CatalogProductView[] = [
+  equippable('hacha-hielo', 'ARMA'),
+  ...ARMOR_BY_SLOT.map(([slot, armorSlot]) =>
+    equippable(`armadura-${slot.toLowerCase()}`, 'ARMADURA', { slot: armorSlot }),
+  ),
+]
+
 const verifier: TokenVerifierPort = {
   verify: (token) =>
     Promise.resolve({ subject: token, email: null, roles: new Set([Role.Player]) }),
@@ -95,7 +132,7 @@ describe('Compromiso interno MISSION del heroe', () => {
       .overrideProvider(TOKEN_VERIFIER)
       .useValue(verifier)
       .overrideProvider(CATALOG_READ)
-      .useValue(new InMemoryCatalogReadClient([hero, weapon]))
+      .useValue(new InMemoryCatalogReadClient([hero, weapon, ...missionGear]))
       .compile()
     app = module.createNestApplication()
     app.setGlobalPrefix('api')
@@ -145,11 +182,49 @@ describe('Compromiso interno MISSION del heroe', () => {
     const incomplete = await signed(PATH, input('33333333-3333-4333-8333-333333333333', true))
     expect(incomplete.status).toBe(422)
     expect(incomplete.body.code).toBe('LOADOUT_INCOMPLETE')
+    // Los items no cuentan: una mision se inicia con cero items.
     expect(incomplete.body.missingSlots).toEqual([
       { family: 'WEAPON', missing: 2 },
       { family: 'ARMOR', missing: 6 },
-      { family: 'ITEM', missing: 2 },
     ])
+  })
+
+  it('reserva con las dos armas y las seis armaduras aunque no lleve ningun item', async () => {
+    const owner = 'jugador-sin-items'
+    const products = ['guerrero-tanque', 'espada-fuego', ...missionGear.map((item) => item.sku)]
+    for (const itemId of products) {
+      await request(app.getHttpServer())
+        .post(`/api/inventories/${owner}/items`)
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ itemId, quantity: 1 })
+        .expect(200)
+    }
+    const equip = (slot: string, productReference: string) =>
+      request(app.getHttpServer())
+        .put(`/api/inventories/me/heroes/${HERO_ID}/equipment/${slot}`)
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ productReference })
+        .expect(200)
+    await equip('WEAPON_1', 'espada-fuego')
+    await equip('WEAPON_2', 'hacha-hielo')
+    for (const [slot] of ARMOR_BY_SLOT.slice(0, 5)) {
+      await equip(slot, `armadura-${slot.toLowerCase()}`)
+    }
+
+    const oneArmorShort = await signed(PATH, {
+      ...input('66666666-6666-4666-8666-666666666666', true),
+      playerId: owner,
+    })
+    expect(oneArmorShort.status).toBe(422)
+    expect(oneArmorShort.body.missingSlots).toEqual([{ family: 'ARMOR', missing: 1 }])
+
+    await equip('SHOES', 'armadura-shoes')
+    const withoutItems = await signed(PATH, {
+      ...input('77777777-7777-4777-8777-777777777777', true),
+      playerId: owner,
+    })
+    expect(withoutItems.status).toBe(201)
+    expect(withoutItems.body).toMatchObject({ heroId: HERO_ID, purpose: 'MISSION' })
   })
 
   it('reserva idempotentemente, impide equipar y libera incluso con reintentos', async () => {

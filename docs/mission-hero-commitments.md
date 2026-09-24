@@ -7,8 +7,9 @@ Las respuestas siguen `hu-70-mission-enrollment-v1` de Infrastructure.
 
 La creación comprueba que el héroe es del jugador, está activo, su equipo sigue
 perteneciendo al jugador y está activo. Cuando `completeLoadout` es verdadero
-exige las diez ranuras 2/6/2 y devuelve `LOADOUT_INCOMPLETE` con el déficit por
-familia. Una misma operación y cuerpo devuelve el mismo `commitmentId`; otro
+exige las dos armas y las seis armaduras (`MISSION_REQUIRED_SLOTS`) y devuelve
+`LOADOUT_INCOMPLETE` con el déficit por familia. Los ítems son opcionales: una
+misión se puede iniciar con cero ítems (decisión del PO del 2026-09-24). Una misma operación y cuerpo devuelve el mismo `commitmentId`; otro
 cuerpo recibe `409 OPERATION_ID_REUSED`. La liberación responde `204` aunque la
 operación ya se hubiera liberado o no se conozca.
 
