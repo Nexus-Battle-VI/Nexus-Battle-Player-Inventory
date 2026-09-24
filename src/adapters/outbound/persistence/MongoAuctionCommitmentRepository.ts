@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto'
 import type { ClientSession, Db } from 'mongodb'
 import { Int32, MongoServerError } from 'mongodb'
 import { Inventory } from '../../../domain/entities/Inventory'
+import { CapacityPolicy } from '../../../domain/policies/CapacityPolicy'
 import { ItemId, PlayerId, Quantity } from '../../../domain/value-objects/identifiers'
 import type {
   AuctionCommitmentPort,
   AuctionCommitmentResult,
+  ClaimAuctionCommitment,
   CreateAuctionCommitment,
   PendingAuctionCommitment,
   ReleaseAuctionCommitment,
@@ -153,9 +155,53 @@ export class MongoAuctionCommitmentRepository implements AuctionCommitmentPort {
       }
     })
   }
+  async claim(input: ClaimAuctionCommitment): Promise<AuctionCommitmentResult> {
+    return this.transition(input.operationId, input, async (c, session) => {
+      if (c.status !== AuctionCommitmentStatus.PendingClaim)
+        throw new AuctionCommitmentRejectedError(
+          'El commitment no puede reclamarse en su estado actual.',
+        )
+      const winner = PlayerId.create(input.winnerId)
+      const doc = await this.db
+        .collection<InventoryDocument>('inventories')
+        .findOne({ _id: input.winnerId }, { session })
+      const inventory =
+        doc === null
+          ? Inventory.createEmpty(winner, CapacityPolicy.default())
+          : Inventory.restore({ ...toSnapshot(doc), ownerId: winner })
+      inventory.add(ItemId.create(c.productId), Quantity.create(1), new Date())
+      const next = {
+        ...toDocument(inventory.toSnapshot()),
+        revision: new Int32(Number(doc?.revision ?? 0) + 1),
+      }
+      if (doc === null) {
+        await this.db.collection<InventoryDocument>('inventories').insertOne(next, { session })
+      } else {
+        const saved = await this.db
+          .collection<InventoryDocument>('inventories')
+          .replaceOne({ _id: input.winnerId, revision: doc.revision }, next, { session })
+        if (saved.matchedCount !== 1)
+          throw new AuctionCommitmentConflictError('El inventario cambio durante la operacion.')
+      }
+      await this.db
+        .collection<Commitment>('auction_commitments')
+        .updateOne(
+          { commitmentId: c.commitmentId },
+          { $set: { status: AuctionCommitmentStatus.Claimed, updatedAt: new Date() } },
+          { session },
+        )
+      return {
+        operationId: input.operationId,
+        commitmentId: c.commitmentId,
+        status: AuctionCommitmentStatus.Claimed,
+        winnerId: input.winnerId,
+        applied: true,
+      }
+    })
+  }
   private async transition(
     id: string,
-    input: ReleaseAuctionCommitment | PendingAuctionCommitment,
+    input: ReleaseAuctionCommitment | PendingAuctionCommitment | ClaimAuctionCommitment,
     action: (c: Commitment, s: ClientSession) => Promise<AuctionCommitmentResult>,
   ): Promise<AuctionCommitmentResult> {
     return this.transaction(id, input, async (session) => {
@@ -163,9 +209,17 @@ export class MongoAuctionCommitmentRepository implements AuctionCommitmentPort {
         .collection<Commitment>('auction_commitments')
         .findOne({ commitmentId: input.commitmentId }, { session })
       if (!c) throw new AuctionCommitmentNotFoundError()
-      const owner = 'ownerId' in input ? input.ownerId : input.sellerId
-      if (c.auctionId !== input.auctionId || c.ownerId !== owner || c.productId !== input.productId)
+      if (c.auctionId !== input.auctionId || c.productId !== input.productId)
         throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+      if ('ownerId' in input) {
+        if (c.ownerId !== input.ownerId)
+          throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+      } else if ('sellerId' in input) {
+        if (c.ownerId !== input.sellerId)
+          throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+      } else if (c.winnerId !== input.winnerId) {
+        throw new AuctionCommitmentRejectedError('El intent no coincide con el commitment.')
+      }
       return action(c, session)
     })
   }

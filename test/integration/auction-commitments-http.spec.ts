@@ -128,6 +128,36 @@ describe('Auction commitments HTTP', () => {
     })
     expect((await post(`${base}/${secondId}/pending-claim`, pending)).body.applied).toBe(false)
   })
+  it('claim entrega el producto al ganador y es idempotente', async () => {
+    await seed()
+    const winner = 'winner-claim'
+    const created = await post(base, commit('auction-claim'))
+    const commitmentId = commitmentIdOf(created.body)
+    const pending = {
+      operationId: 'auction-claim:pending',
+      auctionId: 'auction-claim',
+      sellerId: owner,
+      winnerId: winner,
+      productId: product,
+    }
+    expect((await post(`${base}/${commitmentId}/pending-claim`, pending)).status).toBe(200)
+    const claim = {
+      operationId: 'auction-claim:claim',
+      auctionId: 'auction-claim',
+      winnerId: winner,
+      productId: product,
+    }
+    const claimed = await post(`${base}/${commitmentId}/claim`, claim)
+    expect(claimed.status).toBe(200)
+    expect(claimed.body).toMatchObject({ status: 'CLAIMED', winnerId: winner, applied: true })
+    const replay = await post(`${base}/${commitmentId}/claim`, claim)
+    expect(replay.body).toMatchObject({ status: 'CLAIMED', winnerId: winner, applied: false })
+    expect(
+      (await inventory.findByOwner(PlayerId.create(winner)))?.quantityOf({
+        value: product,
+      } as never),
+    ).toBe(1)
+  })
   it('protege por caller, firma, timestamp y body', async () => {
     const body = commit('auction-c')
     for (const caller of ['commerce', 'combat', 'notifications'])
@@ -168,9 +198,29 @@ describe('Auction commitments HTTP', () => {
       reason: 'AUCTION_WITHOUT_BIDS',
     }
     expect((await post(`${base}/missing/release`, missing)).status).toBe(404)
+    expect(
+      (
+        await post(`${base}/missing/claim`, {
+          operationId: 'missing:claim',
+          auctionId: 'missing',
+          winnerId: 'winner',
+          productId: product,
+        })
+      ).status,
+    ).toBe(404)
     const first = await post(base, commit('conflict'))
     const firstId = commitmentIdOf(first.body)
     expect((await post(base, { ...commit('conflict'), ownerId: 'other' })).status).toBe(409)
+    expect(
+      (
+        await post(`${base}/${firstId}/claim`, {
+          operationId: 'conflict:claim-too-early',
+          auctionId: 'conflict',
+          winnerId: 'winner',
+          productId: product,
+        })
+      ).status,
+    ).toBe(422)
     const pending = {
       operationId: 'conflict:pending',
       auctionId: 'conflict',

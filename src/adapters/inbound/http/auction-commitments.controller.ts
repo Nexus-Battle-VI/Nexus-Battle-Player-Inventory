@@ -21,6 +21,7 @@ import {
 } from '../../../application/ports/AuctionCommitmentPort'
 import { InternalCallers, InternalOnly } from './auth/decorators'
 import {
+  ClaimAuctionCommitmentRequest,
   CreateAuctionCommitmentRequest,
   PendingAuctionCommitmentRequest,
   ReleaseAuctionCommitmentRequest,
@@ -58,6 +59,20 @@ export class AuctionCommitmentsController {
         operationId: body.operationId,
         auctionId: body.auctionId,
         sellerId: body.sellerId,
+        winnerId: body.winnerId,
+        productId: body.productId,
+        commitmentId,
+      }),
+    )
+  }
+  @Post(':commitmentId/claim') @HttpCode(200) async claim(
+    @Param('commitmentId') commitmentId: string,
+    @Body() body: ClaimAuctionCommitmentRequest,
+  ) {
+    return this.run(() =>
+      this.useCase.claim({
+        operationId: body.operationId,
+        auctionId: body.auctionId,
         winnerId: body.winnerId,
         productId: body.productId,
         commitmentId,

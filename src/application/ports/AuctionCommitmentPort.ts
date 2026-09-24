@@ -2,6 +2,7 @@ export const AuctionCommitmentStatus = {
   Active: 'ACTIVE',
   PendingClaim: 'PENDING_CLAIM',
   Released: 'RELEASED',
+  Claimed: 'CLAIMED',
 } as const
 
 export type AuctionCommitmentStatus =
@@ -41,6 +42,14 @@ export interface PendingAuctionCommitment {
   readonly productId: string
 }
 
+export interface ClaimAuctionCommitment {
+  readonly operationId: string
+  readonly commitmentId: string
+  readonly auctionId: string
+  readonly winnerId: string
+  readonly productId: string
+}
+
 export class AuctionCommitmentConflictError extends Error {
   constructor(message = 'La operacion o el producto comprometido entra en conflicto.') {
     super(message)
@@ -64,5 +73,6 @@ export interface AuctionCommitmentPort {
   commit(input: CreateAuctionCommitment): Promise<AuctionCommitmentResult>
   release(input: ReleaseAuctionCommitment): Promise<AuctionCommitmentResult>
   markPendingClaim(input: PendingAuctionCommitment): Promise<AuctionCommitmentResult>
+  claim(input: ClaimAuctionCommitment): Promise<AuctionCommitmentResult>
 }
 export const AUCTION_COMMITMENTS = Symbol('AuctionCommitmentPort')

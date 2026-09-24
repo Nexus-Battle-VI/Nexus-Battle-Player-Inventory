@@ -238,6 +238,66 @@ describe('Commitments Auction contra MongoDB', () => {
     expect(releases.map((result) => result.applied).filter(Boolean)).toHaveLength(1)
     expect((await inventory.findByOwner(PlayerId.create(owner)))?.totalUnits).toBe(1)
   })
+  it('claim entrega el producto al ganador, es idempotente y no permite reclamos dobles ni fuera de estado', async () => {
+    const winner = randomUUID()
+    const owner = randomUUID()
+    const item = randomUUID()
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [{ itemId: item, quantity: 1 }],
+      }),
+    )
+    const repo = new MongoAuctionCommitmentRepository(db)
+    const created = await repo.commit({
+      operationId: 'auction:claim-case:inventory:commit',
+      auctionId: 'claim-case',
+      ownerId: owner,
+      productId: item,
+      expiresAt: '2026-01-01T00:00:00.000Z',
+    })
+    const claimInput = {
+      operationId: 'auction:claim-case:inventory:claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'claim-case',
+      winnerId: winner,
+      productId: item,
+    }
+    await expect(repo.claim(claimInput)).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    await repo.markPendingClaim({
+      operationId: 'auction:claim-case:inventory:pending-claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'claim-case',
+      sellerId: owner,
+      winnerId: winner,
+      productId: item,
+    })
+    const claimed = await repo.claim(claimInput)
+    expect(claimed).toMatchObject({ status: 'CLAIMED', winnerId: winner, applied: true })
+    expect(
+      (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(winner)))?.totalUnits,
+    ).toBe(1)
+    expect(
+      await new MongoAuctionCommitmentRepository(db).claim(claimInput),
+    ).toMatchObject({ applied: false, status: 'CLAIMED' })
+    await expect(
+      repo.claim({ ...claimInput, operationId: 'auction:claim-case:inventory:claim:retry' }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    await expect(
+      repo.release({
+        operationId: 'auction:claim-case:inventory:release',
+        commitmentId: created.commitmentId,
+        auctionId: 'claim-case',
+        ownerId: owner,
+        productId: item,
+        reason: 'AUCTION_WITHOUT_BIDS',
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    expect(
+      await db.collection('auction_commitments').findOne({ commitmentId: created.commitmentId }),
+    ).toMatchObject({ status: 'CLAIMED', winnerId: winner })
+  })
   it('acepta dos commits concurrentes cuando existen dos unidades', async () => {
     const owner = randomUUID()
     const item = randomUUID()
