@@ -123,7 +123,8 @@ export class InMemoryAuctionCommitmentRepository implements AuctionCommitmentPor
       )
     const winner = PlayerId.create(input.winnerId)
     const inventory =
-      (await this.inventories.findByOwner(winner)) ?? Inventory.createEmpty(winner, CapacityPolicy.default())
+      (await this.inventories.findByOwner(winner)) ??
+      Inventory.createEmpty(winner, CapacityPolicy.default())
     inventory.add(ItemId.create(c.productId), Quantity.create(1), new Date())
     await this.inventories.save(inventory)
     c.status = AuctionCommitmentStatus.Claimed

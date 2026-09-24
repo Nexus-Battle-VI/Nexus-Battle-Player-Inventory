@@ -278,9 +278,10 @@ describe('Commitments Auction contra MongoDB', () => {
     expect(
       (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(winner)))?.totalUnits,
     ).toBe(1)
-    expect(
-      await new MongoAuctionCommitmentRepository(db).claim(claimInput),
-    ).toMatchObject({ applied: false, status: 'CLAIMED' })
+    expect(await new MongoAuctionCommitmentRepository(db).claim(claimInput)).toMatchObject({
+      applied: false,
+      status: 'CLAIMED',
+    })
     await expect(
       repo.claim({ ...claimInput, operationId: 'auction:claim-case:inventory:claim:retry' }),
     ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
