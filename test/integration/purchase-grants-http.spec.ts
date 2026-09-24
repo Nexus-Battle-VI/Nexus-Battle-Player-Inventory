@@ -78,6 +78,17 @@ describe('Contrato HTTP interno de entrega', () => {
     expect(response.status).toBe(200)
     expect(response.body.applied).toBe(true)
   })
+  it('acepta a missions para la recompensa epica y conserva la idempotencia', async () => {
+    const payload = { ...body, operationId: '55555555-5555-4555-8555-555555555555' }
+    const first = await signed(payload, 'missions')
+    const replay = await signed(payload, 'missions')
+
+    expect(first.status).toBe(200)
+    expect(first.body).toMatchObject({ operationId: payload.operationId, applied: true })
+    expect(replay.status).toBe(200)
+    expect(replay.body).toEqual(first.body)
+  })
+
   describe('HU-22: el operationId que llega de Combat debe ser UUID', () => {
     // Identificadores de ejemplo con la forma real (batalla UUID, `sub` de Cognito, producto del Catalog).
     const battleId = '5b1d3c0e-7a2f-4e6b-9c1d-2f8a4b6c7d01'

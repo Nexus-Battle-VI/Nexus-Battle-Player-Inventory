@@ -21,7 +21,7 @@ const SECRET = 'secreto-de-pruebas'
 const PLAYER_ID = 'sub-jugador-1'
 const HERO_ID = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const PATH = `/api/internal/v1/players/${PLAYER_ID}/heroes/${HERO_ID}/experience`
-const GRANTS_PATH = '/api/internal/v1/inventory/grants'
+const AUCTION_PATH = '/api/internal/v1/inventory/auction-commitments'
 
 const bodyWith = (overrides: Record<string, unknown> = {}) => ({
   schemaVersion: 1,
@@ -196,17 +196,9 @@ describe('POST /api/internal/v1/players/:playerId/heroes/:heroId/experience', ()
     },
   )
 
-  it('missions NO esta en la lista global: en la ruta de grants del inventario responde 401', async () => {
-    const grants = {
-      operationId: '22222222-2222-4222-8222-222222222222',
-      playerId: 'sub-jugador-1',
-      items: [{ productId: '11111111-1111-4111-8111-111111111111', quantity: 1 }],
-    }
-
-    // La lista global sigue siendo la de siempre: no se amplio para que Missions
-    // pudiera llamar. El permiso es por ruta.
-    expect((await post(GRANTS_PATH, grants, 'missions')).status).toBe(401)
-    expect((await post(GRANTS_PATH, grants, 'commerce')).status).toBe(200)
+  it('missions no entra en la lista global ni puede llamar a auction-commitments', async () => {
+    // El permiso de Missions para experiencia y grants se declara por ruta.
+    expect((await post(AUCTION_PATH, {}, 'missions')).status).toBe(401)
   })
 
   it('acumula sin restar entre dos derrotas distintas', async () => {
