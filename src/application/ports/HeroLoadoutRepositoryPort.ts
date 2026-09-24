@@ -9,6 +9,9 @@ import type { PlayerId } from '../../domain/value-objects/identifiers'
  * solo documento cuya escritura es atomica.
  */
 export interface HeroLoadoutRepositoryPort {
+  /** Todos los loadouts persistidos del jugador; fuente de verdad de piezas equipadas. */
+  findByOwner(ownerId: PlayerId): Promise<readonly HeroLoadout[]>
+
   /**
    * Recupera el loadout de un heroe del jugador. `null` cuando el heroe aun no
    * tiene ninguna pieza equipada.

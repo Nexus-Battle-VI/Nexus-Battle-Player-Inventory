@@ -10,10 +10,17 @@ import {
   migrateToLatest,
 } from '../../src/infrastructure/persistence/database'
 import { MongoHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/MongoHeroLoadoutRepository'
+import { MongoInventoryRepository } from '../../src/adapters/outbound/persistence/MongoInventoryRepository'
 import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
+import { Inventory } from '../../src/domain/entities/Inventory'
 import { HeroLoadoutConflictError } from '../../src/application/errors/ApplicationError'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
 import { documentId } from '../../src/adapters/outbound/persistence/hero-loadout-mapping'
+import {
+  HeroCommittedError,
+  MissionCommitmentConcurrentError,
+  MissionCommitmentConflictError,
+} from '../../src/application/ports/MissionHeroCommitmentPort'
 
 /**
  * Adaptador del loadout de heroe contra un MongoDB REAL, en contenedor.
@@ -39,6 +46,16 @@ describe('MongoHeroLoadoutRepository', () => {
 
   const loadouts = (): Collection<Record<string, unknown> & { _id: string }> =>
     db.collection<Record<string, unknown> & { _id: string }>('hero-loadouts')
+
+  const seedHero = async (player: PlayerId, heroId: string): Promise<void> => {
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: player,
+        capacity: 30,
+        slots: [{ itemId: heroId, quantity: 1 }],
+      }),
+    )
+  }
 
   beforeAll(async () => {
     container = await new MongoDBContainer('mongo:8.0').start()
@@ -114,6 +131,91 @@ describe('MongoHeroLoadoutRepository', () => {
 
   it('devuelve null cuando el heroe no tiene loadout', async () => {
     expect(await repository.findByHero(owner(), 'sin-loadout')).toBeNull()
+  })
+
+  it('reserva y libera de forma idempotente, bloqueando la escritura del loadout mientras esta vigente', async () => {
+    const player = owner()
+    await seedHero(player, 'heroe-mision')
+    const input = {
+      operationId: crypto.randomUUID(),
+      playerId: player.value,
+      heroId: 'heroe-mision',
+      reference: 'enr-prueba',
+      expiresAt: new Date(Date.now() + 60_000),
+      completeLoadout: false,
+    }
+    const first = await repository.commit(input, 0)
+    expect(first.status).toBe('ACTIVE')
+    expect((await repository.commit(input, 0)).commitmentId).toBe(first.commitmentId)
+    await expect(repository.commit({ ...input, reference: 'otra' }, 0)).rejects.toBeInstanceOf(
+      MissionCommitmentConflictError,
+    )
+    await expect(
+      repository.commit({ ...input, operationId: crypto.randomUUID() }, 0),
+    ).rejects.toBeInstanceOf(HeroCommittedError)
+    await expect(
+      repository.save(HeroLoadout.createEmpty(player.value, input.heroId), 0),
+    ).rejects.toBeInstanceOf(HeroCommittedError)
+
+    await repository.release(input.operationId)
+    await repository.release(input.operationId)
+    expect(
+      (await repository.save(HeroLoadout.createEmpty(player.value, input.heroId), 0)).version,
+    ).toBe(1)
+    await expect(repository.commit(input, 1)).rejects.toBeInstanceOf(MissionCommitmentConflictError)
+  })
+
+  it('no reserva sobre una version antigua del loadout', async () => {
+    const player = owner()
+    await seedHero(player, 'heroe-cambiado')
+    await repository.save(HeroLoadout.createEmpty(player.value, 'heroe-cambiado'), 0)
+    await expect(
+      repository.commit(
+        {
+          operationId: crypto.randomUUID(),
+          playerId: player.value,
+          heroId: 'heroe-cambiado',
+          reference: 'enr-prueba',
+          expiresAt: new Date(Date.now() + 60_000),
+          completeLoadout: false,
+        },
+        0,
+      ),
+    ).rejects.toBeInstanceOf(MissionCommitmentConcurrentError)
+  })
+
+  it('findByOwner devuelve solo los loadouts del jugador y conserva el productId canonico', async () => {
+    const player = owner()
+    const otherPlayer = owner()
+    const productId = '088e6e86-5a7a-472a-8693-c11b946a8716'
+    const first = HeroLoadout.createEmpty(player.value, 'heroe-owner-1')
+    first.equip({
+      slot: 'WEAPON_1',
+      itemId: productId,
+      productId,
+      category: 'WEAPON',
+      occurredAt: AT,
+    })
+    const second = HeroLoadout.createEmpty(player.value, 'heroe-owner-2')
+    const unrelated = HeroLoadout.createEmpty(otherPlayer.value, 'heroe-other')
+
+    await Promise.all([
+      repository.save(first, 0),
+      repository.save(second, 0),
+      repository.save(unrelated, 0),
+    ])
+
+    const found = await repository.findByOwner(player)
+
+    expect(found.map((loadout) => loadout.heroId).sort()).toEqual([
+      'heroe-owner-1',
+      'heroe-owner-2',
+    ])
+    expect(
+      found.find((loadout) => loadout.heroId === 'heroe-owner-1')?.toSnapshot().entries[0]
+        ?.productId,
+    ).toBe(productId)
+    expect(await repository.findByOwner(PlayerId.create('jugador-sin-loadouts'))).toEqual([])
   })
 
   it('actualiza en su sitio y sube la version, sin duplicar el documento', async () => {

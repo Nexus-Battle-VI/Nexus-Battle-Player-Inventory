@@ -6,7 +6,15 @@ import { InventoryGrantsController } from '../../adapters/inbound/http/inventory
 import { ProductOwnersController } from '../../adapters/inbound/http/product-owners.controller'
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
+import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.controller'
+import { AuctionEligibilityController } from '../../adapters/inbound/http/auction-eligibility.controller'
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
+import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
+import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
+import {
+  MISSION_HERO_COMMITMENTS,
+  type MissionHeroCommitmentPort,
+} from '../../application/ports/MissionHeroCommitmentPort'
 import {
   EXPERIENCE_GRANTS,
   type ExperienceGrantPort,
@@ -31,18 +39,24 @@ import {
 } from '../../application/use-cases/GrantPurchasedItems'
 import { GET_PRODUCT_OWNERS, GetProductOwners } from '../../application/use-cases/GetProductOwners'
 import { GetEquippedHeroForCombat } from '../../application/use-cases/GetEquippedHeroForCombat'
+import {
+  GET_AUCTION_PRODUCT_ELIGIBILITY,
+  GetAuctionProductEligibility,
+} from '../../application/use-cases/GetAuctionProductEligibility'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
+  COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
   GET_HERO_SELECTION,
   GET_INVENTORY,
   GET_EQUIPPED_HERO_FOR_COMBAT,
   GET_HERO_PROGRESSION,
+  GET_HERO_PROFILE_FOR_MISSION,
   GET_ITEM_DETAIL,
   GRANT_HERO_EXPERIENCE,
   LIST_AVAILABLE_HEROES,
@@ -61,6 +75,7 @@ import {
 import { ListOwnedInventoryItems } from '../../application/use-cases/ListOwnedInventoryItems'
 import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwnedInventoryItemDetail'
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
+import { GetHeroProfileForMission } from '../../application/use-cases/GetHeroProfileForMission'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
 import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
@@ -143,7 +158,10 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     ProductOwnersController,
     EquippedHeroController,
     AuctionCommitmentsController,
+    HeroProfileController,
+    AuctionEligibilityController,
     HeroExperienceController,
+    MissionCommitmentsController,
   ],
   providers: [
     {
@@ -215,6 +233,25 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (db: Db | null): HeroLoadoutRepositoryPort =>
         db === null ? new InMemoryHeroLoadoutRepository() : new MongoHeroLoadoutRepository(db),
       inject: [MONGO_DATABASE],
+    },
+    { provide: MISSION_HERO_COMMITMENTS, useExisting: HERO_LOADOUT_REPOSITORY },
+    {
+      provide: COMMIT_HERO_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        commitments: MissionHeroCommitmentPort,
+        clock: ClockPort,
+      ): CommitHeroForMission =>
+        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        MISSION_HERO_COMMITMENTS,
+        CLOCK,
+      ],
     },
     {
       provide: HERO_SELECTION_REPOSITORY,
@@ -318,7 +355,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           // autoriza tambien POST /internal/v1/inventory/grants, que HU-22
           // (Task #430, Management#430) reutiliza sin cambiar este arreglo
           // para entregar la recompensa del cofre. Ver docs/purchase-grants.md.
-          allowedServices: ['commerce', 'notifications', 'combat'],
+          allowedServices: ['commerce', 'notifications', 'combat', 'auction'],
           clock,
           logger,
         }),
@@ -327,11 +364,18 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
     {
       provide: AUCTION_COMMITMENTS,
-      useFactory: (db: Db | null, inventories: InventoryRepositoryPort): AuctionCommitmentPort =>
+      useFactory: (
+        db: Db | null,
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): AuctionCommitmentPort =>
         db === null
-          ? new InMemoryAuctionCommitmentRepository(inventories as InMemoryInventoryRepository)
+          ? new InMemoryAuctionCommitmentRepository(
+              inventories as InMemoryInventoryRepository,
+              loadouts as InMemoryHeroLoadoutRepository,
+            )
           : new MongoAuctionCommitmentRepository(db),
-      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY],
+      inject: [MONGO_DATABASE, INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     {
       provide: AUCTION_COMMITMENT_USE_CASE,
@@ -360,6 +404,14 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (inventories: InventoryRepositoryPort): GetInventory =>
         new GetInventory(inventories),
       inject: [INVENTORY_REPOSITORY],
+    },
+    {
+      provide: GET_AUCTION_PRODUCT_ELIGIBILITY,
+      useFactory: (
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetAuctionProductEligibility => new GetAuctionProductEligibility(inventories, loadouts),
+      inject: [INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     // La consulta de HU-27 usa un puerto de LECTURA propio (CQRS ligero). Lo
     // sirve el mismo adaptador de persistencia que ya elige el driver: la
@@ -415,6 +467,19 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
       ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+    },
+    // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
+    // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el
+    // equipamiento y las habilidades se resuelven con las mismas piezas, no con
+    // un camino paralelo.
+    {
+      provide: GET_HERO_PROFILE_FOR_MISSION,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetHeroProfileForMission => new GetHeroProfileForMission(inventories, catalog, loadouts),
       inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
     },
     {

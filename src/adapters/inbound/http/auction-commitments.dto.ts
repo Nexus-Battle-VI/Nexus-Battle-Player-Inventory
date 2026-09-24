@@ -17,3 +17,6 @@ export class PendingAuctionCommitmentRequest extends Base {
   @IsString() @MinLength(1) @MaxLength(200) sellerId!: string
   @IsString() @MinLength(1) @MaxLength(200) winnerId!: string
 }
+export class ClaimAuctionCommitmentRequest extends Base {
+  @IsString() @MinLength(1) @MaxLength(200) winnerId!: string
+}

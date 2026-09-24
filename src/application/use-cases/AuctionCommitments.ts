@@ -1,6 +1,7 @@
 import type {
   AuctionCommitmentPort,
   AuctionCommitmentResult,
+  ClaimAuctionCommitment,
   CreateAuctionCommitment,
   PendingAuctionCommitment,
   ReleaseAuctionCommitment,
@@ -16,6 +17,9 @@ export class AuctionCommitments {
   }
   markPendingClaim(input: PendingAuctionCommitment): Promise<AuctionCommitmentResult> {
     return this.commitments.markPendingClaim(input)
+  }
+  claim(input: ClaimAuctionCommitment): Promise<AuctionCommitmentResult> {
+    return this.commitments.claim(input)
   }
 }
 export const AUCTION_COMMITMENT_USE_CASE = Symbol('AuctionCommitments')
