@@ -7,6 +7,7 @@ import { ProductOwnersController } from '../../adapters/inbound/http/product-own
 import { EquippedHeroController } from '../../adapters/inbound/http/equipped-hero.controller'
 import { AuctionCommitmentsController } from '../../adapters/inbound/http/auction-commitments.controller'
 import { HeroProfileController } from '../../adapters/inbound/http/hero-profile.controller'
+import { AuctionEligibilityController } from '../../adapters/inbound/http/auction-eligibility.controller'
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
 import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
 import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
@@ -38,6 +39,10 @@ import {
 } from '../../application/use-cases/GrantPurchasedItems'
 import { GET_PRODUCT_OWNERS, GetProductOwners } from '../../application/use-cases/GetProductOwners'
 import { GetEquippedHeroForCombat } from '../../application/use-cases/GetEquippedHeroForCombat'
+import {
+  GET_AUCTION_PRODUCT_ELIGIBILITY,
+  GetAuctionProductEligibility,
+} from '../../application/use-cases/GetAuctionProductEligibility'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
 import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
@@ -154,6 +159,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     EquippedHeroController,
     AuctionCommitmentsController,
     HeroProfileController,
+    AuctionEligibilityController,
     HeroExperienceController,
     MissionCommitmentsController,
   ],
@@ -349,7 +355,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           // autoriza tambien POST /internal/v1/inventory/grants, que HU-22
           // (Task #430, Management#430) reutiliza sin cambiar este arreglo
           // para entregar la recompensa del cofre. Ver docs/purchase-grants.md.
-          allowedServices: ['commerce', 'notifications', 'combat'],
+          allowedServices: ['commerce', 'notifications', 'combat', 'auction'],
           clock,
           logger,
         }),
@@ -398,6 +404,14 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       useFactory: (inventories: InventoryRepositoryPort): GetInventory =>
         new GetInventory(inventories),
       inject: [INVENTORY_REPOSITORY],
+    },
+    {
+      provide: GET_AUCTION_PRODUCT_ELIGIBILITY,
+      useFactory: (
+        inventories: InventoryRepositoryPort,
+        loadouts: HeroLoadoutRepositoryPort,
+      ): GetAuctionProductEligibility => new GetAuctionProductEligibility(inventories, loadouts),
+      inject: [INVENTORY_REPOSITORY, HERO_LOADOUT_REPOSITORY],
     },
     // La consulta de HU-27 usa un puerto de LECTURA propio (CQRS ligero). Lo
     // sirve el mismo adaptador de persistencia que ya elige el driver: la

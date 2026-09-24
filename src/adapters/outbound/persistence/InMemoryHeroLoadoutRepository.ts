@@ -59,6 +59,14 @@ export class InMemoryHeroLoadoutRepository
     return Promise.resolve(snapshot === undefined ? null : HeroLoadout.restore(snapshot))
   }
 
+  findByOwner(ownerId: PlayerId): Promise<readonly HeroLoadout[]> {
+    return Promise.resolve(
+      [...this.byKey.values()]
+        .filter((snapshot) => snapshot.ownerId === ownerId.value)
+        .map((snapshot) => HeroLoadout.restore(snapshot)),
+    )
+  }
+
   save(loadout: HeroLoadout, expectedVersion: number): Promise<HeroLoadout> {
     const key = InMemoryHeroLoadoutRepository.key(loadout.ownerId, loadout.heroId)
     const activeOperation = this.activeByHero.get(key)
