@@ -88,6 +88,18 @@ describe('InMemoryBattleHeroCommitmentRepository (HU-29)', () => {
     )
   })
 
+  it('RECHAZA, no lanza de forma sincrona: el puerto promete una promesa', async () => {
+    await repository.commit(input(OP_A), NOW)
+
+    // Si `commit` lanzara al construir la llamada, esta linea reventaria antes de
+    // llegar a `expect`: quien encadene `.catch()` en lugar de `await` se quedaria
+    // sin capturar el fallo, y el doble no se comportaria como el adaptador real.
+    const pending = repository.commit(input(OP_B), NOW)
+
+    expect(pending).toBeInstanceOf(Promise)
+    await expect(pending).rejects.toBeInstanceOf(BattleHeroCommittedError)
+  })
+
   it('un compromiso vencido se libera de forma perezosa al comprometer otro', async () => {
     await repository.commit(input(OP_A, { expiresAt: new Date(NOW.getTime() + 1_000) }), NOW)
 

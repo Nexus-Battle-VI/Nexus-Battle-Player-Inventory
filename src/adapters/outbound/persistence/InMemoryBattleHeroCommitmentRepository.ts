@@ -41,12 +41,23 @@ export class InMemoryBattleHeroCommitmentRepository implements BattleHeroCommitm
   }
 
   /**
-   * `async` a proposito: el puerto promete `Promise`, y un metodo que devuelve
-   * una promesa pero LANZA de forma sincrona rompe a quien encadene `.catch()`
-   * en lugar de `await`. El adaptador real es asincrono por naturaleza, asi que
-   * el doble tiene que fallar igual: rechazando.
+   * El puerto promete `Promise`, y un metodo que devuelve una promesa pero LANZA
+   * de forma sincrona rompe a quien encadene `.catch()` en lugar de `await`. El
+   * adaptador real es asincrono por naturaleza, asi que el doble tiene que fallar
+   * igual: RECHAZANDO. De ahi el `Promise.resolve().then(...)` en lugar de `async`
+   * sin `await` (que ademas el linter rechaza, con razon: no aporta nada).
    */
-  async commit(input: BattleHeroCommitmentInput, now: Date): Promise<BattleHeroCommitment> {
+  commit(input: BattleHeroCommitmentInput, now: Date): Promise<BattleHeroCommitment> {
+    return Promise.resolve().then(() => this.commitNow(input, now))
+  }
+
+  release(operationId: string): Promise<void> {
+    return Promise.resolve().then(() => {
+      this.releaseNow(operationId)
+    })
+  }
+
+  private commitNow(input: BattleHeroCommitmentInput, now: Date): BattleHeroCommitment {
     const heroKey = key(input.playerId, input.heroId)
     const activeOperation = this.activeByHero.get(heroKey)
     const active = activeOperation === undefined ? null : this.byOperation.get(activeOperation)
@@ -78,7 +89,7 @@ export class InMemoryBattleHeroCommitmentRepository implements BattleHeroCommitm
     return commitment
   }
 
-  async release(operationId: string): Promise<void> {
+  private releaseNow(operationId: string): void {
     const previous = this.byOperation.get(operationId)
 
     if (previous === undefined || previous.status === 'RELEASED') {
