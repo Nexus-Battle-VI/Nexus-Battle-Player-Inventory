@@ -1,5 +1,5 @@
 import { HeroLoadout } from '../../domain/entities/HeroLoadout'
-import { EQUIPMENT_CAPACITY } from '../../domain/value-objects/equipment'
+import { MISSION_REQUIRED_SLOTS } from '../../domain/value-objects/equipment'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import { HeroNotOwnedError } from '../errors/ApplicationError'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
@@ -88,11 +88,13 @@ export class CommitHeroForMission {
     if (input.completeLoadout) {
       const missingSlots = (
         [
-          ['WEAPON', selection.capacity.weapons.used, EQUIPMENT_CAPACITY.WEAPON],
-          ['ARMOR', selection.capacity.armor.used, EQUIPMENT_CAPACITY.ARMOR],
-          ['ITEM', selection.capacity.items.used, EQUIPMENT_CAPACITY.ITEM],
+          ['WEAPON', selection.capacity.weapons.used, MISSION_REQUIRED_SLOTS.WEAPON],
+          ['ARMOR', selection.capacity.armor.used, MISSION_REQUIRED_SLOTS.ARMOR],
+          ['ITEM', selection.capacity.items.used, MISSION_REQUIRED_SLOTS.ITEM],
         ] as const
-      ).flatMap(([family, used, max]) => (used < max ? [{ family, missing: max - used }] : []))
+      ).flatMap(([family, used, required]) =>
+        used < required ? [{ family, missing: required - used }] : [],
+      )
 
       if (missingSlots.length > 0) {
         throw new MissionCommitmentRejectionError('LOADOUT_INCOMPLETE', { missingSlots })

@@ -44,6 +44,17 @@ export const EQUIPMENT_CAPACITY: Readonly<Record<EquipmentCategory, number>> = {
   ITEM: 2,
 }
 
+/**
+ * Ranuras que exige una mision cuando Missions pide `completeLoadout` (HU-70,
+ * CA-04): las dos armas y las seis armaduras. Los items son opcionales: una
+ * mision se puede iniciar con cero items (decision del PO del 2026-09-24).
+ */
+export const MISSION_REQUIRED_SLOTS: Readonly<Record<EquipmentCategory, number>> = {
+  WEAPON: EQUIPMENT_CAPACITY.WEAPON,
+  ARMOR: EQUIPMENT_CAPACITY.ARMOR,
+  ITEM: 0,
+}
+
 const WEAPON_SLOTS: readonly EquipmentSlot[] = [EquipmentSlot.Weapon1, EquipmentSlot.Weapon2]
 const ITEM_SLOTS: readonly EquipmentSlot[] = [EquipmentSlot.Item1, EquipmentSlot.Item2]
 
