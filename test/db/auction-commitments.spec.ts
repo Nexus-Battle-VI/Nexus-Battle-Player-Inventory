@@ -7,13 +7,16 @@ import {
   migrateToLatest,
 } from '../../src/infrastructure/persistence/database'
 import { MongoAuctionCommitmentRepository } from '../../src/adapters/outbound/persistence/MongoAuctionCommitmentRepository'
+import { MongoHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/MongoHeroLoadoutRepository'
 import { MongoInventoryRepository } from '../../src/adapters/outbound/persistence/MongoInventoryRepository'
 import { Inventory } from '../../src/domain/entities/Inventory'
+import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
 import {
   AuctionCommitmentConflictError,
   AuctionCommitmentRejectedError,
 } from '../../src/application/ports/AuctionCommitmentPort'
+import { MissionCommitmentConcurrentError } from '../../src/application/ports/MissionHeroCommitmentPort'
 
 describe('Commitments Auction contra MongoDB', () => {
   let container: StartedMongoDBContainer | undefined
@@ -118,6 +121,119 @@ describe('Commitments Auction contra MongoDB', () => {
     expect(a.commitmentId).not.toBe(b.commitmentId)
     await expect(repo.commit(make('c'))).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
     expect(await db.collection('auction_commitments').countDocuments({ ownerId: owner })).toBe(2)
+  })
+  it('no retira un heroe reservado y no reserva un heroe retirado por Auction', async () => {
+    const owner = randomUUID()
+    const heroId = randomUUID()
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [{ itemId: heroId, quantity: 1 }],
+      }),
+    )
+    const missions = new MongoHeroLoadoutRepository(db)
+    const mission = {
+      operationId: randomUUID(),
+      playerId: owner,
+      heroId,
+      reference: 'enr-auction-race',
+      expiresAt: new Date(Date.now() + 60_000),
+      completeLoadout: false,
+    }
+    await missions.commit(mission, 0)
+
+    const auction = new MongoAuctionCommitmentRepository(db)
+    const auctionInput = {
+      operationId: 'auction:mission-lock:inventory:commit',
+      auctionId: 'mission-lock',
+      ownerId: owner,
+      productId: heroId,
+      expiresAt: new Date(Date.now() + 120_000).toISOString(),
+    }
+    await expect(auction.commit(auctionInput)).rejects.toBeInstanceOf(
+      AuctionCommitmentRejectedError,
+    )
+    expect(
+      (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(owner)))?.totalUnits,
+    ).toBe(1)
+
+    await missions.release(mission.operationId)
+    await expect(auction.commit(auctionInput)).resolves.toMatchObject({ status: 'ACTIVE' })
+    await expect(
+      missions.commit({ ...mission, operationId: randomUUID() }, 0),
+    ).rejects.toBeInstanceOf(MissionCommitmentConcurrentError)
+  })
+  it('no subasta equipamiento de un heroe reservado para Missions', async () => {
+    const owner = randomUUID()
+    const heroId = randomUUID()
+    const weaponId = randomUUID()
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [
+          { itemId: heroId, quantity: 1 },
+          { itemId: weaponId, quantity: 1 },
+        ],
+      }),
+    )
+    const missions = new MongoHeroLoadoutRepository(db)
+    const loadout = HeroLoadout.createEmpty(owner, heroId)
+    loadout.equip({
+      slot: 'WEAPON_1',
+      itemId: weaponId,
+      productId: weaponId,
+      category: 'WEAPON',
+      occurredAt: new Date(),
+    })
+    await missions.save(loadout, 0)
+    const missionOperation = randomUUID()
+    await missions.commit(
+      {
+        operationId: missionOperation,
+        playerId: owner,
+        heroId,
+        reference: 'enr-equipped',
+        expiresAt: new Date(Date.now() + 60_000),
+        completeLoadout: false,
+      },
+      1,
+    )
+    await expect(
+      new MongoAuctionCommitmentRepository(db).commit({
+        operationId: 'auction:equipped:inventory:commit',
+        auctionId: 'equipped',
+        ownerId: owner,
+        productId: weaponId,
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    expect(
+      (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(owner)))?.totalUnits,
+    ).toBe(2)
+
+    await missions.release(missionOperation)
+    await new MongoAuctionCommitmentRepository(db).commit({
+      operationId: 'auction:equipped:inventory:commit',
+      auctionId: 'equipped',
+      ownerId: owner,
+      productId: weaponId,
+      expiresAt: new Date(Date.now() + 120_000).toISOString(),
+    })
+    await expect(
+      missions.commit(
+        {
+          operationId: randomUUID(),
+          playerId: owner,
+          heroId,
+          reference: 'enr-stale-loadout',
+          expiresAt: new Date(Date.now() + 60_000),
+          completeLoadout: false,
+        },
+        1,
+      ),
+    ).rejects.toBeInstanceOf(MissionCommitmentConcurrentError)
   })
   it('release y pending claim son durables, idempotentes y no permiten transiciones inversas', async () => {
     const owner = randomUUID()

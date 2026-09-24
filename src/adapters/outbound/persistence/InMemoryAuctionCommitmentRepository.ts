@@ -13,6 +13,7 @@ import {
 } from '../../../application/ports/AuctionCommitmentPort'
 import type { InMemoryInventoryRepository } from './InMemoryInventoryRepository'
 import { ItemId, PlayerId, Quantity } from '../../../domain/value-objects/identifiers'
+import type { InMemoryHeroLoadoutRepository } from './InMemoryHeroLoadoutRepository'
 
 interface Commitment {
   id: string
@@ -32,7 +33,13 @@ const clone = <T>(value: T): T => structuredClone(value)
 export class InMemoryAuctionCommitmentRepository implements AuctionCommitmentPort {
   private readonly commitments = new Map<string, Commitment>()
   private readonly operations = new Map<string, Operation>()
-  constructor(private readonly inventories: InMemoryInventoryRepository) {}
+  constructor(
+    private readonly inventories: InMemoryInventoryRepository,
+    private readonly missionGates?: Pick<
+      InMemoryHeroLoadoutRepository,
+      'hasActiveMission' | 'isEquippedByActiveMission'
+    >,
+  ) {}
   async commit(input: CreateAuctionCommitment): Promise<AuctionCommitmentResult> {
     const fingerprint = JSON.stringify(input)
     const replay = this.replay(input.operationId, fingerprint)
@@ -41,6 +48,12 @@ export class InMemoryAuctionCommitmentRepository implements AuctionCommitmentPor
     const item = ItemId.create(input.productId)
     if (inventory === null || inventory.quantityOf(item) < 1)
       throw new AuctionCommitmentRejectedError('El vendedor no posee el producto.')
+    if (
+      this.missionGates?.hasActiveMission(input.ownerId, item.value) ||
+      this.missionGates?.isEquippedByActiveMission(input.ownerId, item.value)
+    ) {
+      throw new AuctionCommitmentRejectedError('El heroe esta reservado para una mision.')
+    }
     inventory.remove(item, Quantity.create(1), new Date())
     await this.inventories.save(inventory)
     const commitment: Commitment = {
