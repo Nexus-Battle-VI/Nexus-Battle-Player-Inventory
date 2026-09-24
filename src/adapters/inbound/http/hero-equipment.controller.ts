@@ -32,6 +32,7 @@ import {
   InvalidEquipmentTypeError,
 } from '../../../application/errors/ApplicationError'
 import { CatalogUnavailableError } from '../../../application/ports/CatalogReadPort'
+import { HeroCommittedError } from '../../../application/ports/MissionHeroCommitmentPort'
 import type { HeroEquipmentDto } from '../../../application/dto/HeroEquipmentDto'
 import type { EquipItemOnHero } from '../../../application/use-cases/EquipItemOnHero'
 import type { GetHeroEquipment } from '../../../application/use-cases/GetHeroEquipment'
@@ -133,7 +134,8 @@ export class HeroEquipmentController {
       error instanceof WeaponCapacityExceededError ||
       error instanceof ArmorCapacityExceededError ||
       error instanceof ItemCapacityExceededError ||
-      error instanceof HeroLoadoutConflictError
+      error instanceof HeroLoadoutConflictError ||
+      error instanceof HeroCommittedError
     ) {
       return new ConflictException(error.message)
     }

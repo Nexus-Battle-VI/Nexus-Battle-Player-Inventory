@@ -1,16 +1,18 @@
-# Contrato interno: héroe equipado para Combat (HU-15, HU-25, HU-19)
+# Contrato interno: héroe equipado para Combat y perfil de un héroe para Missions (HU-15, HU-25, HU-19, HU-71)
 
 Contrato interno de solo lectura con el que Combat obtiene el héroe preparado de un
-jugador: quién es, sus estadísticas, los efectos de su equipamiento y sus habilidades
-especiales.
+jugador —quién es, sus estadísticas, los efectos de su equipamiento y sus habilidades
+especiales— y con el que Missions obtiene esas mismas cosas **de un héroe concreto** que
+no tiene por qué ser el preparado.
 
-| Elemento                     | Referencia                                                                                                                                                                                                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Héroe preparado (HU-15)      | [Management#24](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/24) · [TASK #392](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/392)                                                                                |
-| Efectos del equipamiento     | HU-28 [Management#75](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/75) · [TASK #152](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/152): tras equipar «deben recalcularse las estadísticas y efectos aplicables» |
-| Consumidor: tabla de efectos | HU-25 [Management#72](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/72): la tabla corresponde «al tipo de héroe y a sus modificadores vigentes»                                                                                       |
-| Habilidades especiales       | HU-19 [Management#63](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/63) · [TASK #413](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/413): Combat las congela al iniciar la batalla y las ejecuta                  |
-| Consumidor posterior         | HU-20 [Management#64](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/64)                                                                                                                                                               |
+| Elemento                     | Referencia                                                                                                                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Héroe preparado (HU-15)      | [Management#24](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/24) · [TASK #392](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/392)                                                                                                           |
+| Efectos del equipamiento     | HU-28 [Management#75](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/75) · [TASK #152](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/152): tras equipar «deben recalcularse las estadísticas y efectos aplicables»                            |
+| Consumidor: tabla de efectos | HU-25 [Management#72](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/72): la tabla corresponde «al tipo de héroe y a sus modificadores vigentes»                                                                                                                  |
+| Habilidades especiales       | HU-19 [Management#63](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/63) · [TASK #413](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/413): Combat las congela al iniciar la batalla y las ejecuta                                             |
+| Perfil por héroe (HU-71)     | HU-71 [Management#56](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/56) · [TASK #370](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/370): Missions valida las habilidades de la estrategia y congela el perfil que enviará a Combat en HU-72 |
+| Consumidor posterior         | HU-20 [Management#64](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/64)                                                                                                                                                                                          |
 
 **Este contrato transporta datos. No define semántica de combate.** Lo que Combat hace
 con cada efecto (cómo modifica la tabla de HU-25, cuándo se evalúa una condición, cómo
@@ -129,6 +131,100 @@ preservada, ver [Compatibilidad y orden de despliegue](#compatibilidad-y-orden-d
 | `404`     | El jugador no ha preparado ningún héroe, o el héroe salió de su inventario. **Sin cambios.** |
 | `503`     | Catalog no respondió: sin sus datos no se inventan estadísticas.                             |
 
+## Ruta hermana: perfil de un héroe concreto, para Missions (HU-71)
+
+```text
+GET /api/internal/v1/players/{playerId}/heroes/{heroId}
+```
+
+**Por qué existe.** Missions valida, al guardar una estrategia de rotaciones, que cada
+acción `ABILITY` use una habilidad que el héroe **tiene** (P-R4 del diseño de HU-71), y
+además congela el perfil del héroe en la solicitud de simulación de HU-72. Hasta esta
+ruta, este servicio solo publicaba el héroe **preparado** (`equipped-hero`), y el héroe
+de una estrategia no tiene por qué ser el que el jugador tiene seleccionado.
+
+**Es una ruta hermana, no una ampliación de la anterior.** `equipped-hero` sigue
+sirviendo al héroe seleccionado para Combat y **no cambia**; esta sirve a cualquier héroe
+del jugador. `:heroId` es el `productId` canónico del héroe (`equipped-hero.heroId`), no
+la referencia del inventario.
+
+El cuerpo del `200` tiene **los mismos nombres y el mismo significado** que el de
+`equipped-hero` en todo lo que describe al héroe:
+
+```json
+{
+  "playerId": "cognito-sub-1",
+  "heroId": "0f0a0d0e-6c1b-4d63-8a53-2c1d5b7e9a10",
+  "reference": "guerrero-armas",
+  "subtype": "GUERRERO_ARMAS",
+  "name": "Guerrero Armas",
+  "baseStats": {
+    "power": 8,
+    "health": 40,
+    "defense": 8,
+    "attack": 10,
+    "damage": { "mode": "DICE", "count": 1, "sides": 4 },
+    "healing": null
+  },
+  "effectiveStats": {
+    "power": 8,
+    "health": 40,
+    "defense": 8,
+    "attack": 13,
+    "damage": { "mode": "DICE", "count": 1, "sides": 4 },
+    "healing": null
+  },
+  "activeEffects": [
+    {
+      "sourceProductId": "…",
+      "sourceProductReference": "espada-corta",
+      "kind": "STAT_MODIFIER",
+      "target": "SELF",
+      "statistic": "ATTACK",
+      "operation": "INCREASE",
+      "magnitude": { "mode": "FIXED", "amount": 3 },
+      "hasActivationCondition": false,
+      "appliedToStats": true
+    }
+  ],
+  "abilities": [
+    {
+      "abilityId": "…",
+      "reference": "golpe-con-escudo",
+      "name": "Golpe con escudo",
+      "powerCost": { "mode": "FIXED", "amount": 2 },
+      "chargeTurns": 1,
+      "effects": []
+    }
+  ],
+  "loadoutVersion": 1
+}
+```
+
+**Lo que NO viaja, y por qué.** No hay `ready`, `blockers` ni `selectedAt`: los tres son
+propiedades de la **selección** (HU-07/HU-16) y el héroe de una estrategia de misión no
+tiene por qué estar seleccionado. Publicarlos aquí obligaría a inventar una evaluación de
+preparación y una fecha de selección que nadie ha producido. Si un consumidor necesita la
+elegibilidad del héroe para una batalla, la fuente sigue siendo `equipped-hero`.
+
+**El consumidor congela el cuerpo entero.** Missions lo guarda tal cual como perfil del
+héroe en la solicitud de simulación de HU-72; por eso los nombres y la forma coinciden con
+los de `equipped-hero` y no se renombran aquí.
+
+| Respuesta | Cuándo                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `200`     | El héroe es del jugador.                                                                                                        |
+| `400`     | `playerId` o `heroId` en blanco.                                                                                                |
+| `401`     | Firma interna ausente o inválida, o servicio distinto de `missions`.                                                            |
+| `404`     | El héroe no está en el inventario del jugador, Catalog no lo conoce, o su tipo no es `HEROE`. **Lleva `code: HERO_NOT_OWNED`.** |
+| `503`     | Catalog no respondió.                                                                                                           |
+
+**El `code` del `404` es parte del contrato.** El consumidor solo interpreta el `404` como
+«el héroe no es de ese jugador» si el cuerpo trae `HERO_NOT_OWNED`; cualquier otro `404`
+—por ejemplo el de una ruta inexistente— lo trata como un resultado desconocido y **no**
+guarda la estrategia. Distinguir «no es suyo» de «no existe» no revela nada nuevo: los dos
+casos responden lo mismo, igual que en el resto del servicio.
+
 ## Autenticación
 
 `@InternalOnly()` + `InternalServiceGuard`, el mismo mecanismo que el resto de contratos
@@ -144,6 +240,23 @@ GET
 <TIMESTAMP>
 <SHA256 del JSON canónico de {}>
 ```
+
+La ruta del perfil por héroe se firma igual, con `missions` como servicio y su propia ruta
+(el `heroId` va en la ruta, nunca en la cadena de consulta):
+
+```text
+missions
+GET
+/api/internal/v1/players/{playerId}/heroes/{heroId}
+<TIMESTAMP>
+<SHA256 del JSON canónico de {}>
+```
+
+**Permiso mínimo por ruta.** `missions` **no** entra en la lista global de servicios
+autorizados de este servicio (`commerce`, `notifications`, `combat`): la ruta del perfil
+declara `@InternalCallers('missions')`, así que solo ese servicio puede llamarla y los
+demás siguen recibiendo `401` en ella. La lista global no se amplía, y `missions` sigue sin
+poder llamar a `/api/internal/v1/inventory/grants`.
 
 No usa JWT de jugador y no debe exponerse mediante el proxy público (`/api/internal*` no
 se publica en Caddy). Combat nunca debe aceptar `subtype`, `effectiveStats` ni
@@ -310,6 +423,17 @@ reinterpretar un `STAT_MODIFIER` que llegue sin `statistic`.
   `[]`: un héroe sin sus habilidades por un despliegue mal ordenado parecería no tenerlas).
   Desplegar Combat antes de esta versión haría fallar el ingreso a salas (`503`).
 
+- **HU-71: la ruta del perfil por héroe es aditiva.** No cambia la ruta de `equipped-hero`,
+  ni su `404`, ni ningún campo de su respuesta: es una ruta nueva con su propio permiso. El
+  productor (este servicio) se despliega primero; Missions puede quedarse con su doble en
+  memoria mientras tanto, porque un `503` de esta ruta **no** corrompe nada: solo impide
+  guardar estrategias.
+
+  ```text
+  1. Player-Inventory con GET /players/{playerId}/heroes/{heroId}
+  2. Missions con HERO_ABILITIES_DRIVER apuntando a esta ruta
+  ```
+
 ## Pruebas
 
 - `test/unit/get-equipped-hero-for-combat.spec.ts`: sin efectos, `FIXED`, `PERCENTAGE`,
@@ -319,3 +443,18 @@ reinterpretar un `STAT_MODIFIER` que llegue sin `statistic`.
 - `test/integration/equipped-hero-http.spec.ts`: el contrato sobre HTTP con HMAC real,
   reflejo inmediato de un cambio de equipamiento, el contrato público sin cambios, `404`,
   `401` y `503`.
+- `test/unit/get-hero-profile-for-mission.spec.ts`: pertenencia (propio, ajeno, no `HEROE`),
+  héroe por `productId` y por `sku`, `heroId` canónico en la respuesta, héroe que el jugador
+  nunca seleccionó, loadout real y ausencia de loadout, habilidades resueltas y omitidas, y
+  la lista blanca exacta de campos (sin `ready`, `blockers` ni `selectedAt`).
+- `test/unit/hero-profile-shared.spec.ts`: la resolución compartida hace **una** `lookup`
+  para todas las habilidades, propaga el fallo de Catalog y omite la habilidad desconocida;
+  y la proyección de efectos no deja cruzar `raw` ni `sourceSlot`.
+- `test/unit/no-duplicated-abilities-resolution.spec.ts`: guarda estática — solo el módulo
+  compartido resuelve habilidades contra Catalog —, para que una tercera implementación
+  falle en CI.
+- `test/integration/hero-profile-http.spec.ts`: la petición **exacta** del cliente de
+  Missions (ruta, `x-internal-service: missions`, firma sobre cuerpo vacío), `200` con
+  `heroId` y `abilities[].abilityId`, `404` con `code: HERO_NOT_OWNED`, `401` para los
+  servicios de la lista global, `401` con una firma de otra ruta, `503` con Catalog caído y
+  el control de que la lista global no se amplió.

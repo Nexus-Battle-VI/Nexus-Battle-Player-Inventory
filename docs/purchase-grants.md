@@ -4,7 +4,9 @@ Para probar sin Docker puede definirse `MONGO_TEST_URI` apuntando a un Mongo rep
 
 Commerce entrega un lote mediante `POST /api/internal/v1/inventory/grants`. El servicio no descuenta Catalog: la reserva y su confirmacion pertenecen al coordinador de Commerce.
 
-**HU-22 (Task #430) reutiliza este mismo contrato, sin cambiarlo**, para entregar la recompensa del cofre: Combat llama con `x-internal-service: combat`, un `operationId` determinista propio (`battle:{battleId}:player:{playerId}:chest:{secuencia}:grant`) y `items` con un unico `{productId, quantity: 1}` — el producto real que sorteo, tomado de la reward table versionada de [hu-22-reward-contract-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-22-reward-contract-v1.md). No existe una ruta de grants separada para el cofre.
+**HU-22 (Task #430) reutiliza este mismo contrato, sin cambiarlo**, para entregar la recompensa del cofre: Combat llama con `x-internal-service: combat`, un `operationId` que sigue siendo **UUID** y `items` con un unico `{productId, quantity: 1}` — el producto real que sorteo, tomado de la reward table versionada de [hu-22-reward-contract-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-22-reward-contract-v1.md). No existe una ruta de grants separada para el cofre.
+
+**Correccion (2026-09-24, hallada en produccion):** este texto decia que Combat enviaba como `operationId` el id logico `battle:{battleId}:player:{playerId}:chest:{secuencia}:grant`, y ese id **no es un UUID**: el DTO (`@IsUUID()`) lo rechaza con `400 operationId must be a UUID` antes de llegar al controlador, asi que Player-Inventory no registraba ningun error propio y Combat lo reintentaba sin fin. La prueba de "acepta a combat" usaba un UUID de ejemplo y no lo detecto. El contrato NO cambia: `operationId` sigue siendo UUID v1-5. Combat conserva el id logico para su propio registro y envia un **UUID v5 determinista** de el (`toInventoryGrantOperationId`, con un espacio de nombres fijo), de modo que el mismo cofre produce siempre el mismo UUID y el reintento sigue siendo idempotente. `purchase-grants-http.spec.ts` fija las dos caras: el id logico recibe 400 y el UUID v5 recibe 200.
 
 ```json
 {
@@ -18,7 +20,7 @@ El lote admite 1..200 productos distintos, UUID v1-5 y cantidades 1..9999. Las r
 
 ## Autenticacion
 
-Se admite `x-internal-service: commerce` (HU-59) o `x-internal-service: combat` (HU-22, cofre) — el guard de autenticacion interna es global a toda ruta `@InternalOnly()` del servicio, no exclusivo de esta ruta — con `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada usa el nombre del servicio que llama, por ejemplo:
+Se admite `x-internal-service: commerce` (HU-59), `combat` (HU-22) o `missions` (HU-73/HU-76). El permiso de `missions` se acota a esta ruta con `@InternalCallers`, sin incorporarlo a la lista global del servicio. Los llamadores anteriores, incluido `notifications`, conservan su acceso vigente. Cada llamada lleva `x-internal-timestamp` en milisegundos Unix y `x-internal-signature` hexadecimal HMAC-SHA256. La cadena firmada usa el nombre del servicio que llama, por ejemplo:
 
 ```text
 commerce

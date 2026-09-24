@@ -7,6 +7,9 @@ import * as migration004 from '../../adapters/outbound/persistence/migrations/00
 import * as migration005 from '../../adapters/outbound/persistence/migrations/005-product-owners-index'
 import * as migration006 from '../../adapters/outbound/persistence/migrations/006-hero-loadouts-uuid-itemid'
 import * as migration007 from '../../adapters/outbound/persistence/migrations/007-auction-commitments'
+import * as migration008 from '../../adapters/outbound/persistence/migrations/008-hero-progressions'
+import * as migration009 from '../../adapters/outbound/persistence/migrations/009-experience-grants'
+import * as migration010 from '../../adapters/outbound/persistence/migrations/010-mission-hero-commitments'
 
 export interface DatabaseOptions {
   readonly uri: string
@@ -61,6 +64,9 @@ const MIGRATIONS: readonly { readonly name: string; readonly up: (db: Db) => Pro
   { name: '005-product-owners-index', up: migration005.up },
   { name: '006-hero-loadouts-uuid-itemid', up: migration006.up },
   { name: '007-auction-commitments', up: migration007.up },
+  { name: '008-hero-progressions', up: migration008.up },
+  { name: '009-experience-grants', up: migration009.up },
+  { name: '010-mission-hero-commitments', up: migration010.up },
 ]
 
 const REGISTRY = '_migrations'

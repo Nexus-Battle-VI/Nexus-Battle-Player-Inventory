@@ -78,6 +78,58 @@ describe('Contrato HTTP interno de entrega', () => {
     expect(response.status).toBe(200)
     expect(response.body.applied).toBe(true)
   })
+  it('acepta a missions para la recompensa epica y conserva la idempotencia', async () => {
+    const payload = { ...body, operationId: '55555555-5555-4555-8555-555555555555' }
+    const first = await signed(payload, 'missions')
+    const replay = await signed(payload, 'missions')
+
+    expect(first.status).toBe(200)
+    expect(first.body).toMatchObject({ operationId: payload.operationId, applied: true })
+    expect(replay.status).toBe(200)
+    expect(replay.body).toEqual(first.body)
+  })
+
+  describe('HU-22: el operationId que llega de Combat debe ser UUID', () => {
+    // Identificadores de ejemplo con la forma real (batalla UUID, `sub` de Cognito, producto del Catalog).
+    const battleId = '5b1d3c0e-7a2f-4e6b-9c1d-2f8a4b6c7d01'
+    const playerId = '9f3a1c2e-4b5d-4e7f-8a9b-0c1d2e3f4a5b'
+    const productId = '6a96d059-88c1-4702-8f07-8410f98707a3'
+    const chest = (operationId: string) => ({
+      operationId,
+      playerId,
+      items: [{ productId, quantity: 1 }],
+    })
+
+    it('el id LOGICO del workflow (battle:...:chest:1:grant) NO es UUID: se rechaza con 400', async () => {
+      // Es exactamente lo que Combat enviaba antes de traducirlo. El contrato de
+      // HU-59 exige UUID v1-5, y este 400 salta en el DTO, ANTES del controlador:
+      // por eso Player-Inventory no registraba ningun error propio. Si algun dia se
+      // relaja el contrato, esta prueba debe cambiarse a proposito, junto con el
+      // mapeo de Combat (`toInventoryGrantOperationId`) y la doc.
+      const response = await signed(
+        chest(`battle:${battleId}:player:${playerId}:chest:1:grant`),
+        'combat',
+      )
+
+      expect(response.status).toBe(400)
+      expect(response.body.message).toContain('operationId must be a UUID')
+    })
+
+    it('el UUID v5 que Combat deriva de ese id logico SI se acepta y su replay es estable', async () => {
+      // Valor calculado por Combat (`toInventoryGrantOperationId`, UUID v5 con su
+      // espacio de nombres fijo). Fijarlo aqui es el "control" de la prueba de arriba:
+      // la MISMA entrega, con un operationId valido, pasa.
+      const wireId = '4cbcac78-eb3d-51b9-b37a-4b66515477e9'
+
+      const first = await signed(chest(wireId), 'combat')
+      const replay = await signed(chest(wireId), 'combat')
+
+      expect(first.status).toBe(200)
+      expect(first.body.applied).toBe(true)
+      expect(replay.status).toBe(200)
+      expect(replay.body).toEqual(first.body)
+    })
+  })
   it('rechaza cambio de payload y no confunde conflicto con entrega rechazada', async () => {
     expect((await signed({ ...body, playerId: 'player-b' })).status).toBe(409)
     const tooMany = {
