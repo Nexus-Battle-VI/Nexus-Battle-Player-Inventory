@@ -1,5 +1,6 @@
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { battleStateKit } from '../fixtures/battle-state'
 import {
   CatalogUnavailableError,
   type CatalogProductView,
@@ -150,7 +151,7 @@ const escenario = (
 
   return {
     profile: new GetHeroProfileForMission(inventories, catalog, loadouts),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
   }
 }
 

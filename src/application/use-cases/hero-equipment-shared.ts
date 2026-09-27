@@ -17,6 +17,16 @@ export interface HeroEquipmentDeps {
   readonly catalog: CatalogReadPort
 }
 
+/**
+ * La vista de equipamiento SIN el estado de bloqueo.
+ *
+ * `locked` es de HU-29 y no lo puede fabricar este ensamblador: hay tres
+ * llamadores y solo uno tiene el estado de batalla delante. Ponerlo aqui
+ * obligaria a inventar un valor en los otros dos, que es como se cuela un `false`
+ * mentiroso. Cada llamador añade el que conoce.
+ */
+export type EquipmentViewWithoutLock = Omit<HeroEquipmentDto, 'locked'>
+
 export interface ResolvedHero {
   readonly heroProduct: CatalogProductView
   readonly heroView: HeroAttributeView
@@ -94,7 +104,7 @@ export const assembleEquipmentView = async (
   deps: HeroEquipmentDeps,
   hero: ResolvedHero,
   loadout: HeroLoadout,
-): Promise<HeroEquipmentDto> => {
+): Promise<EquipmentViewWithoutLock> => {
   const entries = loadout.toSnapshot().entries
   const productIds = entries.map((entry) => entry.productId)
 

@@ -16,6 +16,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 
 import { DomainError } from '../../../domain/errors/DomainError'
+import { LOGGER, type Logger } from '../../../infrastructure/observability/logger'
 import {
   ArmorCapacityExceededError,
   EquipmentSlotOccupiedError,
@@ -26,6 +27,7 @@ import {
 } from '../../../domain/entities/HeroLoadout'
 import {
   EquipmentHeroIncompatibleError,
+  EquipmentLockedDuringBattleError,
   EquipmentProductNotOwnedError,
   EquipmentSlotMismatchError,
   HeroLoadoutConflictError,
@@ -62,6 +64,7 @@ export class HeroEquipmentController {
   constructor(
     @Inject(GET_HERO_EQUIPMENT) private readonly getHeroEquipment: GetHeroEquipment,
     @Inject(EQUIP_ITEM_ON_HERO) private readonly equipItemOnHero: EquipItemOnHero,
+    @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
   @Get(':heroId/equipment')
@@ -94,7 +97,8 @@ export class HeroEquipmentController {
   @ApiResponse({ status: 404, description: 'Heroe o producto no propio' })
   @ApiResponse({
     status: 409,
-    description: 'Ranura ocupada, capacidad 2/6/2 excedida o conflicto de concurrencia',
+    description:
+      'Batalla activa (reason=battle_lock), ranura ocupada, capacidad excedida o conflicto',
   })
   @ApiResponse({
     status: 422,
@@ -108,13 +112,33 @@ export class HeroEquipmentController {
     @CurrentIdentity() identity: VerifiedIdentity,
   ): Promise<HeroEquipmentDto> {
     try {
-      return await this.equipItemOnHero.execute({
+      const view = await this.equipItemOnHero.execute({
         ownerId: identity.subject,
         heroReference: heroId,
         slot,
         productReference: body.productReference,
       })
+
+      // HU-29: el exito FUERA de batalla tambien se registra. Si solo se
+      // registrara el rechazo, no habria forma de distinguir «no se intento» de
+      // «se intento y paso».
+      this.logger.info('equipment_change_applied', {
+        playerId: identity.subject,
+        heroId,
+        slot,
+      })
+
+      return view
     } catch (error: unknown) {
+      if (error instanceof EquipmentLockedDuringBattleError) {
+        this.logger.warn('equipment_change_rejected', {
+          reason: error.reason,
+          playerId: identity.subject,
+          heroId,
+          slot,
+        })
+      }
+
       throw HeroEquipmentController.translate(error)
     }
   }
@@ -134,6 +158,7 @@ export class HeroEquipmentController {
     }
 
     if (
+      error instanceof EquipmentLockedDuringBattleError ||
       error instanceof EquipmentSlotOccupiedError ||
       error instanceof ItemAlreadyEquippedError ||
       error instanceof WeaponCapacityExceededError ||
@@ -142,6 +167,10 @@ export class HeroEquipmentController {
       error instanceof HeroLoadoutConflictError ||
       error instanceof HeroCommittedError
     ) {
+      if (error instanceof EquipmentLockedDuringBattleError) {
+        return new ConflictException({ reason: error.reason, message: error.message })
+      }
+
       return new ConflictException(error.message)
     }
 

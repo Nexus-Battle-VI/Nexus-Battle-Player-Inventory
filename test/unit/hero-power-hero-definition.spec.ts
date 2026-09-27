@@ -1,5 +1,6 @@
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import type { CatalogProductView } from '../../src/application/ports/CatalogReadPort'
 import type { ClockPort } from '../../src/application/ports/ClockPort'
@@ -129,7 +130,7 @@ const escenario = (
 
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
     forCombat: new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
       loadouts,
