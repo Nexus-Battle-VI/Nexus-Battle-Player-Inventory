@@ -79,8 +79,8 @@ export class EquipmentSlotMismatchError extends Error {
  * Guerrero Armas-. 422: dato valido, regla de negocio incumplida.
  */
 export class EquipmentHeroIncompatibleError extends Error {
-  constructor(productReference: string, heroSubtype: string) {
-    super(`El producto "${productReference}" no es compatible con el heroe ${heroSubtype}.`)
+  constructor(productName: string, heroSubtype: string) {
+    super(`El producto "${productName}" no es compatible con el heroe ${heroSubtype}.`)
     this.name = 'EquipmentHeroIncompatibleError'
   }
 }

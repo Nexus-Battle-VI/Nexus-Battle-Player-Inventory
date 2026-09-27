@@ -112,7 +112,7 @@ export class EquipItemOnHero {
       equippable.compatibilityScope === 'SELECTED_SUBTYPES' &&
       !equippable.compatibleHeroSubtypes.includes(hero.heroView.heroSubtype)
     ) {
-      throw new EquipmentHeroIncompatibleError(productReference, hero.heroView.heroSubtype)
+      throw new EquipmentHeroIncompatibleError(product.name, hero.heroView.heroSubtype)
     }
 
     // 5. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por
