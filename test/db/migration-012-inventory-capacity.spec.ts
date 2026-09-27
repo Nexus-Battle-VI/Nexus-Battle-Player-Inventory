@@ -9,17 +9,17 @@ import {
   databaseOf,
   migrateToLatest,
 } from '../../src/infrastructure/persistence/database'
-import { up as backfillCapacity } from '../../src/adapters/outbound/persistence/migrations/011-inventories-capacity-200'
+import { up as backfillCapacity } from '../../src/adapters/outbound/persistence/migrations/012-inventories-capacity-200'
 
 /**
- * `011-inventories-capacity-200` sube a 200 la capacidad de inventarios YA
+ * `012-inventories-capacity-200` sube a 200 la capacidad de inventarios YA
  * EXISTENTES: el default en codigo (`CapacityPolicy.DEFAULT_CAPACITY`) solo
  * rige inventarios nuevos, porque `Inventory.restore` usa la capacidad
  * GRABADA en el documento, no la constante actual. Sin esta migracion, un
  * jugador con inventario previo al cambio seguiria topando en 30 para
  * siempre, aunque el dominio ya admita hasta 200.
  */
-describe('Migracion 011: sube la capacidad de inventarios existentes a 200', () => {
+describe('Migracion 012: sube la capacidad de inventarios existentes a 200', () => {
   let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
@@ -29,7 +29,7 @@ describe('Migracion 011: sube la capacidad de inventarios existentes a 200', () 
     if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
     const options = {
       uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
-      databaseName: `test_migration011_${randomUUID().replaceAll('-', '')}`,
+      databaseName: `test_migration012_${randomUUID().replaceAll('-', '')}`,
     }
     client = createMongoClient(options)
     await client.connect()
