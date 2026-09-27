@@ -11,6 +11,7 @@ import type {
 import type { PlayerId } from '../../src/domain/value-objects/identifiers'
 import type { ClockPort } from '../../src/application/ports/ClockPort'
 import {
+  EquipmentHeroIncompatibleError,
   EquipmentProductNotOwnedError,
   EquipmentSlotMismatchError,
   HeroNotOwnedError,
@@ -283,6 +284,76 @@ describe('EquipItemOnHero (RF-28)', () => {
 
     const state = await kit.get.execute(OWNER, 'guerrero-tanque')
     expect(state.equipment.weapons.map((w) => w.itemId)).toEqual(['espada-de-fuego'])
+  })
+
+  it('un arma exclusiva de otro heroe se rechaza (422) y NO escribe nada', async () => {
+    const kit = buildKit({
+      owned: ['guerrero-tanque', 'orbe-de-manos-ardientes'],
+      catalog: [
+        hero('guerrero-tanque'),
+        equippable('orbe-de-manos-ardientes', 'ARMA', {
+          compatibilityScope: 'SELECTED_SUBTYPES',
+          compatibleHeroSubtypes: ['MAGO_FUEGO'],
+        }),
+      ],
+    })
+
+    await expect(
+      kit.equip.execute({
+        ownerId: OWNER,
+        heroReference: 'guerrero-tanque',
+        slot: 'WEAPON_1',
+        productReference: 'orbe-de-manos-ardientes',
+      }),
+    ).rejects.toBeInstanceOf(EquipmentHeroIncompatibleError)
+
+    const state = await kit.get.execute(OWNER, 'guerrero-tanque')
+    expect(state.equipment.weapons).toEqual([])
+  })
+
+  it('una armadura exclusiva de otro heroe se rechaza aunque la ranura coincida', async () => {
+    const kit = buildKit({
+      owned: ['guerrero-tanque', 'tunica-arcana'],
+      catalog: [
+        hero('guerrero-tanque'),
+        equippable('tunica-arcana', 'ARMADURA', {
+          slot: 'CHEST',
+          compatibilityScope: 'SELECTED_SUBTYPES',
+          compatibleHeroSubtypes: ['MAGO_FUEGO'],
+        }),
+      ],
+    })
+
+    await expect(
+      kit.equip.execute({
+        ownerId: OWNER,
+        heroReference: 'guerrero-tanque',
+        slot: 'CHEST',
+        productReference: 'tunica-arcana',
+      }),
+    ).rejects.toBeInstanceOf(EquipmentHeroIncompatibleError)
+  })
+
+  it('una pieza exclusiva del MISMO heroe se equipa sin problema', async () => {
+    const kit = buildKit({
+      owned: ['guerrero-tanque', 'escudo-de-dragon'],
+      catalog: [
+        hero('guerrero-tanque'),
+        equippable('escudo-de-dragon', 'ARMA', {
+          compatibilityScope: 'SELECTED_SUBTYPES',
+          compatibleHeroSubtypes: ['GUERRERO_TANQUE'],
+        }),
+      ],
+    })
+
+    const state = await kit.equip.execute({
+      ownerId: OWNER,
+      heroReference: 'guerrero-tanque',
+      slot: 'WEAPON_1',
+      productReference: 'escudo-de-dragon',
+    })
+
+    expect(state.equipment.weapons.map((w) => w.itemId)).toEqual(['escudo-de-dragon'])
   })
 
   it('si Catalog no responde, falla con 503 ANTES de escribir', async () => {

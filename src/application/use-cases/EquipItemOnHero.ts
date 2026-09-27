@@ -11,6 +11,7 @@ import { InvalidEquipmentSlotError } from '../../domain/entities/HeroLoadout'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { HeroEquipmentDto } from '../dto/HeroEquipmentDto'
 import {
+  EquipmentHeroIncompatibleError,
   EquipmentProductNotOwnedError,
   EquipmentLockedDuringBattleError,
   EquipmentSlotMismatchError,
@@ -107,16 +108,29 @@ export class EquipItemOnHero {
       throw new InvalidEquipmentSlotError(slot, category)
     }
 
+    const equippable = parseEquippableAttributes(product.attributes)
+
     // 5. Para armadura, la ranura canonica de la pieza debe coincidir.
     if (category === 'ARMOR') {
       const expected = ARMOR_SLOT_BY_EQUIPMENT_SLOT[slot]
-      const actual = parseEquippableAttributes(product.attributes).armorSlot
+      const actual = equippable.armorSlot
       if (expected === undefined || actual !== expected) {
         throw new EquipmentSlotMismatchError(slot, expected ?? 'DESCONOCIDA', actual)
       }
     }
 
-    // 6. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por
+    // 6. La compatibilidad declarada del producto debe incluir a este heroe:
+    // ALL_HEROES siempre encaja; SELECTED_SUBTYPES exige que el heroSubtype
+    // del heroe este en la lista. Aplica a arma, armadura e item por igual
+    // -Catalog publica el mismo campo en las tres familias-.
+    if (
+      equippable.compatibilityScope === 'SELECTED_SUBTYPES' &&
+      !equippable.compatibleHeroSubtypes.includes(hero.heroView.heroSubtype)
+    ) {
+      throw new EquipmentHeroIncompatibleError(product.name, hero.heroView.heroSubtype)
+    }
+
+    // 7. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por
     //    ranura exacta" y la prohibicion de reemplazo silencioso.
     const loadout =
       (await this.loadouts.findByHero(owner, hero.heroProduct.productId)) ??
@@ -131,10 +145,10 @@ export class EquipItemOnHero {
       occurredAt: this.clock.now(),
     })
 
-    // 7. Persistencia atomica con bloqueo optimista (lanza HeroLoadoutConflictError).
+    // 8. Persistencia atomica con bloqueo optimista (lanza HeroLoadoutConflictError).
     const saved = await this.loadouts.save(loadout, expectedVersion)
 
-    // 8. Nuevo estado consistente, suficiente para refrescar la interfaz.
+    // 9. Nuevo estado consistente, suficiente para refrescar la interfaz.
     //    `locked` es `false` por construccion: si hubiera batalla activa, el paso
     //    2 habria rechazado antes de llegar aqui.
     return { ...(await assembleEquipmentView(deps, hero, saved)), locked: false }

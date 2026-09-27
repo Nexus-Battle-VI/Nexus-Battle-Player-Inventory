@@ -431,9 +431,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     },
     {
       provide: GRANT_PURCHASED_ITEMS,
-      useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
-        new GrantPurchasedItems(grants),
-      inject: [INVENTORY_GRANTS],
+      useFactory: (grants: InventoryGrantPort, catalog: CatalogReadPort): GrantPurchasedItems =>
+        new GrantPurchasedItems(grants, catalog),
+      inject: [INVENTORY_GRANTS, CATALOG_READ],
     },
     {
       provide: GET_PRODUCT_OWNERS,

@@ -73,6 +73,19 @@ export class EquipmentSlotMismatchError extends Error {
 }
 
 /**
+ * El producto es de la familia y ranura correctas, pero su compatibilidad
+ * declarada (`compatibilityScope`/`compatibleHeroSubtypes`) no incluye al
+ * heroe que se esta equipando -p. ej. una Tunica arcana (Mago Fuego) en un
+ * Guerrero Armas-. 422: dato valido, regla de negocio incumplida.
+ */
+export class EquipmentHeroIncompatibleError extends Error {
+  constructor(productName: string, heroSubtype: string) {
+    super(`El producto "${productName}" no es compatible con el heroe ${heroSubtype}.`)
+    this.name = 'EquipmentHeroIncompatibleError'
+  }
+}
+
+/**
  * Otra escritura modifico el loadout entre la lectura y el guardado (bloqueo
  * optimista). 409: la peticion es correcta y puede reintentarse.
  */
