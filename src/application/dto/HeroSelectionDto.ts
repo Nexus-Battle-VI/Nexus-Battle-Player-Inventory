@@ -1,5 +1,6 @@
 import type { HeroReadiness } from '../../domain/policies/HeroReadinessPolicy'
-import type { HeroEquipmentDto, HeroStatsDto } from './HeroEquipmentDto'
+import type { HeroStatsDto } from './HeroEquipmentDto'
+import type { EquipmentViewWithoutLock } from '../use-cases/hero-equipment-shared'
 
 /**
  * Habilidad declarada por un heroe. `name` es `null` cuando Catalog no resolvio
@@ -40,10 +41,14 @@ export interface EquipmentCapacityDto {
  *
  * `configuration` es LA MISMA vista que devuelve HU-28: heroe, equipamiento,
  * estadisticas base y efectivas. No se recalcula nada aqui.
+ *
+ * NO lleva `locked` (HU-29): el estado de batalla lo publica la ruta de
+ * equipamiento, que es la que decide si un cambio procede. Aqui se declara el
+ * tipo sin ese campo en lugar de rellenarlo con un `false` que nadie comprobo.
  */
 export interface HeroSelectionDto {
   readonly selectedAt: string
-  readonly configuration: HeroEquipmentDto
+  readonly configuration: EquipmentViewWithoutLock
   readonly readiness: HeroReadiness
   readonly capacity: {
     readonly weapons: EquipmentCapacityDto

@@ -10,6 +10,7 @@ import * as migration007 from '../../adapters/outbound/persistence/migrations/00
 import * as migration008 from '../../adapters/outbound/persistence/migrations/008-hero-progressions'
 import * as migration009 from '../../adapters/outbound/persistence/migrations/009-experience-grants'
 import * as migration010 from '../../adapters/outbound/persistence/migrations/010-mission-hero-commitments'
+import * as migration011 from '../../adapters/outbound/persistence/migrations/011-battle-hero-commitments'
 
 export interface DatabaseOptions {
   readonly uri: string
@@ -67,6 +68,7 @@ const MIGRATIONS: readonly { readonly name: string; readonly up: (db: Db) => Pro
   { name: '008-hero-progressions', up: migration008.up },
   { name: '009-experience-grants', up: migration009.up },
   { name: '010-mission-hero-commitments', up: migration010.up },
+  { name: '011-battle-hero-commitments', up: migration011.up },
 ]
 
 const REGISTRY = '_migrations'
