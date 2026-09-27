@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { AppModule, APP_CONFIG } from '../../src/infrastructure/bootstrap/app.module'
 import { loadConfig } from '../../src/infrastructure/config/env'
+import { CATALOG_READ } from '../../src/application/ports/CatalogReadPort'
+import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { signInternalRequest } from '../../src/adapters/outbound/identity/internal-signature'
 
 const path = '/api/internal/v1/inventory/grants'
@@ -28,6 +30,8 @@ describe('Contrato HTTP interno de entrega', () => {
           INTERNAL_SERVICE_AUTH_SECRET: secret,
         }),
       )
+      .overrideProvider(CATALOG_READ)
+      .useValue(new InMemoryCatalogReadClient([]))
       .compile()
     app = module.createNestApplication()
     app.setGlobalPrefix('api')
