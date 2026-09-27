@@ -3,6 +3,7 @@ import { GetHeroSelection } from '../../src/application/use-cases/GetHeroSelecti
 import { SelectHero } from '../../src/application/use-cases/SelectHero'
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import {
@@ -123,7 +124,7 @@ const escenario = (
 
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
     forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
   }
 }
@@ -313,7 +314,13 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
     const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
-    const equip = new EquipItemOnHero(inventories, catalog, loadouts, clock)
+    const equip = new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+    )
     const forCombat = new GetEquippedHeroForCombat(
       new GetHeroSelection(inventories, catalog, loadouts, selections),
       loadouts,
@@ -426,7 +433,7 @@ const preparado = (
 
   return {
     select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock),
+    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
     forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
     current,
     catalog,

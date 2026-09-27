@@ -9,6 +9,17 @@ export interface Logger {
   error(message: string, context?: LogContext): void
 }
 
+/**
+ * La clave de inyeccion del logger.
+ *
+ * VIVE AQUI, con su tipo, y no en la raiz de composicion: los adaptadores de
+ * entrada la necesitan para registrar lo que deciden, e importarla desde
+ * `bootstrap/app.module` crearia un ciclo --el modulo importa el controlador y el
+ * controlador al modulo--. `app.module` la reexporta para no romper a quien ya la
+ * importaba de alli.
+ */
+export const LOGGER = Symbol('Logger')
+
 const LEVEL_WEIGHT: Readonly<Record<LogLevel, number>> = {
   debug: 10,
   info: 20,

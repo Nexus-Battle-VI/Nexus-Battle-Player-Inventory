@@ -51,4 +51,11 @@ export interface HeroEquipmentDto {
    * el motor de combate (HU-29+).
    */
   readonly activeEffects: readonly EquippedEffect[]
+  /**
+   * HU-29: `true` mientras el heroe participa en una batalla activa, y entonces
+   * cualquier cambio de equipamiento se rechaza. La interfaz lo usa para
+   * deshabilitar el cambio SIN reimplementar la regla: la decision es del
+   * servidor, no de la pantalla.
+   */
+  readonly locked: boolean
 }

@@ -35,6 +35,13 @@ export const GRANT_HERO_EXPERIENCE = Symbol('GrantHeroExperience')
 export const COMMIT_HERO_FOR_MISSION = Symbol('CommitHeroForMission')
 
 /**
+ * Compromiso de batalla del heroe (HU-29, contrato `hu-29-battle-commitment-v1`).
+ * Lo llama Combat al iniciar la batalla, y libera al terminar. Es la fuente del
+ * bloqueo de equipamiento.
+ */
+export const COMMIT_HERO_FOR_BATTLE = Symbol('CommitHeroForBattle')
+
+/**
  * Perfil de un heroe concreto del jugador (HU-71, Task HU-71.2). Es la lectura
  * interna que consume Missions para validar las habilidades de una estrategia de
  * rotaciones y para congelar el perfil que enviara a Combat en HU-72. Distinta de
