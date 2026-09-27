@@ -11,6 +11,7 @@ import { InvalidEquipmentSlotError } from '../../domain/entities/HeroLoadout'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { HeroEquipmentDto } from '../dto/HeroEquipmentDto'
 import {
+  EquipmentHeroIncompatibleError,
   EquipmentProductNotOwnedError,
   EquipmentSlotMismatchError,
   InvalidEquipmentTypeError,
@@ -92,13 +93,26 @@ export class EquipItemOnHero {
       throw new InvalidEquipmentSlotError(slot, category)
     }
 
+    const equippable = parseEquippableAttributes(product.attributes)
+
     // 4. Para armadura, la ranura canonica de la pieza debe coincidir.
     if (category === 'ARMOR') {
       const expected = ARMOR_SLOT_BY_EQUIPMENT_SLOT[slot]
-      const actual = parseEquippableAttributes(product.attributes).armorSlot
+      const actual = equippable.armorSlot
       if (expected === undefined || actual !== expected) {
         throw new EquipmentSlotMismatchError(slot, expected ?? 'DESCONOCIDA', actual)
       }
+    }
+
+    // 4.1. La compatibilidad declarada del producto debe incluir a este
+    // heroe: ALL_HEROES siempre encaja; SELECTED_SUBTYPES exige que el
+    // heroSubtype del heroe este en la lista. Aplica a arma, armadura e
+    // item por igual -Catalog publica el mismo campo en las tres familias-.
+    if (
+      equippable.compatibilityScope === 'SELECTED_SUBTYPES' &&
+      !equippable.compatibleHeroSubtypes.includes(hero.heroView.heroSubtype)
+    ) {
+      throw new EquipmentHeroIncompatibleError(productReference, hero.heroView.heroSubtype)
     }
 
     // 5. Estado resultante: el agregado aplica capacidades 2/6/2, "una pieza por

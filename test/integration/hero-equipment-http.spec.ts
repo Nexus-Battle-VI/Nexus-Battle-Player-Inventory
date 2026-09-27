@@ -90,6 +90,10 @@ const CATALOG: CatalogProductView[] = [
   equippable('hacha-de-hielo', 'ARMA'),
   equippable('casco-de-acero', 'ARMADURA', { slot: 'HEAD' }),
   equippable('pocion-de-vida', 'ITEM'),
+  equippable('orbe-de-manos-ardientes', 'ARMA', {
+    compatibilityScope: 'SELECTED_SUBTYPES',
+    compatibleHeroSubtypes: ['MAGO_FUEGO'],
+  }),
 ]
 
 describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
@@ -198,6 +202,16 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
     await own('s-slot', 'espada-de-fuego')
 
     await equip('s-slot', 'guerrero-tanque', 'HELMET', 'espada-de-fuego').expect(422)
+  })
+
+  it('un arma exclusiva de otro heroe responde 422 y NO la equipa', async () => {
+    await own('s-incompat', 'guerrero-tanque')
+    await own('s-incompat', 'orbe-de-manos-ardientes')
+
+    await equip('s-incompat', 'guerrero-tanque', 'WEAPON_1', 'orbe-de-manos-ardientes').expect(422)
+
+    const state = await getEquipment('s-incompat', 'guerrero-tanque')
+    expect(state.body.equipment.weapons).toEqual([])
   })
 
   it('una ranura ocupada responde 409 y NO reemplaza (backend es autoridad)', async () => {

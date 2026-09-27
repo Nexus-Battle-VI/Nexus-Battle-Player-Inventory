@@ -25,6 +25,7 @@ import {
   WeaponCapacityExceededError,
 } from '../../../domain/entities/HeroLoadout'
 import {
+  EquipmentHeroIncompatibleError,
   EquipmentProductNotOwnedError,
   EquipmentSlotMismatchError,
   HeroLoadoutConflictError,
@@ -95,7 +96,10 @@ export class HeroEquipmentController {
     status: 409,
     description: 'Ranura ocupada, capacidad 2/6/2 excedida o conflicto de concurrencia',
   })
-  @ApiResponse({ status: 422, description: 'El producto no encaja en la familia o la ranura' })
+  @ApiResponse({
+    status: 422,
+    description: 'El producto no encaja en la familia, la ranura o el heroe',
+  })
   @ApiResponse({ status: 503, description: 'Catalog no respondio' })
   async equip(
     @Param('heroId') heroId: string,
@@ -123,7 +127,8 @@ export class HeroEquipmentController {
     if (
       error instanceof InvalidEquipmentTypeError ||
       error instanceof EquipmentSlotMismatchError ||
-      error instanceof InvalidEquipmentSlotError
+      error instanceof InvalidEquipmentSlotError ||
+      error instanceof EquipmentHeroIncompatibleError
     ) {
       return new UnprocessableEntityException(error.message)
     }
