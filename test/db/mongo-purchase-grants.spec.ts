@@ -63,22 +63,35 @@ describe('Entrega atomica contra MongoDB', () => {
   })
 
   it('un lote rechazado conserva una decision terminal sin slots parciales', async () => {
+    const playerId = randomUUID()
+    const useCase = new GrantPurchasedItems(new MongoInventoryRepository(db))
+    // Un solo lote admite maximo 200 productos (GrantPurchasedItems), igual al
+    // MAX_CAPACITY del dominio: un lote unico contra un inventario vacio nunca
+    // puede superar la capacidad. Se ocupa 1 ranura primero -entrega aparte,
+    // ya confirmada- para que el lote de 200 (el maximo permitido por
+    // peticion) si la desborde.
+    await useCase.execute({
+      operationId: randomUUID(),
+      playerId,
+      items: [{ productId: randomUUID(), quantity: 1 }],
+    })
     const command = {
       operationId: randomUUID(),
-      playerId: randomUUID(),
-      items: Array.from({ length: 31 }, () => ({ productId: randomUUID(), quantity: 1 })),
+      playerId,
+      items: Array.from({ length: 200 }, () => ({ productId: randomUUID(), quantity: 1 })),
     }
-    await expect(
-      new GrantPurchasedItems(new MongoInventoryRepository(db)).execute(command),
-    ).rejects.toThrow(/completo/)
+    await expect(useCase.execute(command)).rejects.toThrow(/completo/)
     expect(
       await db
         .collection<Record<string, unknown> & { _id: string }>('inventory_grants')
         .countDocuments({ _id: command.operationId }),
     ).toBe(1)
-    expect(
-      await new MongoInventoryRepository(db).findByOwner(PlayerId.create(command.playerId)),
-    ).toBeNull()
+    // El inventario conserva SOLO la primera entrega (ya confirmada): el lote
+    // rechazado no dejo ninguna de sus 200 ranuras a medio aplicar.
+    const inventory = await new MongoInventoryRepository(db).findByOwner(
+      PlayerId.create(command.playerId),
+    )
+    expect(inventory?.toSnapshot().slots).toHaveLength(1)
   })
 
   it('el guardado legacy no sobrescribe una entrega posterior a su lectura', async () => {

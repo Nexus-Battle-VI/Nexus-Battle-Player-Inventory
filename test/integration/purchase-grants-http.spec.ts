@@ -132,10 +132,18 @@ describe('Contrato HTTP interno de entrega', () => {
   })
   it('rechaza cambio de payload y no confunde conflicto con entrega rechazada', async () => {
     expect((await signed({ ...body, playerId: 'player-b' })).status).toBe(409)
+    // player-a ya tiene 1 ranura ocupada (el primer test de este archivo).
+    // El lote admite como maximo 200 productos distintos por peticion
+    // (`@ArrayMaxSize(200)`, igual al `MAX_CAPACITY` del dominio), asi que no
+    // se puede superar la capacidad -200 ranuras- con un unico lote de mas de
+    // 200 items: la propia validacion de forma lo rechazaria antes (400), sin
+    // llegar a esta regla de negocio (422). Con exactamente 200 items nuevos
+    // se llega igual al limite: la ranura 1 mas 199 nuevas deja el inventario
+    // lleno antes de insertar la ultima, que es la que se rechaza.
     const tooMany = {
       ...body,
       operationId: '33333333-3333-4333-8333-333333333333',
-      items: Array.from({ length: 31 }, (_, index) => ({
+      items: Array.from({ length: 200 }, (_, index) => ({
         productId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
         quantity: 1,
       })),
