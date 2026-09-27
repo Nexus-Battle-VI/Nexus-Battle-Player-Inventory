@@ -1,8 +1,15 @@
 import { GetProductOwners } from '../../src/application/use-cases/GetProductOwners'
 import { GrantPurchasedItems } from '../../src/application/use-cases/GrantPurchasedItems'
+import type { CatalogReadPort } from '../../src/application/ports/CatalogReadPort'
 import { InMemoryInventoryRepository } from '../../src/adapters/outbound/persistence/InMemoryInventoryRepository'
 import { DomainError } from '../../src/domain/errors/DomainError'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
+
+/** Ninguno de estos productos es un heroe: no aporta habilidades incluidas. */
+const noAbilitiesCatalog: CatalogReadPort = {
+  getByReference: () => Promise.resolve(null),
+  lookup: () => Promise.resolve([]),
+}
 
 const PRODUCT_A = '11111111-1111-4111-8111-111111111111'
 const PRODUCT_B = '22222222-2222-4222-8222-222222222222'
@@ -19,7 +26,7 @@ describe('Resolucion de propietarios por producto (HU-38, TASK #175)', () => {
 
   it('un unico propietario aparece una sola vez', async () => {
     const repository = new InMemoryInventoryRepository()
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     await grant.execute({
       operationId: '33333333-3333-4333-8333-333333333333',
       playerId: 'jugador-a',
@@ -33,7 +40,7 @@ describe('Resolucion de propietarios por producto (HU-38, TASK #175)', () => {
 
   it('multiples propietarios distintos aparecen todos', async () => {
     const repository = new InMemoryInventoryRepository()
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     await grant.execute({
       operationId: '33333333-3333-4333-8333-333333333333',
       playerId: 'jugador-a',
@@ -52,7 +59,7 @@ describe('Resolucion de propietarios por producto (HU-38, TASK #175)', () => {
 
   it('un jugador con varias unidades no se duplica', async () => {
     const repository = new InMemoryInventoryRepository()
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     await grant.execute({
       operationId: '33333333-3333-4333-8333-333333333333',
       playerId: 'jugador-a',
@@ -72,7 +79,7 @@ describe('Resolucion de propietarios por producto (HU-38, TASK #175)', () => {
 
   it('un producto diferente no aparece en el resultado', async () => {
     const repository = new InMemoryInventoryRepository()
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     await grant.execute({
       operationId: '33333333-3333-4333-8333-333333333333',
       playerId: 'jugador-a',
@@ -86,7 +93,7 @@ describe('Resolucion de propietarios por producto (HU-38, TASK #175)', () => {
 
   it('la consulta no modifica el inventario', async () => {
     const repository = new InMemoryInventoryRepository()
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     await grant.execute({
       operationId: '33333333-3333-4333-8333-333333333333',
       playerId: 'jugador-a',

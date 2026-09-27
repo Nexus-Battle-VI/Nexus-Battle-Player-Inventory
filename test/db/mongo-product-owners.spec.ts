@@ -9,7 +9,14 @@ import {
 import { MongoInventoryRepository } from '../../src/adapters/outbound/persistence/MongoInventoryRepository'
 import { GrantPurchasedItems } from '../../src/application/use-cases/GrantPurchasedItems'
 import { GetProductOwners } from '../../src/application/use-cases/GetProductOwners'
+import type { CatalogReadPort } from '../../src/application/ports/CatalogReadPort'
 import { ItemId } from '../../src/domain/value-objects/identifiers'
+
+/** Ninguno de estos productos es un heroe: no aporta habilidades incluidas. */
+const noAbilitiesCatalog: CatalogReadPort = {
+  getByReference: () => Promise.resolve(null),
+  lookup: () => Promise.resolve([]),
+}
 
 describe('Resolucion de propietarios por producto contra MongoDB (HU-38, TASK #175)', () => {
   let container: StartedMongoDBContainer | undefined
@@ -47,7 +54,7 @@ describe('Resolucion de propietarios por producto contra MongoDB (HU-38, TASK #1
 
   it('resuelve propietarios reales, sin duplicados, cubierto por el indice (sin escaneo completo)', async () => {
     const repository = new MongoInventoryRepository(db)
-    const grant = new GrantPurchasedItems(repository)
+    const grant = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     const productId = randomUUID()
     const otroProducto = randomUUID()
     const jugadorA = randomUUID()

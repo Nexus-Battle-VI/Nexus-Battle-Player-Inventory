@@ -8,6 +8,7 @@ import {
 } from '../../src/infrastructure/persistence/database'
 import { MongoInventoryRepository } from '../../src/adapters/outbound/persistence/MongoInventoryRepository'
 import { GrantPurchasedItems } from '../../src/application/use-cases/GrantPurchasedItems'
+import type { CatalogReadPort } from '../../src/application/ports/CatalogReadPort'
 import { PlayerId, ItemId, Quantity } from '../../src/domain/value-objects/identifiers'
 import {
   InventoryConcurrentWriteError,
@@ -15,6 +16,12 @@ import {
   InventoryGrantRejectedError,
 } from '../../src/application/ports/InventoryGrantPort'
 import { Inventory } from '../../src/domain/entities/Inventory'
+
+/** Ninguno de estos productos es un heroe: no aporta habilidades incluidas. */
+const noAbilitiesCatalog: CatalogReadPort = {
+  getByReference: () => Promise.resolve(null),
+  lookup: () => Promise.resolve([]),
+}
 
 describe('Entrega atomica contra MongoDB', () => {
   let container: StartedMongoDBContainer | undefined
@@ -46,10 +53,10 @@ describe('Entrega atomica contra MongoDB', () => {
       playerId: randomUUID(),
       items: [{ productId: randomUUID(), quantity: 2 }],
     }
-    const useCase = new GrantPurchasedItems(new MongoInventoryRepository(db))
+    const useCase = new GrantPurchasedItems(new MongoInventoryRepository(db), noAbilitiesCatalog)
     const results = await Promise.all([useCase.execute(command), useCase.execute(command)])
     expect(results[1]).toEqual(results[0])
-    const restarted = new GrantPurchasedItems(new MongoInventoryRepository(db))
+    const restarted = new GrantPurchasedItems(new MongoInventoryRepository(db), noAbilitiesCatalog)
     expect(await restarted.execute(command)).toEqual(results[0])
     await expect(restarted.execute({ ...command, playerId: randomUUID() })).rejects.toBeInstanceOf(
       InventoryGrantConflictError,
@@ -69,7 +76,9 @@ describe('Entrega atomica contra MongoDB', () => {
       items: Array.from({ length: 31 }, () => ({ productId: randomUUID(), quantity: 1 })),
     }
     await expect(
-      new GrantPurchasedItems(new MongoInventoryRepository(db)).execute(command),
+      new GrantPurchasedItems(new MongoInventoryRepository(db), noAbilitiesCatalog).execute(
+        command,
+      ),
     ).rejects.toThrow(/completo/)
     expect(
       await db
@@ -83,7 +92,7 @@ describe('Entrega atomica contra MongoDB', () => {
 
   it('el guardado legacy no sobrescribe una entrega posterior a su lectura', async () => {
     const repository = new MongoInventoryRepository(db)
-    const useCase = new GrantPurchasedItems(repository)
+    const useCase = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     const command = {
       operationId: randomUUID(),
       playerId: randomUUID(),
@@ -109,7 +118,7 @@ describe('Entrega atomica contra MongoDB', () => {
       playerId: ownerId.value,
       items: [{ productId: randomUUID(), quantity: 1 }],
     }
-    const useCase = new GrantPurchasedItems(repository)
+    const useCase = new GrantPurchasedItems(repository, noAbilitiesCatalog)
     const outcomes = await Promise.allSettled([useCase.execute(command), useCase.execute(command)])
     expect(outcomes).toEqual([
       expect.objectContaining({
@@ -124,7 +133,7 @@ describe('Entrega atomica contra MongoDB', () => {
     const inventory = (await repository.findByOwner(ownerId))!
     inventory.remove(ItemId.create('ocupado'), Quantity.create(1), new Date())
     await repository.save(inventory)
-    const restarted = new GrantPurchasedItems(new MongoInventoryRepository(db))
+    const restarted = new GrantPurchasedItems(new MongoInventoryRepository(db), noAbilitiesCatalog)
     await expect(restarted.execute(command)).rejects.toBeInstanceOf(InventoryGrantRejectedError)
     expect((await repository.findByOwner(ownerId))?.usedSlots).toBe(0)
     await expect(
@@ -147,7 +156,7 @@ describe('Entrega atomica contra MongoDB', () => {
     await db
       .collection<Record<string, unknown> & { _id: string }>('inventories')
       .insertOne({ _id: second.value, capacity: new Int32(30), slots: [] })
-    await new GrantPurchasedItems(repository).execute({
+    await new GrantPurchasedItems(repository, noAbilitiesCatalog).execute({
       operationId: randomUUID(),
       playerId: second.value,
       items: [{ productId: randomUUID(), quantity: 1 }],
@@ -169,7 +178,9 @@ describe('Entrega atomica contra MongoDB', () => {
       createdAt: new Date(),
     })
     await expect(
-      new GrantPurchasedItems(new MongoInventoryRepository(db)).execute(command),
+      new GrantPurchasedItems(new MongoInventoryRepository(db), noAbilitiesCatalog).execute(
+        command,
+      ),
     ).rejects.toThrow('Resultado de entrega incompleto')
     expect(
       await new MongoInventoryRepository(db).findByOwner(PlayerId.create(command.playerId)),
