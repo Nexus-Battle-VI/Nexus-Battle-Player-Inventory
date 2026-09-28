@@ -18,20 +18,20 @@ contra MongoDB real**, todos dentro de las suites de HU-08.
 
 El comportamiento verificado es el de la aclaración funcional posterior al enunciado:
 
-- **Tabla de umbrales acumulados:** `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`, uno por
-  nivel de 1 a 8, enteros y sin decimales.
-- **Fronteras de nivel:** nivel 1 desde `0` (es el suelo), nivel 2 desde `200`, nivel 3 desde `400`,
-  nivel 4 desde `800`, nivel 5 desde `1.600`, nivel 6 desde `3.200`, nivel 7 desde `6.400` y nivel 8
-  desde `12.800`. **`749` sigue siendo nivel 3**, porque el nivel 4 exige `800`.
-- **Nivel desde el acumulado:** el mayor `L` cuyo umbral no supere la experiencia; el nivel 1 es el
-  suelo.
+- **Tabla de umbrales acumulados (para pasar de nivel):** `1→2 = 100 · 2→3 = 300 · 3→4 = 500 ·
+4→5 = 700 · 5→6 = 900 · 6→7 = 1.100 · 7→8 = 1.300`, enteros y sin decimales. Es una decisión
+  funcional posterior que **sustituye a la fórmula original del PDF y a la tabla temporal anterior**;
+  no estaba en el PDF.
+- **Fronteras de nivel:** `0..99` → 1, `100..299` → 2, `300..499` → 3, `500..699` → 4,
+  `700..899` → 5, `900..1099` → 6, `1100..1299` → 7 y `≥ 1300` → 8. No existe nivel 9.
+- **Nivel desde el acumulado:** `1 + número de umbrales alcanzados o superados` (máximo 8).
 - **La experiencia solo crece:** subir de nivel no la descuenta.
 - **Un otorgamiento puede cruzar varios umbrales:** el nivel se calcula sobre el acumulado nuevo.
 - **Tope en 8:** la experiencia sigue creciendo y no se descarta; la operación no se rechaza.
 
-`CA-03` sigue enunciando `100 × 1,2^(Nivel − 1)`, que produce **otra** serie. La divergencia es real
-y está medida en `docs/hu-08-progresion.md`, sección 3; este documento **no la da por resuelta** y
-la sección 8 explica por qué no hay ninguna prueba que la declare cumplida.
+`CA-03` se reescribe en Management con esta tabla (ver `docs/hu-08-progresion.md`, sección 3). La
+fórmula `100 × 1,2^(Nivel − 1)` y la tabla temporal `100 · 200 · 400 · … · 12.800` quedan
+registradas en el fixture como **sustituidas** (`supersededFormula`, `supersededTable`).
 
 ## 3. Criterios de aceptación cubiertos, y los que no
 
@@ -43,7 +43,7 @@ aceptación/DoD». Por eso **`CA-08` no aparece como escenario**.
 | ----- | --------------------------------------------------------------- | ----------------------------------------------------- |
 | CA-01 | El nivel actual produce el umbral del siguiente nivel           | **Sí**                                                |
 | CA-02 | Los héroes progresan de nivel 1 a nivel 8                       | **Sí**                                                |
-| CA-03 | El umbral se calcula con `100 × 1,2^(Nivel−1)`                  | **NO — divergente.** Ver sección 8                    |
+| CA-03 | Umbral acumulado para avanzar (tabla vigente, 1→2 … 7→8)        | **Sí** — fronteras exactas y ejemplos del PO          |
 | CA-04 | El cálculo usa como entrada el nivel actual                     | **Sí**                                                |
 | CA-05 | No se calcula un siguiente nivel fuera del rango máximo         | **Sí**                                                |
 | CA-06 | El nivel actúa como factor multiplicador sobre las estadísticas | **NO — fuera de alcance.** Ver sección 7              |
@@ -68,30 +68,30 @@ Leyenda de tipo:
 
 ### CA-01 — la tabla produce el umbral esperado
 
-| RF    | CA    | Escenario                                          | Nivel | Resultado esperado                                   | Tipo | Script                                   |
-| ----- | ----- | -------------------------------------------------- | ----- | ---------------------------------------------------- | ---- | ---------------------------------------- |
-| RF-08 | CA-01 | El primer umbral es el coeficiente que se conservó | 1     | `AVAILABLE`, siguiente 2, `200`                      | U    | `experience-policy.spec.ts`              |
-| RF-08 | CA-01 | Nivel intermedio                                   | 4     | `AVAILABLE`, siguiente 5, `1600`                     | U    | `experience-policy.spec.ts`              |
-| RF-08 | CA-01 | Último nivel con siguiente nivel                   | 7     | `AVAILABLE`, siguiente 8, `12800`                    | U    | `experience-policy.spec.ts`              |
-| RF-08 | CA-01 | Los siete umbrales, uno a uno                      | 1..7  | `200 · 400 · 800 · 1600 · 3200 · 6400 · 12800`       | U    | `experience-policy.spec.ts`              |
-| RF-08 | CA-01 | La cadena completa contra la tabla de referencia   | 1..8  | Coincide entrada a entrada con el fixture            | U    | `experience-threshold-reference.spec.ts` |
-| RF-08 | CA-01 | Las dos direcciones concuerdan                     | 1..7  | El acumulado del umbral produce el nivel que declara | U    | `experience-policy.spec.ts`              |
+| RF    | CA    | Escenario                                        | Nivel | Resultado esperado                                   | Tipo | Script                                   |
+| ----- | ----- | ------------------------------------------------ | ----- | ---------------------------------------------------- | ---- | ---------------------------------------- |
+| RF-08 | CA-01 | El primer umbral                                 | 1     | `AVAILABLE`, siguiente 2, `100`                      | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-01 | Nivel intermedio                                 | 4     | `AVAILABLE`, siguiente 5, `700`                      | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-01 | Último nivel con siguiente nivel                 | 7     | `AVAILABLE`, siguiente 8, `1300`                     | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-01 | Los siete umbrales, uno a uno                    | 1..7  | `100 · 300 · 500 · 700 · 900 · 1100 · 1300`          | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-01 | La cadena completa contra la tabla de referencia | 1..8  | Coincide entrada a entrada con el fixture            | U    | `experience-threshold-reference.spec.ts` |
+| RF-08 | CA-01 | Las dos direcciones concuerdan                   | 1..7  | El acumulado del umbral produce el nivel que declara | U    | `experience-policy.spec.ts`              |
 
 ### Las reglas del PO sobre la experiencia acumulada
 
-| RF    | Regla del PO                                   | Escenario                            | Entrada                       | Resultado esperado                              | Tipo     | Script                                                     |
-| ----- | ---------------------------------------------- | ------------------------------------ | ----------------------------- | ----------------------------------------------- | -------- | ---------------------------------------------------------- |
-| RF-08 | Nivel desde el acumulado                       | Los cuatro vectores de la aclaración | `749`, `3500`, `890`, `13000` | `3`, `6`, `4`, `8`                              | U        | `experience-policy.spec.ts`                                |
-| RF-08 | El nivel 1 es el suelo                         | Por debajo del primer umbral         | `0`, `99`, `100`, `199`       | Siempre `1`                                     | U        | `experience-policy.spec.ts`                                |
-| RF-08 | Cada umbral se alcanza en su valor             | Fronteras exactas                    | `200`, `400`, … `12800`       | El nivel de ese umbral, y uno menos justo antes | U        | `experience-policy.spec.ts`                                |
-| RF-08 | Es monótona                                    | Barrido de 0 a 14.000                | paso 25                       | El nivel nunca decrece                          | U        | `experience-policy.spec.ts`                                |
-| RF-08 | El tope no descarta experiencia                | Por encima de la tabla               | `13500`, `1.000.000`          | Nivel `8`, sin rechazo                          | U        | `experience-policy.spec.ts`                                |
-| RF-08 | La XP no se resta al subir                     | `749 + 100`                          | —                             | Acumulado `849`, nivel `4`                      | U, U-int | `hero-progression.spec.ts`, `get-hero-progression.spec.ts` |
-| RF-08 | Un otorgamiento cruza varios umbrales          | `190 + 700`                          | —                             | Acumulado `890`, nivel `4`                      | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | En el tope la XP sigue creciendo               | `13.000 + 500`                       | —                             | Acumulado `13.500`, nivel `8`                   | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | La recompensa es entera                        | `14,4` rechazado, `14` aceptado      | —                             | `DomainError` / acumulado `14`                  | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | Acreditar no muta ni versiona                  | Tras `awardExperience`               | —                             | Instancia nueva, `version` intacta              | U        | `hero-progression.spec.ts`                                 |
-| RF-08 | Los tres ejemplos del PO, contra la referencia | Acreditación                         | —                             | Acumulado y nivel del fixture                   | U        | `experience-threshold-reference.spec.ts`                   |
+| RF    | Regla del PO                              | Escenario                          | Entrada                     | Resultado esperado                              | Tipo     | Script                                                     |
+| ----- | ----------------------------------------- | ---------------------------------- | --------------------------- | ----------------------------------------------- | -------- | ---------------------------------------------------------- |
+| RF-08 | Nivel desde el acumulado                  | Fronteras exactas de los 8 niveles | `0,99,100,299,…,1299,1300`  | `1,1,2,2,3,3,4,4,5,5,6,6,7,7,8`                 | U        | `experience-policy.spec.ts`                                |
+| RF-08 | El nivel 1 es el suelo                    | Por debajo del primer umbral       | `0`, `1`, `99`              | Siempre `1`                                     | U        | `experience-policy.spec.ts`                                |
+| RF-08 | Cada umbral se alcanza en su valor        | Fronteras exactas                  | `100`, `300`, … `1300`      | El nivel de ese umbral, y uno menos justo antes | U        | `experience-policy.spec.ts`                                |
+| RF-08 | Es monótona                               | Barrido de 0 a 1.500               | paso 5                      | El nivel nunca decrece                          | U        | `experience-policy.spec.ts`                                |
+| RF-08 | El tope no descarta experiencia           | Por encima de la tabla             | `1300`, `6300`, `1.000.000` | Nivel `8`, sin rechazo                          | U        | `experience-policy.spec.ts`                                |
+| RF-08 | La XP no se resta al subir                | `99 + 1`                           | —                           | Acumulado `100`, nivel `2`                      | U, U-int | `hero-progression.spec.ts`, `get-hero-progression.spec.ts` |
+| RF-08 | Un otorgamiento cruza varios umbrales     | `90 + 430`                         | —                           | Acumulado `520`, nivel `4`                      | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | En el tope la XP sigue creciendo          | `1300 + 5000`                      | —                           | Acumulado `6300`, nivel `8`                     | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | La recompensa es entera                   | `14,4` rechazado, `14` aceptado    | —                           | `DomainError` / acumulado `14`                  | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | Acreditar no muta ni versiona             | Tras `awardExperience`             | —                           | Instancia nueva, `version` intacta              | U        | `hero-progression.spec.ts`                                 |
+| RF-08 | Los ejemplos del PO, contra la referencia | Acreditación                       | —                           | Acumulado y nivel del fixture                   | U        | `experience-threshold-reference.spec.ts`                   |
 
 ### CA-04 — la entrada es el nivel actual, y solo eso
 
@@ -118,23 +118,23 @@ Leyenda de tipo:
 | RF-08 | CA-02 | Nivel superior al rango                             | `9`, `99`                                     | `DomainError`                                  | U    | `experience-policy.spec.ts`              |
 | RF-08 | CA-02 | Nivel no entero, sin truncar                        | `2.5`, `7.0000001`                            | `DomainError`                                  | U    | `experience-policy.spec.ts`              |
 | RF-08 | CA-02 | Tipo de entrada inválido                            | `'3'`, `NaN`, `Infinity`, `null`, `undefined` | `DomainError`                                  | U    | `experience-policy.spec.ts`              |
-| RF-08 | CA-02 | Acumulado inválido                                  | `-1`, `1.5`, `NaN`, `'890'`                   | `DomainError`                                  | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-02 | Acumulado inválido                                  | `-1`, `1.5`, `NaN`, `'520'`                   | `DomainError`                                  | U    | `experience-policy.spec.ts`              |
 | RF-08 | CA-02 | No normaliza en silencio                            | `9`                                           | Falla; **no** se recorta a 8                   | U    | `experience-policy.spec.ts`              |
 | RF-08 | CA-02 | El rango del contrato no cambia                     | —                                             | `MIN_HERO_LEVEL === 1`, `MAX_HERO_LEVEL === 8` | U    | `experience-threshold-reference.spec.ts` |
 | RF-08 | CA-02 | El predicado de rango                               | varios                                        | Cierto solo para enteros en `1..8`             | U    | `experience-policy.spec.ts`              |
 | RF-08 | CA-02 | Un documento persistido fuera de rango no se acepta | 0, 9, `-1`, `1.5`                             | `DomainError` al restaurar                     | U    | `hero-progression.spec.ts`               |
-| RF-08 | CA-02 | La tabla no contiene fracciones                     | —                                             | Los ocho valores son enteros                   | U    | `experience-policy.spec.ts`              |
+| RF-08 | CA-02 | La tabla no contiene fracciones                     | —                                             | Los siete valores son enteros                  | U    | `experience-policy.spec.ts`              |
 
 ### CA-07 — el umbral queda disponible para el consumidor
 
-| RF    | CA    | Escenario                                                            | Nivel       | Resultado esperado                  | Tipo      | Script                            |
-| ----- | ----- | -------------------------------------------------------------------- | ----------- | ----------------------------------- | --------- | --------------------------------- |
-| RF-08 | CA-07 | La operación reutilizable se resuelve y calcula sin conocer la tabla | 4, 8        | `1600` hacia el 5; `MAX_LEVEL` en 8 | **U-int** | `hero-progression-wiring.spec.ts` |
-| RF-08 | CA-07 | La misma operación resuelve el nivel de un acumulado                 | 749, 890    | `3`, `4`                            | **U-int** | `hero-progression-wiring.spec.ts` |
-| RF-08 | CA-07 | El caso de uso deriva el umbral del nivel persistido                 | 5           | `3200` hacia el 6                   | **U-int** | `get-hero-progression.spec.ts`    |
-| RF-08 | CA-07 | El consumidor recibe el umbral válido leyendo de la base             | 7           | `12800` hacia el 8                  | **DB**    | `mongo-hero-progression.spec.ts`  |
-| RF-08 | CA-07 | El consumidor recibe la condición de nivel máximo                    | 8           | `MAX_LEVEL`                         | **U-int** | `get-hero-progression.spec.ts`    |
-| RF-08 | CA-07 | El consumidor recibe error controlado ante entrada inválida          | `''`, vacío | `DomainError`                       | **U-int** | `get-hero-progression.spec.ts`    |
+| RF    | CA    | Escenario                                                            | Nivel       | Resultado esperado                 | Tipo      | Script                            |
+| ----- | ----- | -------------------------------------------------------------------- | ----------- | ---------------------------------- | --------- | --------------------------------- |
+| RF-08 | CA-07 | La operación reutilizable se resuelve y calcula sin conocer la tabla | 4, 8        | `700` hacia el 5; `MAX_LEVEL` en 8 | **U-int** | `hero-progression-wiring.spec.ts` |
+| RF-08 | CA-07 | La misma operación resuelve el nivel de un acumulado                 | 299, 520    | `2`, `4`                           | **U-int** | `hero-progression-wiring.spec.ts` |
+| RF-08 | CA-07 | El caso de uso deriva el umbral del nivel persistido                 | 5           | `900` hacia el 6                   | **U-int** | `get-hero-progression.spec.ts`    |
+| RF-08 | CA-07 | El consumidor recibe el umbral válido leyendo de la base             | 7           | `1300` hacia el 8                  | **DB**    | `mongo-hero-progression.spec.ts`  |
+| RF-08 | CA-07 | El consumidor recibe la condición de nivel máximo                    | 8           | `MAX_LEVEL`                        | **U-int** | `get-hero-progression.spec.ts`    |
+| RF-08 | CA-07 | El consumidor recibe error controlado ante entrada inválida          | `''`, vacío | `DomainError`                      | **U-int** | `get-hero-progression.spec.ts`    |
 
 ### Determinismo y regresión de la tabla
 
@@ -207,7 +207,7 @@ progresión, y **no** aumentarla con pruebas triviales.
 
 - **Cinco sentencias de `hero-level.ts`**: las ramas de la función `describe` que formatea un valor
   rechazado en el mensaje de error (`"texto"`, `null`, u otro tipo).
-- **Una rama de `ExperiencePolicy.ts`**: la guarda de `thresholdToReach` que lanza si se le pide el
+- **Una rama de `ExperiencePolicy.ts`**: la guarda de `thresholdToLeave` que lanza si se le pide el
   umbral de un nivel fuera de la tabla. Es **inalcanzable desde fuera** —las dos operaciones
   públicas validan el rango antes de llamarla— y existe como defensa, no como camino.
 
@@ -249,17 +249,13 @@ convierte una en la otra. La divergencia está medida en `docs/hu-08-progresion.
 
 **Qué hace esta suite al respecto, y qué no.**
 
-- **Sí** conserva la serie sustituida en el fixture (`supersededFormula`, con su expresión, su serie
-  y el criterio del que sale) y comprueba que la tabla vigente **no** la reproduce. Si alguien
-  «reconciliara» las dos series para dar `CA-03` por cumplido sin que el PO lo corrija, esa
-  comprobación falla.
-- **No** hay ningún caso que declare `CA-03` verificado, porque no lo está. Automatizarlo fijaría
-  como correcta una de las dos reglas, y elegir cuál no es de este repositorio.
+- **Sí** conserva la serie sustituida y la tabla temporal anterior en el fixture
+  (`supersededFormula`, `supersededTable`) y comprueba que la tabla vigente **no** las reproduce.
+- `CA-03` se verifica contra la tabla vigente con las fronteras exactas del PO. **No** se afirma que
+  la tabla estuviera en el PDF: es una decisión funcional posterior.
 
-**Lo que falta:** que el PO **reescriba `CA-03`** para que diga «el umbral se obtiene de la tabla
-aprobada `100 · 200 · 400 · 800 · 1.600 · 3.200 · 6.400 · 12.800`». Mientras no se corrija, y por
-`CA-08`, la HU no puede declarase aceptada aunque toda la suite esté en verde. No se ha modificado
-el Issue.
+**Lo que falta en Management:** reescribir `CA-03` y la frase de contexto de la Issue `#17` (ver la
+sección de Management del PR). `CA-06` sigue fuera de alcance.
 
 ## 9. Automatización y CI/CD (punto 6 de la Task)
 
@@ -280,29 +276,24 @@ requiere paquete adicional.
 
 Se registran aquí los hallazgos de la ejecución, según el punto 14 del Enfoque.
 
-### D-1 — La regla estaba expresada con una fórmula que el PO sustituyó (corregido en `#188` y `#189`)
+### D-1 — La regla estaba expresada con una fórmula y luego con una tabla que el PO sustituyó (corregido)
 
-El diseño inicial aplicaba `100 × 1,2^(Nivel − 1)` porque era lo que decía `CA-03`. La aclaración
-del PO fijó una tabla de umbrales **acumulados y enteros** que no reproduce esa serie.
+El diseño inicial aplicaba `100 × 1,2^(Nivel − 1)` (lo que decía `CA-03`) y después una tabla
+temporal `100 · 200 · … · 12.800` con semántica «XP para estar en el nivel». Una decisión funcional
+posterior fijó umbrales **acumulados para pasar de nivel**: `100 · 300 · 500 · 700 · 900 · 1.100 · 1.300`.
 
-| Nivel | `100 × 1,2^(n−1)` | Tabla vigente |
-| ----: | ----------------: | ------------: |
-|     1 |               100 |           100 |
-|     2 |               120 |           200 |
-|     3 |               144 |           400 |
-|     4 |             172,8 |           800 |
-|     5 |            207,36 |         1.600 |
-|     6 |           248,832 |         3.200 |
-|     7 |          298,5984 |         6.400 |
-|     8 |         358,31808 |        12.800 |
+|  Paso | `100 × 1,2^(n−1)` | Tabla temporal anterior | **Tabla vigente** |
+| ----: | ----------------: | ----------------------: | ----------------: |
+| 1 → 2 |               100 |                     200 |           **100** |
+| 2 → 3 |               120 |                     400 |           **300** |
+| 3 → 4 |               144 |                     800 |           **500** |
+| 4 → 5 |             172,8 |                   1.600 |           **700** |
+| 5 → 6 |            207,36 |                   3.200 |           **900** |
+| 6 → 7 |           248,832 |                   6.400 |         **1.100** |
+| 7 → 8 |          298,5984 |                  12.800 |         **1.300** |
 
-**Estado: corregido.** La política aplica la tabla y la suite fija los ocho valores. **Lo que no
-está corregido, porque no es de este repositorio, es el enunciado de `CA-03`** (sección 8).
-
-**Un efecto secundario que conviene registrar:** con la fórmula, el diseño tenía que resolver la
-representación exacta de `1,2` (`172.79999999999998` frente a `172,8`) con aritmética racional y un
-campo `decimal`. Con la tabla, ese problema **desaparece**: no hay fracciones. El campo `decimal` y
-la aritmética con `BigInt` se retiraron con la fórmula que los necesitaba.
+**Estado: corregido.** La política aplica la tabla vigente, la suite fija las fronteras exactas y la
+migración `013` recalcula el nivel de los héroes ya persistidos (la XP no se toca).
 
 ### D-2 — El umbral podía persistirse por descuido (prevenido en `#189`)
 

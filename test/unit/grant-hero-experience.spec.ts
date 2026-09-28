@@ -85,41 +85,39 @@ describe('GrantHeroExperience', () => {
       levelsGained: 0,
       maxLevel: 8,
     })
-    expect(result.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 2, amount: 200 })
+    expect(result.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 2, amount: 100 })
   })
 
-  it('acumula SIN RESTAR: 749 + 100 = 849 y el nivel pasa a 4 conservando todo', async () => {
-    const first = await useCase.execute(commandWith({ operationId: 'op-1', amount: 749 }))
-    expect(first).toMatchObject({ currentXp: 749, level: 3 })
+  it('acumula SIN RESTAR: 99 + 1 = 100 y el nivel pasa a 2 conservando todo', async () => {
+    const first = await useCase.execute(commandWith({ operationId: 'op-1', amount: 99 }))
+    expect(first).toMatchObject({ currentXp: 99, level: 1 })
 
-    const second = await useCase.execute(commandWith({ operationId: 'op-2', amount: 100 }))
+    const second = await useCase.execute(commandWith({ operationId: 'op-2', amount: 1 }))
 
-    expect(second).toMatchObject({ currentXp: 849, level: 4, leveledUp: true, levelsGained: 1 })
-    // El umbral alcanzado NO se descuenta: 849 sigue ahi.
-    expect(second.currentXp).toBe(849)
-    expect(second.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 5, amount: 1600 })
+    expect(second).toMatchObject({ currentXp: 100, level: 2, leveledUp: true, levelsGained: 1 })
+    // El umbral alcanzado NO se descuenta: 100 sigue ahi, no vuelve a 0.
+    expect(second.currentXp).toBe(100)
+    expect(second.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 3, amount: 300 })
   })
 
-  it('una sola acreditacion puede cruzar VARIOS niveles: 190 + 700 = 890, nivel 4', async () => {
-    // 190 acumulados son nivel 1 (el umbral del nivel 1 es 100 y el del 2, 200);
-    // 890 son nivel 4. Una sola acreditacion cruza TRES niveles de golpe.
-    await useCase.execute(commandWith({ operationId: 'op-1', amount: 190 }))
+  it('una sola acreditacion puede cruzar VARIOS niveles: 90 + 430 = 520, nivel 4', async () => {
+    // 90 acumulados son nivel 1; 520 son nivel 4. Una sola acreditacion cruza
+    // TRES umbrales (100, 300 y 500) de golpe.
+    await useCase.execute(commandWith({ operationId: 'op-1', amount: 90 }))
 
-    const jump = await useCase.execute(commandWith({ operationId: 'op-2', amount: 700 }))
+    const jump = await useCase.execute(commandWith({ operationId: 'op-2', amount: 430 }))
 
-    expect(jump).toMatchObject({ currentXp: 890, level: 4, leveledUp: true, levelsGained: 3 })
+    expect(jump).toMatchObject({ currentXp: 520, level: 4, leveledUp: true, levelsGained: 3 })
   })
 
   it('en el nivel 8 NO se descarta experiencia y el umbral dice MAX_LEVEL', async () => {
-    // 8 acreditaciones de 1600 llevan el acumulado a 12800, que es el nivel 8.
-    for (let index = 0; index < 8; index += 1) {
-      await useCase.execute(commandWith({ operationId: `op-${String(index)}`, amount: 1600 }))
-    }
+    // 1300 acumulados son el umbral del nivel 8.
+    await useCase.execute(commandWith({ operationId: 'op-to-max', amount: 1300 }))
 
-    const atMax = await useCase.execute(commandWith({ operationId: 'op-max', amount: 500 }))
+    const atMax = await useCase.execute(commandWith({ operationId: 'op-max', amount: 5000 }))
 
     expect(atMax).toMatchObject({
-      currentXp: 13300,
+      currentXp: 6300,
       level: 8,
       leveledUp: false,
       levelsGained: 0,
@@ -247,10 +245,10 @@ describe('GrantHeroExperience', () => {
   })
 
   it('el umbral se DERIVA al leer y no se guarda en el asiento', async () => {
-    // 1600 acumulados son nivel 5; el siguiente umbral es el del nivel 6.
-    const result = await useCase.execute(commandWith({ amount: 1600 }))
+    // 800 acumulados son nivel 5; el siguiente umbral pasa al nivel 6 (900).
+    const result = await useCase.execute(commandWith({ amount: 800 }))
 
-    expect(result.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 6, amount: 3200 })
+    expect(result.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 6, amount: 900 })
     expect(Object.keys(result)).not.toContain('persistedNextLevel')
   })
 })
