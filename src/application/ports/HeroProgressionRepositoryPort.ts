@@ -13,9 +13,10 @@ import type { PlayerId } from '../../domain/value-objects/identifiers'
  * `ExperiencePolicy`. No hay `findThreshold`, ni cache, ni proyeccion, y su
  * ausencia es deliberada.
  *
- * ESTE PUERTO ES CONTRATO DE DISENO (Task #188). Su adaptador Mongo y la
- * migracion `008-hero-progressions` son la Task #189; hoy no existe
- * implementacion y por tanto no se registra en el contenedor.
+ * ESTE PUERTO NACIO COMO CONTRATO DE DISENO (Task #188). Su adaptador Mongo
+ * (`MongoHeroProgressionRepository`) y la migracion `008-hero-progressions` son
+ * la Task #189, YA IMPLEMENTADAS y registradas en `app.module.ts` bajo
+ * `HERO_PROGRESSION_REPOSITORY`: no es un contrato pendiente.
  */
 export interface HeroProgressionRepositoryPort {
   /**

@@ -44,6 +44,7 @@ describe('GetHeroProgression', () => {
       heroId: 'heroe-1',
       level: 1,
       currentXp: 0,
+      floorForCurrentLevel: 0,
       nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 200 },
       maxLevel: 8,
     })
@@ -91,6 +92,8 @@ describe('GetHeroProgression', () => {
 
     expect(dto.level).toBe(5)
     expect(dto.currentXp).toBe(2000)
+    // Frontera de la tabla (docs/hu-08-progresion.md, seccion 2): "nivel 5 desde 1.600".
+    expect(dto.floorForCurrentLevel).toBe(1600)
     expect(dto.nextLevel).toEqual({
       status: 'AVAILABLE',
       forNextLevel: 6,
@@ -137,5 +140,7 @@ describe('GetHeroProgression', () => {
 
     expect(dto.nextLevel.status).toBe('MAX_LEVEL')
     expect(dto.nextLevel.forNextLevel).toBeNull()
+    // Sigue acumulando por encima del piso del nivel maximo, sin producir un nivel 9.
+    expect(dto.floorForCurrentLevel).toBe(12800)
   })
 })

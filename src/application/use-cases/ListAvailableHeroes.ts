@@ -1,9 +1,11 @@
 import { parseHeroAttributes } from '../../domain/value-objects/equipment-effects'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { AvailableHeroDto, HeroAbilityDto } from '../dto/HeroSelectionDto'
+import type { HeroProgressionDto } from '../dto/HeroProgressionDto'
 import type { CatalogProductView, CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroSelectionRepositoryPort } from '../ports/HeroSelectionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
+import type { GetHeroProgression } from './GetHeroProgression'
 
 const HERO_TYPE = 'HEROE'
 
@@ -23,12 +25,20 @@ const HERO_TYPE = 'HEROE'
  * DOS LLAMADAS A CATALOG COMO MUCHO, sea cual sea el numero de heroes: una para
  * los heroes y otra para todas sus habilidades juntas. Resolver las habilidades
  * heroe por heroe seria un N+1 sobre un servicio remoto.
+ *
+ * LA PROGRESION DE CADA HEROE (auditoria 2026-09-27, HU-08/HU-09) SE RESUELVE
+ * REUTILIZANDO `GetHeroProgression`: ni una segunda tabla de umbrales, ni un
+ * segundo camino de lectura del agregado `HeroProgression`. Se resuelve en
+ * paralelo para todos los heroes de la respuesta (`Promise.all`); son lecturas
+ * LOCALES a Mongo -no llamadas a otro servicio-, asi que no es el mismo riesgo
+ * de N+1 que justifica agrupar las llamadas a Catalog.
  */
 export class ListAvailableHeroes {
   constructor(
     private readonly inventories: InventoryQueryPort,
     private readonly catalog: CatalogReadPort,
     private readonly selections: HeroSelectionRepositoryPort,
+    private readonly getHeroProgression: GetHeroProgression,
   ) {}
 
   async execute(ownerId: string): Promise<readonly AvailableHeroDto[]> {
@@ -59,6 +69,10 @@ export class ListAvailableHeroes {
     const abilityNames = await this.resolveAbilityNames(
       parsed.flatMap((entry) => entry.view.abilities),
     )
+    const progressions = await this.resolveProgressions(
+      owner.value,
+      parsed.map(({ product }) => product.productId),
+    )
 
     return parsed
       .map(({ product, view }) => ({
@@ -76,8 +90,30 @@ export class ListAvailableHeroes {
           name: abilityNames.get(reference) ?? null,
         })),
         selected: selection?.isFor(product.productId) ?? false,
+        progression: requireProgression(progressions, product.productId),
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'es'))
+  }
+
+  /**
+   * Progresion individual de cada heroe, por (jugador, heroe) -- NUNCA global
+   * del jugador (HU-08: "el nivel pertenece al heroe, no al jugador"). Usar
+   * `heroId` (el UUID canonico) y no `reference` evita que la progresion se
+   * pierda si el jugador posee el heroe por el alias en una lista y por el UUID
+   * en otra: es la misma clave que usa el agregado.
+   */
+  private async resolveProgressions(
+    ownerId: string,
+    heroIds: readonly string[],
+  ): Promise<ReadonlyMap<string, HeroProgressionDto>> {
+    const entries = await Promise.all(
+      heroIds.map(async (heroId): Promise<readonly [string, HeroProgressionDto]> => [
+        heroId,
+        await this.getHeroProgression.execute(ownerId, heroId),
+      ]),
+    )
+
+    return new Map(entries)
   }
 
   private async resolveAbilityNames(
@@ -99,6 +135,28 @@ export class ListAvailableHeroes {
 
     return byReference
   }
+}
+
+/**
+ * Recupera la progresion resuelta para `heroId`, sin `as` ni asercion de no
+ * nulo. `resolveProgressions` pide una entrada por cada heroe de `parsed` y
+ * `GetHeroProgression.execute` siempre responde -crea el estado inicial en
+ * memoria cuando no hay documento, nunca lanza-, asi que esta ausencia no
+ * deberia ocurrir; si ocurriera (un cambio futuro que desalinee ambas listas),
+ * es un error de programacion y se dice, en vez de devolver un heroe sin
+ * progresion o inventarle una.
+ */
+const requireProgression = (
+  progressions: ReadonlyMap<string, HeroProgressionDto>,
+  heroId: string,
+): HeroProgressionDto => {
+  const progression = progressions.get(heroId)
+
+  if (progression === undefined) {
+    throw new Error(`No se resolvio la progresion del heroe ${heroId}.`)
+  }
+
+  return progression
 }
 
 /**

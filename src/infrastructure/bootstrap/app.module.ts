@@ -543,14 +543,21 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
     // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen
     // paralelo ni una segunda lectura del catalogo.
+    //
+    // AMPLIACION ADITIVA (auditoria 2026-09-27, HU-08/HU-09): tambien reutiliza
+    // `GetHeroProgression` (registrado abajo, GET_HERO_PROGRESSION) para anadir
+    // la progresion de cada heroe a la respuesta. El orden de declaracion de los
+    // providers no importa para Nest; la dependencia se resuelve por token.
     {
       provide: LIST_AVAILABLE_HEROES,
       useFactory: (
         inventories: InventoryQueryPort,
         catalog: CatalogReadPort,
         selections: HeroSelectionRepositoryPort,
-      ): ListAvailableHeroes => new ListAvailableHeroes(inventories, catalog, selections),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY],
+        getHeroProgression: GetHeroProgression,
+      ): ListAvailableHeroes =>
+        new ListAvailableHeroes(inventories, catalog, selections, getHeroProgression),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY, GET_HERO_PROGRESSION],
     },
     {
       provide: GET_HERO_SELECTION,
