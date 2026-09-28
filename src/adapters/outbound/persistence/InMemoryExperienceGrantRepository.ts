@@ -12,6 +12,7 @@ import type {
 } from '../../../application/ports/ExperienceGrantPort'
 import {
   fingerprintOf,
+  toLedgerDocument,
   toReplayResult,
   type ExperienceGrantDocument,
 } from './experience-grant-mapping'
@@ -64,21 +65,10 @@ export class InMemoryExperienceGrantRepository implements ExperienceGrantPort {
       }
 
       this.progressions.set(key, { ...after.toSnapshot(), version: before.version + 1 })
-      this.ledger.set(command.operationId, {
-        _id: command.operationId,
-        fingerprint,
-        ownerId: command.ownerId,
-        heroId: command.heroId,
-        amount: command.amount,
-        roll: command.source.roll,
-        enrollmentId: command.source.enrollmentId,
-        simulationId: command.source.simulationId,
-        encounterId: command.source.encounterId,
-        enemyInstanceId: command.source.enemyInstanceId,
-        rivalRef: command.source.rivalRef,
-        result: { ...result },
-        createdAt: new Date(),
-      })
+      this.ledger.set(
+        command.operationId,
+        toLedgerDocument(command, fingerprint, result, new Date()),
+      )
 
       return Promise.resolve(result)
     } catch (error: unknown) {

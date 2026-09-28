@@ -3,10 +3,13 @@ import { MAX_HERO_LEVEL } from '../../domain/value-objects/hero-level'
 import { experienceRequiredForNextLevel } from '../../domain/policies/ExperiencePolicy'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import { ExperienceGrantRejectedError } from '../errors/ApplicationError'
-import type {
-  ExperienceGrantPort,
-  ExperienceGrantSource,
-  GrantHeroExperienceResult,
+import {
+  MISSION_DIFFICULTIES,
+  type ExperienceGrantPort,
+  type ExperienceGrantSource,
+  type GrantHeroExperienceResult,
+  type MissionCompletionOutcome,
+  type MissionDifficulty,
 } from '../ports/ExperienceGrantPort'
 
 /**
@@ -34,7 +37,10 @@ export const EXPERIENCE_GRANT_SCHEMA_VERSION = 1
 
 export interface GrantHeroExperienceCommand {
   readonly schemaVersion: number
-  /** Clave de la derrota: `mission:{enrollmentId}:encounter:{...}:hero:{heroId}:xp`. */
+  /**
+   * Clave de la acreditacion. HU-09: `mission:{enrollmentId}:encounter:{...}:hero:{heroId}:xp`;
+   * HU-10: `mission:{enrollmentId}:reward:completion:xp`.
+   */
   readonly operationId: string
   /** Jugador de la ruta. Identificador opaco del proveedor de identidad. */
   readonly playerId: string
@@ -68,12 +74,27 @@ const requireGrant = (command: GrantHeroExperienceCommand) => {
     throw new DomainError(`schemaVersion debe ser ${String(EXPERIENCE_GRANT_SCHEMA_VERSION)}.`)
   }
 
+  const operationId = requireText(command.operationId, 'La acreditacion necesita un operationId.')
+  const source = requireSource(command.source)
+
+  // La clave de la finalizacion la fija el contrato a partir de la matricula: una
+  // clave que no corresponde a la matricula del origen no puede ser esta
+  // acreditacion, y aceptarla dejaria dos claves distintas para el mismo derecho.
+  if (
+    source.kind === 'MISSION_COMPLETION' &&
+    operationId !== missionCompletionOperationId(source.enrollmentId)
+  ) {
+    throw new DomainError(
+      `El operationId de una acreditacion MISSION_COMPLETION debe ser ${missionCompletionOperationId(source.enrollmentId)}.`,
+    )
+  }
+
   return {
-    operationId: requireText(command.operationId, 'La acreditacion necesita un operationId.'),
+    operationId,
     ownerId: PlayerId.create(command.playerId).value,
     heroId: requireText(command.heroId, 'La acreditacion necesita un heroe.'),
     amount: requireAmount(command.amount),
-    source: requireSource(command.source),
+    source,
   }
 }
 
@@ -95,26 +116,70 @@ const requireAmount = (raw: unknown): number => {
   return raw
 }
 
+/** Campos EXACTOS de cada origen. Un campo de mas o de menos es un cuerpo fuera del contrato. */
+const RIVAL_DEFEAT_FIELDS = [
+  'kind',
+  'enrollmentId',
+  'simulationId',
+  'encounterId',
+  'enemyInstanceId',
+  'rivalRef',
+  'roll',
+] as const
+
+const COMPLETION_FIELDS = [
+  'kind',
+  'enrollmentId',
+  'missionId',
+  'simulationId',
+  'difficulty',
+  'missionOutcome',
+] as const
+
+const COMPLETION_OUTCOMES: readonly MissionCompletionOutcome[] = ['COMPLETED', 'FAILED']
+
+/** `operationId` de la XP de finalizacion (`hu-10-mission-completion-reward-v1` §8 y §12). */
+export const missionCompletionOperationId = (enrollmentId: string): string =>
+  `mission:${enrollmentId}:reward:completion:xp`
+
 /**
- * Origen de la acreditacion. Se comprueba campo a campo porque el cuerpo es de
- * otro servicio: el tipo dice lo que el contrato espera, no lo que llego.
+ * Origen de la acreditacion: una union discriminada por `kind`. Se comprueba
+ * campo a campo porque el cuerpo es de otro servicio: el tipo dice lo que el
+ * contrato espera, no lo que llego.
  *
- * `roll` se exige entero y al menos `1`, pero **no se le pone techo**: el dado es
- * de Combat (`1d8`, HU-09.2) y Player/Inventory no conoce su numero de caras.
- * Acotarlo aqui seria duplicar una regla ajena, y ademas el `roll` es
- * trazabilidad: el importe ya viene calculado.
+ * CADA VARIANTE ACEPTA EXACTAMENTE SUS CAMPOS. Un `MISSION_COMPLETION` con `roll`,
+ * `rivalRef`, `enemyInstanceId` o `encounterId`, o un `MISSION_RIVAL_DEFEAT` sin
+ * ellos o con `missionId`, `difficulty` o `missionOutcome`, se rechaza: mezclar
+ * variantes seria fabricar una derrota que no existio o una finalizacion sin su
+ * mision.
  */
 const requireSource = (raw: unknown): ExperienceGrantSource => {
-  if (typeof raw !== 'object' || raw === null) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new DomainError('La acreditacion necesita el origen de la experiencia.')
   }
 
   const source = raw as Record<string, unknown>
 
-  if (source.kind !== 'MISSION_RIVAL_DEFEAT') {
-    throw new DomainError('El origen de la experiencia debe ser MISSION_RIVAL_DEFEAT.')
+  switch (source.kind) {
+    case 'MISSION_RIVAL_DEFEAT':
+      return requireRivalDefeatSource(source)
+    case 'MISSION_COMPLETION':
+      return requireCompletionSource(source)
+    default:
+      throw new DomainError(
+        'El origen de la experiencia debe ser MISSION_RIVAL_DEFEAT o MISSION_COMPLETION.',
+      )
   }
+}
 
+/** Origen de HU-09. Sin cambios de contrato: solo se comprueba de forma estricta. */
+const requireRivalDefeatSource = (source: Record<string, unknown>): ExperienceGrantSource => {
+  requireExactFields(source, RIVAL_DEFEAT_FIELDS, 'MISSION_RIVAL_DEFEAT')
+
+  // `roll` se exige entero y al menos `1`, pero **no se le pone techo**: el dado es
+  // de Combat (`1d8`, HU-09.2) y Player/Inventory no conoce su numero de caras.
+  // Acotarlo aqui seria duplicar una regla ajena, y ademas el `roll` es
+  // trazabilidad: el importe ya viene calculado.
   if (typeof source.roll !== 'number' || !Number.isInteger(source.roll) || source.roll < 1) {
     throw new DomainError(
       `La tirada del origen debe ser un entero mayor o igual que 1. Se recibio ${describe(source.roll)}.`,
@@ -130,6 +195,64 @@ const requireSource = (raw: unknown): ExperienceGrantSource => {
     rivalRef: requireText(source.rivalRef, 'El origen necesita un rivalRef.'),
     roll: source.roll,
   }
+}
+
+/**
+ * Origen de HU-10: la finalizacion de la mision. No hay derrota, ni tirada, ni
+ * encuentro. `difficulty` y `missionOutcome` se validan por su vocabulario
+ * cerrado (HU-75 y HU-10): es validar la FORMA, no decidir nada -- ni cuanta
+ * experiencia corresponde a cada dificultad, ni si el desenlace da derecho.
+ */
+const requireCompletionSource = (source: Record<string, unknown>): ExperienceGrantSource => {
+  requireExactFields(source, COMPLETION_FIELDS, 'MISSION_COMPLETION')
+
+  return {
+    kind: 'MISSION_COMPLETION',
+    enrollmentId: requireText(source.enrollmentId, 'El origen necesita un enrollmentId.'),
+    missionId: requireText(source.missionId, 'El origen necesita un missionId.'),
+    simulationId: requireText(source.simulationId, 'El origen necesita un simulationId.'),
+    difficulty: requireOneOf<MissionDifficulty>(
+      source.difficulty,
+      MISSION_DIFFICULTIES,
+      'La dificultad del origen',
+    ),
+    missionOutcome: requireOneOf<MissionCompletionOutcome>(
+      source.missionOutcome,
+      COMPLETION_OUTCOMES,
+      'El desenlace del origen',
+    ),
+  }
+}
+
+/** Rechaza cualquier clave que la variante no declara, y exige todas las que si. */
+const requireExactFields = (
+  source: Record<string, unknown>,
+  allowed: readonly string[],
+  kind: string,
+): void => {
+  const unexpected = Object.keys(source).filter((key) => !allowed.includes(key))
+
+  if (unexpected.length > 0) {
+    throw new DomainError(
+      `El origen ${kind} no admite los campos: ${unexpected.join(', ')}. Solo ${allowed.join(', ')}.`,
+    )
+  }
+
+  const missing = allowed.filter((key) => source[key] === undefined)
+
+  if (missing.length > 0) {
+    throw new DomainError(`El origen ${kind} necesita los campos: ${missing.join(', ')}.`)
+  }
+}
+
+const requireOneOf = <T extends string>(raw: unknown, allowed: readonly T[], label: string): T => {
+  if (typeof raw !== 'string' || !(allowed as readonly string[]).includes(raw)) {
+    throw new DomainError(
+      `${label} debe ser uno de ${allowed.join(', ')}. Se recibio ${describe(raw)}.`,
+    )
+  }
+
+  return raw as T
 }
 
 /**
