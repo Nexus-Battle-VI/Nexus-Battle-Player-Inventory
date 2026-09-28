@@ -8,7 +8,7 @@ import { DomainError } from '../errors/DomainError'
  * agregado cambie.
  */
 export class CapacityPolicy {
-  static readonly DEFAULT_CAPACITY = 30
+  static readonly DEFAULT_CAPACITY = 200
   static readonly MAX_CAPACITY = 200
 
   readonly capacity: number

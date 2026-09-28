@@ -1,3 +1,4 @@
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { GetEquippedHeroForCombat } from '../../src/application/use-cases/GetEquippedHeroForCombat'
 import { GetHeroSelection } from '../../src/application/use-cases/GetHeroSelection'
 import { SelectHero } from '../../src/application/use-cases/SelectHero'
@@ -120,11 +121,31 @@ const escenario = (
   const catalog = new InMemoryCatalogReadClient([...catalogo], catalogDown)
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
-  const current = new GetHeroSelection(inventories, catalog, loadouts, selections)
+  const current = new GetHeroSelection(
+    inventories,
+    catalog,
+    loadouts,
+    selections,
+    new InMemoryHeroProgressionRepository(),
+  )
 
   return {
-    select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    select: new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    ),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      new InMemoryHeroProgressionRepository(),
+    ),
     forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
   }
 }
@@ -205,9 +226,22 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     ])
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
-    const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
+    const select = new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    )
     const forCombat = new GetEquippedHeroForCombat(
-      new GetHeroSelection(inventories, catalog, loadouts, selections),
+      new GetHeroSelection(
+        inventories,
+        catalog,
+        loadouts,
+        selections,
+        new InMemoryHeroProgressionRepository(),
+      ),
       loadouts,
       catalog,
     )
@@ -228,12 +262,25 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     ])
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
-    const select = new SelectHero(inventories, catalogArriba, loadouts, selections, clock)
+    const select = new SelectHero(
+      inventories,
+      catalogArriba,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    )
     await select.execute('jugador-1', 'guerrero-tanque')
 
     const catalogAbajo = new InMemoryCatalogReadClient([], true)
     const forCombat = new GetEquippedHeroForCombat(
-      new GetHeroSelection(inventories, catalogAbajo, loadouts, selections),
+      new GetHeroSelection(
+        inventories,
+        catalogAbajo,
+        loadouts,
+        selections,
+        new InMemoryHeroProgressionRepository(),
+      ),
       loadouts,
       catalogAbajo,
     )
@@ -280,7 +327,9 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
         'reference',
         'subtype',
         'name',
+        'level',
         'baseStats',
+        'levelStats',
         'effectiveStats',
         'activeEffects',
         'abilities',
@@ -297,7 +346,10 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     expect(resultado).not.toHaveProperty('capacity')
     expect(resultado).not.toHaveProperty('imageUrl')
     expect(resultado).not.toHaveProperty('lifecycleStatus')
-    expect(resultado).not.toHaveProperty('level')
+    // HU-08 (CA-06): el nivel SI viaja, y `effectiveStats` ya lo incorpora. Un heroe
+    // sin progresion esta en el nivel 1: la base escalada es la propia base.
+    expect(resultado.level).toBe(1)
+    expect(resultado.levelStats).toEqual(resultado.baseStats)
   })
 
   it('blockers reutiliza los MISMOS codigos de HeroReadinessPolicy: no crea una segunda taxonomia', async () => {
@@ -313,16 +365,30 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
     ])
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
-    const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
+    const select = new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    )
     const equip = new EquipItemOnHero(
       inventories,
       catalog,
       loadouts,
       clock,
       battleStateKit(clock).state,
+      new InMemoryHeroProgressionRepository(),
     )
     const forCombat = new GetEquippedHeroForCombat(
-      new GetHeroSelection(inventories, catalog, loadouts, selections),
+      new GetHeroSelection(
+        inventories,
+        catalog,
+        loadouts,
+        selections,
+        new InMemoryHeroProgressionRepository(),
+      ),
       loadouts,
       catalog,
     )
@@ -429,11 +495,31 @@ const preparado = (
   const catalog = new CountingCatalog([...catalogo])
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
-  const current = new GetHeroSelection(inventories, catalog, loadouts, selections)
+  const current = new GetHeroSelection(
+    inventories,
+    catalog,
+    loadouts,
+    selections,
+    new InMemoryHeroProgressionRepository(),
+  )
 
   return {
-    select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    select: new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    ),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      new InMemoryHeroProgressionRepository(),
+    ),
     forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
     current,
     catalog,

@@ -71,6 +71,60 @@ class HeroAbilityResponse {
 }
 
 /**
+ * Umbral de experiencia hacia el siguiente nivel (HU-08), o nivel maximo.
+ *
+ * Espejo HTTP de `ExperienceThreshold` (union discriminada por `status`):
+ * `currentLevel` SOLO viaja cuando `status` es `MAX_LEVEL`; `forNextLevel` y
+ * `amount` son `null` en ese caso y numericos en `AVAILABLE`. Swagger no
+ * modela la union cerrada campo a campo porque NestJS serializa el objeto tal
+ * cual lo devuelve el dominio: forzar aqui una forma mas estricta duplicaria la
+ * decision que ya toma `ExperiencePolicy`.
+ */
+class ExperienceThresholdResponse {
+  @ApiProperty({ enum: ['AVAILABLE', 'MAX_LEVEL'] })
+  readonly status!: 'AVAILABLE' | 'MAX_LEVEL'
+
+  @ApiProperty({ nullable: true, type: 'number', description: 'Nivel al que conduce el umbral.' })
+  readonly forNextLevel!: number | null
+
+  @ApiProperty({
+    nullable: true,
+    type: 'number',
+    description: 'XP acumulada necesaria para pasar del nivel actual a `forNextLevel`.',
+  })
+  readonly amount!: number | null
+
+  @ApiProperty({
+    required: false,
+    description: 'Solo presente cuando `status` es MAX_LEVEL: el nivel actual (8).',
+  })
+  readonly currentLevel?: number
+}
+
+/**
+ * Progresion individual del heroe (HU-08, RF-08). NUNCA es global del jugador:
+ * cada heroe lleva su propio nivel y su propia experiencia acumulada.
+ */
+class HeroProgressionResponse {
+  @ApiProperty({ minimum: 1, maximum: 8 })
+  readonly level!: number
+
+  @ApiProperty({ description: 'Experiencia ACUMULADA total. Nunca se resta al subir de nivel.' })
+  readonly currentXp!: number
+
+  @ApiProperty({
+    description: 'XP acumulada minima para estar en `level`. 0 en el nivel 1 (el suelo).',
+  })
+  readonly floorForCurrentLevel!: number
+
+  @ApiProperty({ type: ExperienceThresholdResponse })
+  readonly nextLevel!: ExperienceThresholdResponse
+
+  @ApiProperty({ description: 'Nivel maximo del rango vigente (8). No existe un nivel 9.' })
+  readonly maxLevel!: number
+}
+
+/**
  * Un heroe que el jugador puede preparar.
  *
  * `subtype` viaja como CODIGO del registro vigente (`GUERRERO_TANQUE`, ...) y
@@ -104,6 +158,12 @@ export class AvailableHeroResponse {
 
   @ApiProperty({ description: 'true si es el heroe preparado ahora mismo.' })
   readonly selected!: boolean
+
+  @ApiProperty({
+    type: HeroProgressionResponse,
+    description: 'Nivel y experiencia REALES de este heroe (HU-08). Individual, no del jugador.',
+  })
+  readonly progression!: HeroProgressionResponse
 }
 
 class HeroReadinessBlockerResponse {

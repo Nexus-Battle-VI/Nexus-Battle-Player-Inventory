@@ -37,8 +37,12 @@ import { GRANT_HERO_EXPERIENCE } from './tokens'
  * `playerId` y `heroId` viajan en la RUTA porque quien llama es un servicio
  * autenticado por HMAC: no hay ningun identificador que un cliente pueda elegir.
  *
- * SE INVOCA UNA VEZ POR DERROTA, con la clave de esa derrota. El caso de uso es
- * idempotente por `operationId`: un reintento devuelve el mismo resultado con
+ * DOS ORIGENES, UN MISMO MOTOR. `MISSION_RIVAL_DEFEAT` (HU-09) se invoca UNA VEZ
+ * POR DERROTA, con la clave de esa derrota; `MISSION_COMPLETION` (HU-10,
+ * `hu-10-mission-completion-reward-v1` §8) UNA VEZ POR MATRICULA, con
+ * `mission:{enrollmentId}:reward:completion:xp`. Las dos acreditan con la
+ * progresion de HU-08 y ninguna formula de experiencia vive aqui. El caso de uso
+ * es idempotente por `operationId`: un reintento devuelve el mismo resultado con
  * `applied: false` y NO vuelve a acreditar.
  */
 @ApiTags('player-inventory-internal')
@@ -56,7 +60,8 @@ export class HeroExperienceController {
   @Post()
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Acredita experiencia de una derrota al heroe, una sola vez por operationId (HU-09)',
+    summary:
+      'Acredita experiencia al heroe (derrota HU-09 o finalizacion de mision HU-10), una sola vez por operationId',
     description:
       'El importe llega YA calculado y entero: la formula y su redondeo son de Missions. La ' +
       'acreditacion acumula sin restar, recalcula el nivel con la tabla vigente de HU-08 y deja ' +

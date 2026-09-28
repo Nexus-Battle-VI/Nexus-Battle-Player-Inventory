@@ -1,6 +1,7 @@
-import { MAX_HERO_LEVEL } from '../../domain/value-objects/hero-level'
+import { MAX_HERO_LEVEL, MIN_HERO_LEVEL } from '../../domain/value-objects/hero-level'
 import { HeroProgression } from '../../domain/entities/HeroProgression'
 import { DomainError } from '../../domain/errors/DomainError'
+import { experienceRequiredForNextLevel } from '../../domain/policies/ExperiencePolicy'
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { HeroProgressionDto } from '../dto/HeroProgressionDto'
 import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
@@ -43,10 +44,37 @@ export class GetHeroProgression {
       heroId: progression.heroId,
       level: progression.level.value,
       currentXp: progression.experience.currentXp,
+      floorForCurrentLevel: floorForCurrentLevel(progression.level.value),
       nextLevel: progression.thresholdForNextLevel(),
       maxLevel: MAX_HERO_LEVEL,
     }
   }
+}
+
+/**
+ * Experiencia acumulada minima para estar en `level` (el "piso" de la barra de
+ * progreso), para que quien la pinte no tenga que conocer la tabla de
+ * `ExperiencePolicy`.
+ *
+ * El nivel 1 es el suelo: no hace falta experiencia para tenerlo, asi que su
+ * piso es `0`. Para `level >= 2` el piso ES el umbral que llevo al heroe hasta
+ * ahi: el `amount` de `experienceRequiredForNextLevel(level - 1)` (nivel 2 ->
+ * 100, nivel 3 -> 300, ... nivel 8 -> 1300). No se reimplementa la tabla: se
+ * pide ese resultado.
+ */
+const floorForCurrentLevel = (level: number): number => {
+  if (level <= MIN_HERO_LEVEL) {
+    return 0
+  }
+
+  const thresholdToReachCurrentLevel = experienceRequiredForNextLevel(level - 1)
+
+  // `level - 1` esta siempre en `1..7` cuando `level` esta en `2..8`, asi que la
+  // politica SIEMPRE responde `AVAILABLE` aqui; `MAX_LEVEL` es inalcanzable en
+  // esta rama. Se comprueba en vez de forzar el tipo (nada de `as`).
+  return thresholdToReachCurrentLevel.status === 'AVAILABLE'
+    ? thresholdToReachCurrentLevel.amount
+    : 0
 }
 
 /** Rechaza una referencia de heroe vacia en la frontera del caso de uso. */

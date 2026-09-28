@@ -1,59 +1,70 @@
 {
-  "schemaVersion": "2",
-  "source": "HU-08 (RF-08). Tabla de umbrales de experiencia acumulada por nivel.",
-  "origin": "Aclaracion funcional del Product Owner, posterior al enunciado original de la HU #17. Los ocho umbrales, los vectores de nivel y los tres ejemplos de acreditacion los fijo el PO. Ningun valor se obtuvo ejecutando ExperiencePolicy ni ninguna otra parte del repositorio.",
-  "semantics": "thresholds[L - 1].amount es la experiencia ACUMULADA necesaria para estar en el nivel L. La experiencia nunca se resta, asi que el nivel es el mayor L cuyo umbral no supere el acumulado. El nivel 1 es el suelo: por debajo del primer umbral tambien es 1.",
+  "schemaVersion": "3",
+  "source": "HU-08 (RF-08). Umbrales de experiencia acumulada para pasar de nivel.",
+  "origin": "Decision funcional del Product Owner, posterior al enunciado original de la HU #17 y que sustituye a la formula del PDF y a la tabla temporal anterior. Los siete umbrales, las fronteras de nivel y los ejemplos de acreditacion los fijo el PO. Ningun valor se obtuvo ejecutando ExperiencePolicy ni ninguna otra parte del repositorio.",
+  "semantics": "thresholds[i].amount es la experiencia ACUMULADA necesaria para pasar de fromLevel a toLevel. La experiencia nunca se resta, asi que el nivel es 1 mas el numero de umbrales que el acumulado alcanza o supera. El nivel 8 es el maximo y no existe nivel 9.",
   "supersededFormula": {
     "expression": "100 x 1,2^(Nivel - 1)",
     "series": [100, 120, 144, 172.8, 207.36, 248.832, 298.5984],
-    "where": "CA-03 de la HU #17 (Management). Sustituida por la tabla vigente; la divergencia esta medida en docs/hu-08-progresion.md.",
-    "note": "No es una diferencia de redondeo: el cociente entre la tabla y esta serie no es constante."
+    "where": "CA-03 de la HU #17 (Management). Sustituida por la tabla vigente por decision funcional posterior.",
+    "note": "No es una diferencia de redondeo: son sucesiones distintas."
   },
-  "generatedAt": "2026-09-23",
+  "supersededTable": {
+    "series": [100, 200, 400, 800, 1600, 3200, 6400, 12800],
+    "where": "Tabla temporal anterior de Player-Inventory (semantica: XP para estar en el nivel)."
+  },
+  "generatedAt": "2026-09-27",
   "maxLevel": 8,
   "thresholds": [
-    { "level": 1, "amount": 100 },
-    { "level": 2, "amount": 200 },
-    { "level": 3, "amount": 400 },
-    { "level": 4, "amount": 800 },
-    { "level": 5, "amount": 1600 },
-    { "level": 6, "amount": 3200 },
-    { "level": 7, "amount": 6400 },
-    { "level": 8, "amount": 12800 }
+    { "fromLevel": 1, "toLevel": 2, "amount": 100 },
+    { "fromLevel": 2, "toLevel": 3, "amount": 300 },
+    { "fromLevel": 3, "toLevel": 4, "amount": 500 },
+    { "fromLevel": 4, "toLevel": 5, "amount": 700 },
+    { "fromLevel": 5, "toLevel": 6, "amount": 900 },
+    { "fromLevel": 6, "toLevel": 7, "amount": 1100 },
+    { "fromLevel": 7, "toLevel": 8, "amount": 1300 }
   ],
   "levels": [
     { "totalXp": 0, "level": 1 },
     { "totalXp": 99, "level": 1 },
-    { "totalXp": 100, "level": 1 },
-    { "totalXp": 199, "level": 1 },
-    { "totalXp": 200, "level": 2 },
-    { "totalXp": 399, "level": 2 },
-    { "totalXp": 400, "level": 3 },
-    { "totalXp": 749, "level": 3 },
-    { "totalXp": 849, "level": 4 },
-    { "totalXp": 890, "level": 4 },
-    { "totalXp": 3500, "level": 6 },
-    { "totalXp": 12799, "level": 7 },
-    { "totalXp": 13000, "level": 8 },
-    { "totalXp": 13500, "level": 8 }
+    { "totalXp": 100, "level": 2 },
+    { "totalXp": 299, "level": 2 },
+    { "totalXp": 300, "level": 3 },
+    { "totalXp": 499, "level": 3 },
+    { "totalXp": 500, "level": 4 },
+    { "totalXp": 699, "level": 4 },
+    { "totalXp": 700, "level": 5 },
+    { "totalXp": 899, "level": 5 },
+    { "totalXp": 900, "level": 6 },
+    { "totalXp": 1099, "level": 6 },
+    { "totalXp": 1100, "level": 7 },
+    { "totalXp": 1299, "level": 7 },
+    { "totalXp": 1300, "level": 8 },
+    { "totalXp": 999999, "level": 8 }
   ],
   "awards": [
     {
-      "from": { "level": 3, "totalXp": 749 },
-      "amount": 100,
-      "to": { "level": 4, "totalXp": 849 },
-      "note": "Subir de nivel no descuenta experiencia: el acumulado sube a 849 y no baja a 49."
+      "from": { "level": 1, "totalXp": 99 },
+      "amount": 1,
+      "to": { "level": 2, "totalXp": 100 },
+      "note": "Subir de nivel no descuenta experiencia: el acumulado sube a 100 y no vuelve a 0."
     },
     {
-      "from": { "level": 1, "totalXp": 190 },
-      "amount": 700,
-      "to": { "level": 4, "totalXp": 890 },
+      "from": { "level": 1, "totalXp": 90 },
+      "amount": 430,
+      "to": { "level": 4, "totalXp": 520 },
       "note": "Un solo otorgamiento cruza tres umbrales y deja al heroe en el nivel mas alto alcanzado."
     },
     {
-      "from": { "level": 8, "totalXp": 13000 },
-      "amount": 500,
-      "to": { "level": 8, "totalXp": 13500 },
+      "from": { "level": 7, "totalXp": 1299 },
+      "amount": 1,
+      "to": { "level": 8, "totalXp": 1300 },
+      "note": "El ultimo umbral (1300) lleva al nivel maximo 8."
+    },
+    {
+      "from": { "level": 8, "totalXp": 1300 },
+      "amount": 5000,
+      "to": { "level": 8, "totalXp": 6300 },
       "note": "En el nivel maximo la experiencia sigue creciendo y no se descarta; la operacion no se rechaza."
     }
   ]

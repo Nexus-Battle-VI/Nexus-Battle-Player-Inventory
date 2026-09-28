@@ -258,14 +258,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         commitments: MissionHeroCommitmentPort,
         clock: ClockPort,
+        progressions: HeroProgressionRepositoryPort,
       ): CommitHeroForMission =>
-        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock),
+        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock, progressions),
       inject: [
         INVENTORY_QUERY,
         CATALOG_READ,
         HERO_LOADOUT_REPOSITORY,
         MISSION_HERO_COMMITMENTS,
         CLOCK,
+        HERO_PROGRESSION_REPOSITORY,
       ],
     },
     // HU-29 (Task HU-29.2, `hu-29-battle-commitment-v1`): el compromiso de
@@ -431,9 +433,9 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     },
     {
       provide: GRANT_PURCHASED_ITEMS,
-      useFactory: (grants: InventoryGrantPort): GrantPurchasedItems =>
-        new GrantPurchasedItems(grants),
-      inject: [INVENTORY_GRANTS],
+      useFactory: (grants: InventoryGrantPort, catalog: CatalogReadPort): GrantPurchasedItems =>
+        new GrantPurchasedItems(grants, catalog),
+      inject: [INVENTORY_GRANTS, CATALOG_READ],
     },
     {
       provide: GET_PRODUCT_OWNERS,
@@ -513,8 +515,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
         battles: BattleStatePort,
-      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts, battles),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, BATTLE_STATE],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroEquipment =>
+        new GetHeroEquipment(inventories, catalog, loadouts, battles, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        BATTLE_STATE,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
     // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el
@@ -526,8 +536,10 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         inventories: InventoryQueryPort,
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
-      ): GetHeroProfileForMission => new GetHeroProfileForMission(inventories, catalog, loadouts),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroProfileForMission =>
+        new GetHeroProfileForMission(inventories, catalog, loadouts, progressions),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_PROGRESSION_REPOSITORY],
     },
     {
       provide: EQUIP_ITEM_ON_HERO,
@@ -537,20 +549,36 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         clock: ClockPort,
         battles: BattleStatePort,
-      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock, battles),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK, BATTLE_STATE],
+        progressions: HeroProgressionRepositoryPort,
+      ): EquipItemOnHero =>
+        new EquipItemOnHero(inventories, catalog, loadouts, clock, battles, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        CLOCK,
+        BATTLE_STATE,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
     // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen
     // paralelo ni una segunda lectura del catalogo.
+    //
+    // AMPLIACION ADITIVA (auditoria 2026-09-27, HU-08/HU-09): tambien reutiliza
+    // `GetHeroProgression` (registrado abajo, GET_HERO_PROGRESSION) para anadir
+    // la progresion de cada heroe a la respuesta. El orden de declaracion de los
+    // providers no importa para Nest; la dependencia se resuelve por token.
     {
       provide: LIST_AVAILABLE_HEROES,
       useFactory: (
         inventories: InventoryQueryPort,
         catalog: CatalogReadPort,
         selections: HeroSelectionRepositoryPort,
-      ): ListAvailableHeroes => new ListAvailableHeroes(inventories, catalog, selections),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY],
+        getHeroProgression: GetHeroProgression,
+      ): ListAvailableHeroes =>
+        new ListAvailableHeroes(inventories, catalog, selections, getHeroProgression),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_SELECTION_REPOSITORY, GET_HERO_PROGRESSION],
     },
     {
       provide: GET_HERO_SELECTION,
@@ -559,8 +587,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
         selections: HeroSelectionRepositoryPort,
-      ): GetHeroSelection => new GetHeroSelection(inventories, catalog, loadouts, selections),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_SELECTION_REPOSITORY],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroSelection =>
+        new GetHeroSelection(inventories, catalog, loadouts, selections, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        HERO_SELECTION_REPOSITORY,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-15: contrato interno de Combat. Reutiliza el MISMO GetHeroSelection
     // de arriba -una unica instancia por peticion, una unica fuente de
@@ -598,13 +634,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         selections: HeroSelectionRepositoryPort,
         clock: ClockPort,
-      ): SelectHero => new SelectHero(inventories, catalog, loadouts, selections, clock),
+        progressions: HeroProgressionRepositoryPort,
+      ): SelectHero =>
+        new SelectHero(inventories, catalog, loadouts, selections, clock, progressions),
       inject: [
         INVENTORY_QUERY,
         CATALOG_READ,
         HERO_LOADOUT_REPOSITORY,
         HERO_SELECTION_REPOSITORY,
         CLOCK,
+        HERO_PROGRESSION_REPOSITORY,
       ],
     },
     {

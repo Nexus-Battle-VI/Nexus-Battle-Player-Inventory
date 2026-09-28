@@ -1,3 +1,4 @@
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
@@ -213,13 +214,26 @@ const escenario = async (
   const catalog = new AbilityAwareCatalog([...catalogo])
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
-  const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
+  const select = new SelectHero(
+    inventories,
+    catalog,
+    loadouts,
+    selections,
+    clock,
+    new InMemoryHeroProgressionRepository(),
+  )
 
   await select.execute('jugador-1', 'guerrero-tanque')
 
   return {
     forCombat: new GetEquippedHeroForCombat(
-      new GetHeroSelection(inventories, catalog, loadouts, selections),
+      new GetHeroSelection(
+        inventories,
+        catalog,
+        loadouts,
+        selections,
+        new InMemoryHeroProgressionRepository(),
+      ),
       loadouts,
       catalog,
     ),

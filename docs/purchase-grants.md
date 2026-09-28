@@ -16,7 +16,7 @@ Commerce entrega un lote mediante `POST /api/internal/v1/inventory/grants`. El s
 }
 ```
 
-El lote admite 1..200 productos distintos, UUID v1-5 y cantidades 1..9999. Las referencias se normalizan a minusculas y se ordenan para comparar reintentos. El inventario conserva su capacidad actual (30 ranuras por defecto) y el maximo de 9999 unidades por producto. Las lecturas y operaciones del usuario siguen admitiendo identificadores legacy en kebab-case y ahora tambien UUID de Catalog.
+El lote admite 1..200 productos distintos, UUID v1-5 y cantidades 1..9999. Las referencias se normalizan a minusculas y se ordenan para comparar reintentos. El inventario conserva su capacidad actual (200 ranuras por defecto, igual al maximo admitido) y el maximo de 9999 unidades por producto. Las lecturas y operaciones del usuario siguen admitiendo identificadores legacy en kebab-case y ahora tambien UUID de Catalog.
 
 ## Autenticacion
 

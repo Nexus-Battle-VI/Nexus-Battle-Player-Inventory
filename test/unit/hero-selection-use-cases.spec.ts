@@ -1,8 +1,11 @@
+import { GetHeroProgression } from '../../src/application/use-cases/GetHeroProgression'
 import { GetHeroSelection } from '../../src/application/use-cases/GetHeroSelection'
 import { ListAvailableHeroes } from '../../src/application/use-cases/ListAvailableHeroes'
 import { SelectHero } from '../../src/application/use-cases/SelectHero'
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
+import { HeroProgression } from '../../src/domain/entities/HeroProgression'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
@@ -138,6 +141,7 @@ interface Escenario {
   readonly current: GetHeroSelection
   readonly equip: EquipItemOnHero
   readonly loadouts: InMemoryHeroLoadoutRepository
+  readonly progressions: InMemoryHeroProgressionRepository
 }
 
 const escenario = (
@@ -148,13 +152,23 @@ const escenario = (
   const catalog = new InMemoryCatalogReadClient([...catalogo])
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
+  const progressions = new InMemoryHeroProgressionRepository()
+  const getHeroProgression = new GetHeroProgression(progressions)
 
   return {
-    list: new ListAvailableHeroes(inventories, catalog, selections),
-    select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    current: new GetHeroSelection(inventories, catalog, loadouts, selections),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    list: new ListAvailableHeroes(inventories, catalog, selections, getHeroProgression),
+    select: new SelectHero(inventories, catalog, loadouts, selections, clock, progressions),
+    current: new GetHeroSelection(inventories, catalog, loadouts, selections, progressions),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      progressions,
+    ),
     loadouts,
+    progressions,
   }
 }
 
@@ -398,6 +412,49 @@ describe('HU-07 — configuracion preparada (CA-01, CA-08, CA-10)', () => {
   })
 
   /**
+   * HU-08, CA-06: el nivel del PROPIO heroe multiplica su base y el equipamiento
+   * se aplica despues: (10 x 3) + 3 = 33, no (10 + 3) x 3 = 39.
+   */
+  it('el nivel del heroe multiplica la base y el equipamiento se suma despues (CA-06)', async () => {
+    const { select, equip, current, progressions } = escenario([...OCHO, weapon('espada')], {
+      'jugador-1': ['guerrero-tanque', 'espada'],
+      'jugador-2': ['guerrero-tanque', 'espada'],
+    })
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-1',
+        heroId: 'pid-guerrero-tanque',
+        level: 3,
+        currentXp: 300,
+        version: 0,
+      }),
+      0,
+    )
+
+    for (const jugador of ['jugador-1', 'jugador-2']) {
+      await select.execute(jugador, 'guerrero-tanque')
+      await equip.execute({
+        ownerId: jugador,
+        heroReference: 'guerrero-tanque',
+        slot: 'WEAPON_1',
+        productReference: 'espada',
+      })
+    }
+
+    const nivel3 = (await current.execute('jugador-1')).configuration
+    expect(nivel3.level).toBe(3)
+    expect(nivel3.baseStats.attack).toBe(10)
+    expect(nivel3.levelStats.attack).toBe(30)
+    expect(nivel3.effectiveStats.attack).toBe(33)
+    expect(nivel3.deltas).toContainEqual({ statistic: 'ATTACK', base: 30, effective: 33, delta: 3 })
+
+    // Otro jugador con el mismo heroe, sin progresion propia: nivel 1.
+    const nivel1 = (await current.execute('jugador-2')).configuration
+    expect(nivel1.level).toBe(1)
+    expect(nivel1.effectiveStats.attack).toBe(13)
+  })
+
+  /**
    * Aislamiento entre jugadores: la configuracion se resuelve SIEMPRE con el
    * sujeto que llega, y no hay parametro con el que pedir la de otra persona.
    */
@@ -424,8 +481,21 @@ describe('HU-07 — configuracion preparada (CA-01, CA-08, CA-10)', () => {
     const catalog = new InMemoryCatalogReadClient([...OCHO])
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
-    const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
-    const current = new GetHeroSelection(inventories, catalog, loadouts, selections)
+    const select = new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    )
+    const current = new GetHeroSelection(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      new InMemoryHeroProgressionRepository(),
+    )
 
     await select.execute('jugador-1', 'guerrero-tanque')
     inventarios['jugador-1'] = []
@@ -437,8 +507,112 @@ describe('HU-07 — configuracion preparada (CA-01, CA-08, CA-10)', () => {
     const inventories = new FakeInventoryQuery({ 'jugador-1': ['guerrero-tanque'] })
     const catalog = new InMemoryCatalogReadClient([], true)
     const selections = new InMemoryHeroSelectionRepository()
-    const list = new ListAvailableHeroes(inventories, catalog, selections)
+    const getHeroProgression = new GetHeroProgression(new InMemoryHeroProgressionRepository())
+    const list = new ListAvailableHeroes(inventories, catalog, selections, getHeroProgression)
 
     await expect(list.execute('jugador-1')).rejects.toBeInstanceOf(CatalogUnavailableError)
+  })
+})
+
+/**
+ * Progresion individual de cada heroe en la lista (auditoria 2026-09-27,
+ * HU-08/HU-09). NUNCA global del jugador: haber usado un heroe en misiones no
+ * debe mover el nivel de otro heroe del mismo jugador.
+ */
+describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
+  it('un heroe sin progresion persistida se lista en nivel 1 con 0 de experiencia', async () => {
+    const { list } = escenario(OCHO, { 'jugador-1': ['guerrero-tanque'] })
+
+    const [guerrero] = await list.execute('jugador-1')
+
+    expect(guerrero?.progression).toEqual({
+      heroId: 'pid-guerrero-tanque',
+      level: 1,
+      currentXp: 0,
+      floorForCurrentLevel: 0,
+      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 100 },
+      maxLevel: 8,
+    })
+  })
+
+  it('dos heroes del mismo jugador progresan de forma independiente', async () => {
+    const { list, progressions } = escenario(OCHO, {
+      'jugador-1': ['guerrero-tanque', 'mago-hielo'],
+    })
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-1',
+        heroId: 'pid-guerrero-tanque',
+        level: 2,
+        currentXp: 215,
+        version: 0,
+      }),
+      0,
+    )
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-1',
+        heroId: 'pid-mago-hielo',
+        level: 3,
+        currentXp: 357,
+        version: 0,
+      }),
+      0,
+    )
+
+    const heroes = await list.execute('jugador-1')
+    const guerrero = heroes.find((entry) => entry.subtype === 'GUERRERO_TANQUE')
+    const mago = heroes.find((entry) => entry.subtype === 'MAGO_HIELO')
+
+    expect(guerrero?.progression).toMatchObject({ level: 2, currentXp: 215 })
+    expect(mago?.progression).toMatchObject({ level: 3, currentXp: 357 })
+  })
+
+  it('la progresion de un heroe no se filtra a la de otro jugador', async () => {
+    const { list, progressions } = escenario(OCHO, {
+      'jugador-1': ['guerrero-tanque'],
+      'jugador-2': ['guerrero-tanque'],
+    })
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-2',
+        heroId: 'pid-guerrero-tanque',
+        level: 5,
+        currentXp: 800,
+        version: 0,
+      }),
+      0,
+    )
+
+    const [propio] = await list.execute('jugador-1')
+
+    // jugador-1 no tiene documento propio: nivel 1 pese a que jugador-2 (mismo
+    // heroe del catalogo) esta en nivel 5.
+    expect(propio?.progression).toMatchObject({ level: 1, currentXp: 0 })
+  })
+
+  it('el nivel 8 se informa como maximo, sin producir un nivel 9', async () => {
+    const { list, progressions } = escenario(OCHO, { 'jugador-1': ['guerrero-tanque'] })
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-1',
+        heroId: 'pid-guerrero-tanque',
+        level: 8,
+        currentXp: 13500,
+        version: 0,
+      }),
+      0,
+    )
+
+    const [guerrero] = await list.execute('jugador-1')
+
+    expect(guerrero?.progression.level).toBe(8)
+    expect(guerrero?.progression.currentXp).toBe(13500)
+    expect(guerrero?.progression.nextLevel).toEqual({
+      status: 'MAX_LEVEL',
+      currentLevel: 8,
+      forNextLevel: null,
+      amount: null,
+    })
   })
 })

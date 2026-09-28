@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { AppModule, APP_CONFIG } from '../../src/infrastructure/bootstrap/app.module'
 import { loadConfig } from '../../src/infrastructure/config/env'
+import { CATALOG_READ } from '../../src/application/ports/CatalogReadPort'
+import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { signInternalRequest } from '../../src/adapters/outbound/identity/internal-signature'
 import { INVENTORY_REPOSITORY } from '../../src/application/ports/InventoryRepositoryPort'
 import type { InMemoryInventoryRepository } from '../../src/adapters/outbound/persistence/InMemoryInventoryRepository'
@@ -42,6 +44,8 @@ describe('Auction commitments HTTP', () => {
           INTERNAL_SERVICE_AUTH_SECRET: secret,
         }),
       )
+      .overrideProvider(CATALOG_READ)
+      .useValue(new InMemoryCatalogReadClient([]))
       .compile()
     inventory = module.get(INVENTORY_REPOSITORY)
     commitments = module.get(AUCTION_COMMITMENT_USE_CASE)

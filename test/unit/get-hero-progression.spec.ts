@@ -44,7 +44,8 @@ describe('GetHeroProgression', () => {
       heroId: 'heroe-1',
       level: 1,
       currentXp: 0,
-      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 200 },
+      floorForCurrentLevel: 0,
+      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 100 },
       maxLevel: 8,
     })
     // Creacion perezosa de verdad: no se creo el documento.
@@ -81,7 +82,7 @@ describe('GetHeroProgression', () => {
         ownerId: 'jugador-1',
         heroId: 'heroe-1',
         level: 5,
-        currentXp: 2000,
+        currentXp: 800,
         version: 0,
       }),
       0,
@@ -90,11 +91,13 @@ describe('GetHeroProgression', () => {
     const dto = await useCase.execute('jugador-1', 'heroe-1')
 
     expect(dto.level).toBe(5)
-    expect(dto.currentXp).toBe(2000)
+    expect(dto.currentXp).toBe(800)
+    // Piso del nivel 5 = umbral para pasar del 4 al 5 (700). La barra va de 700 a 900.
+    expect(dto.floorForCurrentLevel).toBe(700)
     expect(dto.nextLevel).toEqual({
       status: 'AVAILABLE',
       forNextLevel: 6,
-      amount: 3200,
+      amount: 900,
     })
   })
 
@@ -104,20 +107,21 @@ describe('GetHeroProgression', () => {
       HeroProgression.restore({
         ownerId: 'jugador-1',
         heroId: 'heroe-1',
-        level: 3,
-        currentXp: 749,
+        level: 1,
+        currentXp: 99,
         version: 0,
-      }).awardExperience(100),
+      }).awardExperience(1),
       0,
     )
 
     const dto = await useCase.execute('jugador-1', 'heroe-1')
 
-    // El heroe subio del 3 al 4 y conserva los 849: la experiencia es acumulada
-    // y el ascenso no le resta los 800 que costo llegar.
-    expect(dto.level).toBe(4)
-    expect(dto.currentXp).toBe(849)
-    expect(dto.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 5, amount: 1600 })
+    // El heroe subio del 1 al 2 y conserva los 100: la experiencia es acumulada
+    // y el ascenso no le resta los 100 que costo llegar.
+    expect(dto.level).toBe(2)
+    expect(dto.currentXp).toBe(100)
+    expect(dto.floorForCurrentLevel).toBe(100)
+    expect(dto.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 3, amount: 300 })
   })
 
   it('en nivel maximo devuelve MAX_LEVEL', async () => {
@@ -127,7 +131,7 @@ describe('GetHeroProgression', () => {
         ownerId: 'jugador-1',
         heroId: 'heroe-1',
         level: 8,
-        currentXp: 13500,
+        currentXp: 1500,
         version: 0,
       }),
       0,
@@ -137,5 +141,7 @@ describe('GetHeroProgression', () => {
 
     expect(dto.nextLevel.status).toBe('MAX_LEVEL')
     expect(dto.nextLevel.forNextLevel).toBeNull()
+    // Sigue acumulando por encima del piso del nivel maximo, sin producir un nivel 9.
+    expect(dto.floorForCurrentLevel).toBe(1300)
   })
 })

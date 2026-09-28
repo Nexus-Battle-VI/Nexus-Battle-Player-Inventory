@@ -3,12 +3,15 @@ import type { ExperienceThreshold } from '../../domain/policies/ExperiencePolicy
 /**
  * Vista de solo lectura de la progresion de un heroe (HU-08, RF-08).
  *
- * TRAZABILIDAD: este DTO es de la Task #188 (diseno). Acompana al modelo de
- * dominio para dejar fijada la forma de la lectura; NO lo sirve todavia ningun
- * endpoint, porque este diseno no expone HTTP (la Task #188 dice que "no es
- * obligatorio exponer esta operacion mediante HTTP si la arquitectura final
- * determina otro mecanismo de interaccion"). El caso de uso que lo produce y, si
- * el PO lo pide, su controlador son trabajo posterior.
+ * TRAZABILIDAD: este DTO nacio en la Task #188 (diseno), sin endpoint todavia
+ * (la Task #188 dice que "no es obligatorio exponer esta operacion mediante
+ * HTTP si la arquitectura final determina otro mecanismo de interaccion").
+ * Auditoria de progresion en "Mi Inventario" (2026-09-27, Management HU-09.5
+ * `#443`: "si la pantalla necesita el nivel actual... esa superficie se decide
+ * en HU-09.1, no se inventa aqui") lo conecta: `ListAvailableHeroes` REUTILIZA
+ * este mismo `GetHeroProgression` para anadir `progression` a cada heroe de
+ * `GET /inventories/me/heroes`. Sigue sin haber un endpoint propio por heroe:
+ * no hace falta uno para lo que hoy se pide.
  *
  * QUE LLEVA Y QUE NO.
  *   - Lleva el nivel y la experiencia acumulada, que son el estado persistido.
@@ -25,12 +28,27 @@ import type { ExperienceThreshold } from '../../domain/policies/ExperiencePolicy
  *
  * `maxLevel` viaja para que el consumidor no tenga que conocer el 8: el rango es
  * regla de negocio de este contexto y no deberia replicarse en la interfaz.
+ *
+ * `floorForCurrentLevel` SE AGREGA PARA QUE UN CONSUMIDOR VISUAL (Web, HU-09.5
+ * y la progresion en "Mi Inventario") PUEDA PINTAR UNA BARRA DE PROGRESO SIN
+ * CONOCER LA TABLA. Es la experiencia acumulada minima para estar en `level`
+ * (0 en el nivel 1, que es el suelo). Con `floorForCurrentLevel`, `currentXp`
+ * y `nextLevel.amount` el consumidor calcula `currentXp - floorForCurrentLevel`
+ * sobre `nextLevel.amount - floorForCurrentLevel` sin reimplementar
+ * `ExperiencePolicy`. Es DERIVADO -- se calcula en cada lectura delegando en la
+ * MISMA politica que `nextLevel`, nunca se persiste ni introduce una segunda
+ * tabla.
  */
 export interface HeroProgressionDto {
   readonly heroId: string
   readonly level: number
   /** Experiencia ACUMULADA total. Solo crece; jamas se descuenta al subir. */
   readonly currentXp: number
+  /**
+   * Experiencia acumulada minima para estar en `level`. `0` en el nivel 1.
+   * Derivado de la tabla vigente, nunca persistido.
+   */
+  readonly floorForCurrentLevel: number
   /**
    * Umbral del siguiente nivel -- la experiencia acumulada necesaria para
    * alcanzarlo -- o `MAX_LEVEL`. Derivado de la tabla vigente, nunca persistido.

@@ -9,6 +9,7 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 - **Base de datos objetivo:** MongoDB (ver limitaciones más abajo)
 - **Documentación técnica del sistema:** [Nexus-Battle-Infrastructure](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure)
 - **HU-11:** [Gestión y demo ejecutable del recurso Poder](docs/hu-11-power.md).
+- **HU-09 / HU-10:** [Acreditación de experiencia al héroe](docs/experience-grants.md): los dos orígenes (`MISSION_RIVAL_DEFEAT` y `MISSION_COMPLETION`), idempotencia y ledger.
 - **HU-31:** [Diseño, contrato y pruebas de efectos de épicas](docs/hu-31-epic-effects.md).
 - **HU-15 / HU-25:** [Contrato interno del héroe equipado para Combat](docs/equipped-hero-contract.md), con los efectos activos del equipamiento.
 - **HU-08:** [Diseño de la progresión: experiencia requerida por nivel](docs/hu-08-progresion.md), con el modelo de nivel y experiencia acumulada del héroe.

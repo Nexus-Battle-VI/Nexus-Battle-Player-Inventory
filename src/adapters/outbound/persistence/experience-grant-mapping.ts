@@ -1,6 +1,8 @@
-import type {
-  ExperienceGrantCommand,
-  ExperienceGrantResult,
+import {
+  MISSION_DIFFICULTIES,
+  type ExperienceGrantCommand,
+  type ExperienceGrantResult,
+  type ExperienceGrantSource,
 } from '../../../application/ports/ExperienceGrantPort'
 
 /**
@@ -44,29 +46,161 @@ export interface ExperienceGrantResultDocument {
  * `_id` ES el `operationId` de la derrota: es, por construccion, la clave de
  * idempotencia. MongoDB garantiza su unicidad sin indice adicional.
  *
- * El `source` de la derrota se guarda APLANADO (no como subdocumento) porque sus
- * campos son los que se consultan y se auditan de uno en uno. `kind` no se
- * repite aqui: esta coleccion es del unico origen que hoy existe
- * (`MISSION_RIVAL_DEFEAT`); el dia que haya otro, el campo tendra que viajar y
- * esta decision cambiara con el.
+ * DOS FORMAS, UN DISCRIMINADOR IMPLICITO (HU-10.2). Las acreditaciones de HU-09
+ * (`MISSION_RIVAL_DEFEAT`) se guardaron desde el principio con el origen
+ * APLANADO y SIN campo `kind`; reescribirlas o reinterpretarlas seria tocar
+ * historia. Por eso:
+ *
+ *   - una acreditacion de HU-09 se sigue escribiendo y leyendo EXACTAMENTE igual
+ *     (`RivalDefeatGrantDocument`): campos planos, sin `source`;
+ *   - una de HU-10 (`MISSION_COMPLETION`) se guarda con un subdocumento `source`
+ *     que lleva su `kind` y SOLO sus campos (`MissionCompletionGrantDocument`).
+ *
+ * El discriminador es la presencia de `source`: un asiento con `source` es de
+ * HU-10 y sin el es de HU-09. El validador de la coleccion (migracion `014`) es
+ * un `oneOf` de las dos formas, asi que no puede existir un asiento que mezcle
+ * campos de derrota con un origen de finalizacion.
  */
-export interface ExperienceGrantDocument {
+interface GrantDocumentBase {
   readonly _id: string
   readonly fingerprint: string
   readonly ownerId: string
   readonly heroId: string
   readonly amount: number
+  readonly result: ExperienceGrantResultDocument
+  readonly createdAt: Date
+}
+
+/** HU-09: origen aplanado, sin `kind` ni `source`. Forma historica, intacta. */
+export interface RivalDefeatGrantDocument extends GrantDocumentBase {
   readonly roll: number
   readonly enrollmentId: string
   readonly simulationId: string
   readonly encounterId: string
   readonly enemyInstanceId: string
   readonly rivalRef: string
-  readonly result: ExperienceGrantResultDocument
-  readonly createdAt: Date
 }
 
+/** Origen de HU-10 tal como se guarda: solo sus campos, con su `kind`. */
+export interface MissionCompletionSourceDocument {
+  readonly kind: 'MISSION_COMPLETION'
+  readonly enrollmentId: string
+  readonly missionId: string
+  readonly simulationId: string
+  readonly difficulty: string
+  readonly missionOutcome: string
+}
+
+/** HU-10: origen como subdocumento discriminado. */
+export interface MissionCompletionGrantDocument extends GrantDocumentBase {
+  readonly source: MissionCompletionSourceDocument
+}
+
+export type ExperienceGrantDocument = RivalDefeatGrantDocument | MissionCompletionGrantDocument
+
 export const documentId = (operationId: string): string => operationId
+
+/**
+ * El asiento que se inserta para un comando ya validado. Lo comparten el
+ * adaptador de MongoDB y el de memoria: la traduccion vive en un solo sitio.
+ */
+export const toLedgerDocument = (
+  command: ExperienceGrantCommand,
+  fingerprint: string,
+  result: ExperienceGrantResult,
+  createdAt: Date,
+): ExperienceGrantDocument => {
+  const base: GrantDocumentBase = {
+    _id: documentId(command.operationId),
+    fingerprint,
+    ownerId: command.ownerId,
+    heroId: command.heroId,
+    amount: command.amount,
+    result: toResultDocument(result),
+    createdAt,
+  }
+  const { source } = command
+
+  if (source.kind === 'MISSION_COMPLETION') {
+    return {
+      ...base,
+      source: {
+        kind: 'MISSION_COMPLETION',
+        enrollmentId: source.enrollmentId,
+        missionId: source.missionId,
+        simulationId: source.simulationId,
+        difficulty: source.difficulty,
+        missionOutcome: source.missionOutcome,
+      },
+    }
+  }
+
+  return {
+    ...base,
+    roll: source.roll,
+    enrollmentId: source.enrollmentId,
+    simulationId: source.simulationId,
+    encounterId: source.encounterId,
+    enemyInstanceId: source.enemyInstanceId,
+    rivalRef: source.rivalRef,
+  }
+}
+
+/**
+ * El origen de un asiento guardado, valido y con su `kind`. Un asiento historico
+ * de HU-09 (sin `source`) se lee como `MISSION_RIVAL_DEFEAT`; uno de HU-10 con
+ * su subdocumento, como `MISSION_COMPLETION`. Un asiento a medias -- de HU-10 con
+ * campos de derrota, o de HU-09 incompleto -- lanza en lugar de inventar un origen.
+ */
+export const toSource = (document: ExperienceGrantDocument): ExperienceGrantSource => {
+  if ('source' in document) {
+    const raw = document.source as unknown as Record<string, unknown>
+
+    if (raw.kind !== 'MISSION_COMPLETION') {
+      throw new ExperienceGrantMappingError(
+        `El origen del asiento ${document._id} no es un MISSION_COMPLETION valido.`,
+      )
+    }
+
+    const difficulty = requireOneOf(raw.difficulty, MISSION_DIFFICULTIES, 'La dificultad')
+
+    if (raw.missionOutcome !== 'COMPLETED' && raw.missionOutcome !== 'FAILED') {
+      throw new ExperienceGrantMappingError(
+        `El desenlace del asiento ${document._id} debe ser COMPLETED o FAILED.`,
+      )
+    }
+
+    return {
+      kind: 'MISSION_COMPLETION',
+      enrollmentId: requireText(raw.enrollmentId, `El enrollmentId del asiento ${document._id}`),
+      missionId: requireText(raw.missionId, `El missionId del asiento ${document._id}`),
+      simulationId: requireText(raw.simulationId, `El simulationId del asiento ${document._id}`),
+      difficulty,
+      missionOutcome: raw.missionOutcome,
+    }
+  }
+
+  return {
+    kind: 'MISSION_RIVAL_DEFEAT',
+    enrollmentId: requireText(document.enrollmentId, `El enrollmentId del asiento ${document._id}`),
+    simulationId: requireText(document.simulationId, `El simulationId del asiento ${document._id}`),
+    encounterId: requireText(document.encounterId, `El encounterId del asiento ${document._id}`),
+    enemyInstanceId: requireText(
+      document.enemyInstanceId,
+      `El enemyInstanceId del asiento ${document._id}`,
+    ),
+    rivalRef: requireText(document.rivalRef, `El rivalRef del asiento ${document._id}`),
+    roll: requireInteger(document.roll, `La tirada del asiento ${document._id}`, 1),
+  }
+}
+
+const requireOneOf = <T extends string>(raw: unknown, allowed: readonly T[], label: string): T => {
+  if (typeof raw !== 'string' || !(allowed as readonly string[]).includes(raw)) {
+    throw new ExperienceGrantMappingError(`${label} debe ser uno de ${allowed.join(', ')}.`)
+  }
+
+  return raw as T
+}
 
 /**
  * Huella del CONTENIDO de la acreditacion: es lo que decide entre devolver el
@@ -83,16 +217,36 @@ export const fingerprintOf = (command: ExperienceGrantCommand): string =>
     ownerId: command.ownerId,
     heroId: command.heroId,
     amount: command.amount,
-    source: {
-      kind: command.source.kind,
-      enrollmentId: command.source.enrollmentId,
-      simulationId: command.source.simulationId,
-      encounterId: command.source.encounterId,
-      enemyInstanceId: command.source.enemyInstanceId,
-      rivalRef: command.source.rivalRef,
-      roll: command.source.roll,
-    },
+    source: fingerprintSourceOf(command.source),
   })
+
+/**
+ * Los datos SEMANTICOS de cada variante, y solo los suyos. La forma de
+ * `MISSION_RIVAL_DEFEAT` es BYTE A BYTE la que se uso siempre: las huellas de los
+ * asientos historicos de HU-09 tienen que seguir coincidiendo con las de un
+ * reintento actual, o un replay legitimo se volveria un `409`. La de
+ * `MISSION_COMPLETION` no lleva ningun campo de derrota ni la de HU-09 uno de
+ * finalizacion, de modo que dos variantes nunca comparten huella.
+ */
+const fingerprintSourceOf = (source: ExperienceGrantSource): Record<string, unknown> =>
+  source.kind === 'MISSION_COMPLETION'
+    ? {
+        kind: source.kind,
+        enrollmentId: source.enrollmentId,
+        missionId: source.missionId,
+        simulationId: source.simulationId,
+        difficulty: source.difficulty,
+        missionOutcome: source.missionOutcome,
+      }
+    : {
+        kind: source.kind,
+        enrollmentId: source.enrollmentId,
+        simulationId: source.simulationId,
+        encounterId: source.encounterId,
+        enemyInstanceId: source.enemyInstanceId,
+        rivalRef: source.rivalRef,
+        roll: source.roll,
+      }
 
 const requireInteger = (raw: unknown, context: string, min: number): number => {
   const value = typeof raw === 'number' ? raw : unwrapBsonInteger(raw)

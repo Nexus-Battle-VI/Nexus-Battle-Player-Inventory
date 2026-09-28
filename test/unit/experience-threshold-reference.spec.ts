@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { HeroProgression } from '../../src/domain/entities/HeroProgression'
 import {
-  EXPERIENCE_THRESHOLDS,
+  LEVEL_UP_THRESHOLDS,
   MAX_HERO_LEVEL,
   MIN_HERO_LEVEL,
   experienceRequiredForNextLevel,
@@ -36,7 +36,8 @@ import {
  */
 
 interface ReferenceThreshold {
-  readonly level: number
+  readonly fromLevel: number
+  readonly toLevel: number
   readonly amount: number
 }
 
@@ -64,6 +65,7 @@ interface ReferenceTable {
   readonly origin: string
   readonly semantics: string
   readonly supersededFormula: ReferenceSupersededFormula
+  readonly supersededTable: { readonly series: readonly number[]; readonly where: string }
   readonly maxLevel: number
   readonly thresholds: readonly ReferenceThreshold[]
   readonly levels: readonly ReferenceLevel[]
@@ -75,21 +77,29 @@ const loadReference = (): ReferenceTable =>
     readFileSync(join(__dirname, '..', 'fixtures', 'experience-threshold-reference.json'), 'utf8'),
   ) as ReferenceTable
 
-/** Experiencia acumulada que la referencia exige para estar en `level`. */
+/** Experiencia acumulada que la referencia exige para PASAR de `level` al siguiente. */
 const thresholdOf = (reference: ReferenceTable, level: number): number =>
   reference.thresholds[level - MIN_HERO_LEVEL]?.amount ?? -1
+
+/** Nivel que la referencia asigna a un acumulado: 1 + umbrales alcanzados. */
+const referenceLevelOf = (reference: ReferenceTable, totalXp: number): number =>
+  MIN_HERO_LEVEL + reference.thresholds.filter((entry) => totalXp >= entry.amount).length
 
 describe('HU-08 — regresion contra valores de referencia', () => {
   const reference = loadReference()
 
   describe('la tabla de referencia es utilizable', () => {
-    it('cubre los ocho niveles con siguiente nivel, sin huecos', () => {
-      const expectedLevels = Array.from(
-        { length: MAX_HERO_LEVEL - MIN_HERO_LEVEL + 1 },
+    it('cubre los siete pasos de nivel (1->2 ... 7->8), sin huecos', () => {
+      const expectedFrom = Array.from(
+        { length: MAX_HERO_LEVEL - MIN_HERO_LEVEL },
         (_, index) => MIN_HERO_LEVEL + index,
       )
 
-      expect(reference.thresholds.map((entry) => entry.level)).toEqual(expectedLevels)
+      expect(reference.thresholds.map((entry) => entry.fromLevel)).toEqual(expectedFrom)
+      expect(reference.thresholds.map((entry) => entry.toLevel)).toEqual(
+        expectedFrom.map((level) => level + 1),
+      )
+      expect(reference.maxLevel).toBe(MAX_HERO_LEVEL)
     })
 
     it('declara su procedencia, para que nadie la tome por calculada aqui', () => {
@@ -103,21 +113,16 @@ describe('HU-08 — regresion contra valores de referencia', () => {
      * Si alguien "arregla" la tabla para que la implementacion pase, tiene que
      * romper una propiedad de la propia tabla. Estas tres la fijan.
      */
-    it('el primer umbral es 100, el coeficiente que el PO conservo', () => {
+    it('el primer umbral es 100 y los siguientes crecen de 200 en 200', () => {
       expect(thresholdOf(reference, 1)).toBe(100)
-    })
 
-    it('la serie se duplica en cada nivel: es 100 x 2^(L - 1)', () => {
-      for (let level = MIN_HERO_LEVEL + 1; level <= MAX_HERO_LEVEL; level += 1) {
-        const previous = thresholdOf(reference, level - 1)
-        const current = thresholdOf(reference, level)
-
-        expect(current).toBe(previous * 2)
+      for (let level = MIN_HERO_LEVEL + 1; level < MAX_HERO_LEVEL; level += 1) {
+        expect(thresholdOf(reference, level) - thresholdOf(reference, level - 1)).toBe(200)
       }
     })
 
-    it('los ocho umbrales son enteros y crecen estrictamente', () => {
-      for (let level = MIN_HERO_LEVEL; level <= MAX_HERO_LEVEL; level += 1) {
+    it('los siete umbrales son enteros y crecen estrictamente', () => {
+      for (let level = MIN_HERO_LEVEL; level < MAX_HERO_LEVEL; level += 1) {
         const current = thresholdOf(reference, level)
 
         expect(Number.isInteger(current)).toBe(true)
@@ -133,27 +138,15 @@ describe('HU-08 — regresion contra valores de referencia', () => {
       // segun la tabla de referencia. Si alguien cambiara un vector a mano para
       // tapar un fallo, esto lo delata sin consultar la implementacion.
       for (const entry of reference.levels) {
-        let expected = MIN_HERO_LEVEL
-
-        for (let level = MIN_HERO_LEVEL; level <= MAX_HERO_LEVEL; level += 1) {
-          if (entry.totalXp >= thresholdOf(reference, level)) expected = level
-        }
-
-        expect(entry.level).toBe(expected)
+        expect(entry.level).toBe(referenceLevelOf(reference, entry.totalXp))
       }
     })
 
-    it('los tres ejemplos de acreditacion respetan la regla del propio fixture', () => {
+    it('los ejemplos de acreditacion respetan la regla del propio fixture', () => {
       for (const award of reference.awards) {
         const total = award.from.totalXp + award.amount
-        let expected = MIN_HERO_LEVEL
-
-        for (let level = MIN_HERO_LEVEL; level <= MAX_HERO_LEVEL; level += 1) {
-          if (total >= thresholdOf(reference, level)) expected = level
-        }
-
         expect(award.to.totalXp).toBe(total)
-        expect(award.to.level).toBe(expected)
+        expect(award.to.level).toBe(referenceLevelOf(reference, total))
         expect(award.note.length).toBeGreaterThan(20)
       }
     })
@@ -161,7 +154,7 @@ describe('HU-08 — regresion contra valores de referencia', () => {
 
   describe('la implementacion coincide con la referencia', () => {
     it('la tabla de la politica es, valor a valor, la de la referencia', () => {
-      expect([...EXPERIENCE_THRESHOLDS]).toEqual(reference.thresholds.map((entry) => entry.amount))
+      expect([...LEVEL_UP_THRESHOLDS]).toEqual(reference.thresholds.map((entry) => entry.amount))
     })
 
     it('el umbral de cada nivel es el de la referencia, nivel a nivel', () => {
@@ -169,7 +162,7 @@ describe('HU-08 — regresion contra valores de referencia', () => {
         expect(experienceRequiredForNextLevel(level)).toEqual({
           status: 'AVAILABLE',
           forNextLevel: level + 1,
-          amount: thresholdOf(reference, level + 1),
+          amount: thresholdOf(reference, level),
         })
       }
     })
@@ -224,15 +217,24 @@ describe('HU-08 — regresion contra valores de referencia', () => {
       expect(approved[1]).not.toBe(superseded[1])
       expect(reference.supersededFormula.note).toContain('redondeo')
     })
+
+    it('la tabla temporal anterior tambien queda registrada como sustituida', () => {
+      const approved = reference.thresholds.map((entry) => entry.amount)
+
+      expect([...reference.supersededTable.series]).toEqual([
+        100, 200, 400, 800, 1600, 3200, 6400, 12800,
+      ])
+      expect(approved).not.toEqual([...reference.supersededTable.series])
+    })
   })
 
   describe('determinismo: la misma entrada da el mismo resultado', () => {
     it('consultar 50 veces cada nivel de referencia produce siempre lo mismo', () => {
       for (const entry of reference.thresholds) {
-        const first = JSON.stringify(experienceRequiredForNextLevel(entry.level))
+        const first = JSON.stringify(experienceRequiredForNextLevel(entry.fromLevel))
 
         for (let attempt = 0; attempt < 50; attempt += 1) {
-          expect(JSON.stringify(experienceRequiredForNextLevel(entry.level))).toBe(first)
+          expect(JSON.stringify(experienceRequiredForNextLevel(entry.fromLevel))).toBe(first)
         }
       }
     })
@@ -259,12 +261,12 @@ describe('HU-08 — regresion contra valores de referencia', () => {
 
     it('no modifica los valores consultados', () => {
       for (const entry of reference.thresholds) {
-        const level = entry.level
+        const level = entry.fromLevel
 
         experienceRequiredForNextLevel(level)
         experienceRequiredForNextLevel(level)
 
-        expect(level).toBe(entry.level)
+        expect(level).toBe(entry.fromLevel)
       }
     })
   })
@@ -274,7 +276,7 @@ describe('HU-08 — regresion contra valores de referencia', () => {
       expect(MIN_HERO_LEVEL).toBe(1)
       expect(MAX_HERO_LEVEL).toBe(8)
       expect(reference.maxLevel).toBe(MAX_HERO_LEVEL)
-      expect(reference.thresholds).toHaveLength(MAX_HERO_LEVEL - MIN_HERO_LEVEL + 1)
+      expect(reference.thresholds).toHaveLength(MAX_HERO_LEVEL - MIN_HERO_LEVEL)
     })
   })
 })

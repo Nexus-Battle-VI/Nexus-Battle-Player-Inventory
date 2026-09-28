@@ -23,8 +23,8 @@ import {
   ExperienceGrantMappingError,
   fingerprintOf,
   documentId as grantDocumentId,
+  toLedgerDocument,
   toReplayResult,
-  toResultDocument,
   type ExperienceGrantDocument,
 } from './experience-grant-mapping'
 
@@ -115,21 +115,7 @@ export class MongoExperienceGrantRepository implements ExperienceGrantPort {
               }
 
               await this.ledger.insertOne(
-                {
-                  _id: grantDocumentId(command.operationId),
-                  fingerprint,
-                  ownerId: command.ownerId,
-                  heroId: command.heroId,
-                  amount: command.amount,
-                  roll: command.source.roll,
-                  enrollmentId: command.source.enrollmentId,
-                  simulationId: command.source.simulationId,
-                  encounterId: command.source.encounterId,
-                  enemyInstanceId: command.source.enemyInstanceId,
-                  rivalRef: command.source.rivalRef,
-                  result: toResultDocument(result),
-                  createdAt: new Date(),
-                },
+                toLedgerDocument(command, fingerprint, result, new Date()),
                 { session },
               )
 
