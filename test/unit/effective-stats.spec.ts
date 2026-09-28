@@ -318,7 +318,7 @@ describe('computeEffectiveStats — el nivel multiplica las estadisticas (CA-06)
     expect(at(3).deltas).toEqual([])
   })
 
-  it('daño y sanacion (dados o valores fijos) NO se escalan: el PO no ha definido esa regla', () => {
+  it('daño y sanacion se publican como MAGNITUD (no se tiran aqui): el nivel multiplica el resultado de la tirada en Combat (opcion A)', () => {
     const result = at(4)
 
     expect(result.effectiveStats.damage).toEqual({ mode: 'DICE', count: 1, sides: 6 })

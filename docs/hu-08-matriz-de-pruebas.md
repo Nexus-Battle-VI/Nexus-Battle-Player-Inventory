@@ -234,13 +234,13 @@ equipamiento`. Casos (`test/unit/effective-stats.spec.ts`, `hero-selection-use-c
 | Multiplicador sobre base escalada  | defensa 8, nivel 3, `×2`      | `48`                                      |
 | `SET` independiente del nivel      | ataque `SET 99`, nivel 6      | `99`                                      |
 | Deltas = solo equipamiento         | ataque 10, nivel 3, `+2`      | delta `+2` sobre `30`                     |
-| Dados no se escalan                | daño `1d6`, nivel 4           | `1d6`                                     |
+| Dados: PI publica la magnitud      | daño `1d6`, nivel 4           | `1d6` (Combat multiplica el resultado)    |
 | Sanador                            | ataque nulo                   | sigue nulo                                |
 | Nivel inválido                     | `0, 9, 2.5, NaN, '3', null`   | `DomainError`                             |
 | Por héroe, no por jugador          | dos jugadores, mismo héroe    | niveles y estadísticas distintos          |
 | Contrato Combat                    | `equipped-hero`               | trae `level` y `levelStats`               |
 
-**Abierto:** escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
+**Dados (opción A, decisión del PO):** el nivel multiplica el resultado final de la tirada; se aplica y prueba en Combat (`execute-basic-attack.spec.ts`, `basic-attack-damage-policy.spec.ts`, `mission-simulation.spec.ts`). `power` escala: confirmado por el PO.
 
 ## 8. `CA-03` es divergente, y no se prueba como cumplido
 
@@ -312,8 +312,8 @@ reescriba `CA-03`.**
 
 ### D-4 — `CA-06` (resuelto en código)
 
-Implementado con la decisión `(base × nivel) + equipamiento` (sección 7). **Queda abierto** el
-escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
+Implementado con la decisión `(base × nivel) + equipamiento` (sección 7). Los dados se cierran con la **opción A**
+(resultado final × nivel, en Combat). `power` escala: confirmado por el PO.
 
 ### D-5 — La migración `007` chocaba con la de HU-65 (corregido al integrar con `develop`)
 

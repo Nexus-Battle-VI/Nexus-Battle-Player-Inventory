@@ -708,17 +708,39 @@ fijo no se multiplica por el nivel. Un `SET` fija el valor con independencia del
 
 ### Qué se escala y qué no
 
-| Estadística                  | ¿Se multiplica por el nivel? | Nota                                                                                                               |
-| ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `power`, `health`, `defense` | **Sí**                       | `LEVEL_SCALED_STATS` es el único punto donde se recorta o amplía la lista                                          |
-| `attack`                     | **Sí**                       | Nulo (sanadores) sigue nulo                                                                                        |
-| `damage`, `healing`          | **No (por ahora)**           | No porque el documento los excluya, sino porque la semántica de escalar dados (`1d6` × nivel) **no está definida** |
+| Estadística                  | ¿Se multiplica por el nivel?                    | Nota                                                                                                                                                       |
+| ---------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `power`, `health`, `defense` | **Sí**                                          | `LEVEL_SCALED_STATS` es el único punto donde se recorta o amplía la lista                                                                                  |
+| `attack`                     | **Sí**                                          | Nulo (sanadores) sigue nulo                                                                                                                                |
+| `damage`, `healing`          | **Sí, en el resultado de la tirada (opción A)** | Player-Inventory las publica como **magnitud** (`1d6`, `6 + 1d6`); el nivel multiplica el **resultado final** cuando Combat la resuelve. Ver «Dados» abajo |
 
 **`power` escala con el nivel — confirmado por el PO.** El PDF dice que el nivel «actúa como factor
 multiplicador en las demás estadísticas» y lista Poder entre las estadísticas base del héroe; y la
 regla del PO es «estadística base del nivel 1 × nivel actual, y después se aplica el equipamiento».
 Consecuencia asumida: como `HeroPowerPolicy` recibe su máximo de `effectiveStats.power`, el máximo de
 Poder crece con el nivel. Solo se quitaría de `LEVEL_SCALED_STATS` ante una aclaración nueva del PO.
+
+### Dados: daño y sanación (decisión del PO, opción A)
+
+Un `1d6` no es un número, así que multiplicarlo por el nivel necesitaba una decisión. **Decisión
+del PO: opción A — el nivel multiplica el RESULTADO FINAL de la magnitud.** No cambia la notación
+del dado (`1d6` no pasa a `3d6` ni a `1d18`) ni el número de sorteos: se tira igual y el total se
+multiplica.
+
+| Caso                                            | Cálculo                                   |
+| ----------------------------------------------- | ----------------------------------------- |
+| Nivel 3, daño `1d6`, tirada 4                   | `4 × 3 = 12` (rango final `3..18`)        |
+| Nivel 3, daño fijo 5                            | `5 × 3 = 15`                              |
+| Nivel 3, magnitud compuesta `6 + 1d6`, tirada 4 | `(6 + 4) × 3 = 30` (y **no** `6 × 3 + 4`) |
+
+Orden respecto al equipamiento (igual que en las estadísticas numéricas): `(resultado × nivel) +
+bonos`. Los ajustes de efectos/equipamiento se suman **después** y no se multiplican.
+
+**Quién lo aplica.** Player-Inventory **no tira dados**: publica `damage`/`healing` como magnitud
+(expresión) y `level`. Combat resuelve la tirada (RNG centralizado, ADR-021) y multiplica el resultado:
+`applyLevelToMagnitudeResult` (Combat) en el ataque básico, y la misma regla en la simulación de
+misión. `healing`: la Sanación base del héroe aún **no tiene consumidor en el motor** (las habilidades
+de sanación llevan su propia magnitud), así que la regla queda fijada aquí para cuando exista.
 
 ### Contratos
 
@@ -735,9 +757,9 @@ Poder crece con el nivel. Solo se quitaría de `LEVEL_SCALED_STATS` ante una acl
 
 ### Pendiente (no se inventa)
 
-1. Escalado de `damage`/`healing` (dados) por nivel: la semántica de multiplicar un dado no está
-   definida (no es una exclusión del documento).
-2. Combat y Web (columna «Por nivel») consumen los campos nuevos en sus propios PR.
+1. Sanación base del héroe: sin consumidor en el motor de Combat; cuando lo tenga, aplica la opción A.
+2. Combat (multiplicar el resultado del daño) y Web (columna «Base × nivel») consumen los campos
+   nuevos en sus propios PR.
 
 ## 13. Contrato del servicio de progresión
 
@@ -976,8 +998,8 @@ una elección conservadora que se puede cambiar sin tocar el resto.
    reescribe con esa regla. La fórmula del PDF y la tabla temporal anterior quedan **sustituidas**
    (sección 3); el PDF no se edita ni se afirma que contuviera esta tabla.
 2. **`CA-06` (resuelta en código).** Decisión: `(base × nivel) + equipamiento`, sobre `power`,
-   `health`, `defense` y `attack`. **Abierto**: el escalado de `damage`/`healing` (dados) y la
-   confirmación de que `power` escala. Ver la sección 12.
+   `health`, `defense` y `attack`; daño y sanación (dados) por **opción A** (resultado final ×
+   nivel, aplicada en Combat). `power` escala (confirmado por el PO). Ver la sección 12.
 3. **Persistencia del nivel y de la XP — cerrada por el PO.** El diseño propuso `HeroProgression`
    como agregado por `(jugador, héroe)` y la aclaración del PO lo confirmó: «la XP es del héroe, no
    del jugador». Colección `hero-progressions` con `_id` `"ownerId::heroId"`, `version` para bloqueo

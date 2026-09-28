@@ -218,7 +218,8 @@ export class HeroEquipmentResponse {
 
   @ApiProperty({
     type: HeroStatsResponse,
-    description: 'Base x nivel (CA-06), antes del equipamiento. damage y healing no se escalan.',
+    description:
+      'Base x nivel (CA-06), antes del equipamiento. damage y healing se publican como magnitud; el nivel multiplica el resultado de la tirada en Combat.',
   })
   readonly levelStats!: HeroStatsResponse
 

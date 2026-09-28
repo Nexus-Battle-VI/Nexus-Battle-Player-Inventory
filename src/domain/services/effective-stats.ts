@@ -33,10 +33,11 @@ import type {
  *
  * QUE SE ESCALA: `power`, `health`, `defense` y `attack` (las estadisticas
  * numericas que este modulo sabe recalcular; `LEVEL_SCALED_STATS`). QUE NO:
- * `damage` y `healing`, que son dados o valores fijos: NO porque el documento los
- * excluya, sino porque la semantica de escalar un dado (`1d6` x 3) no esta
- * definida y no es lo mismo que multiplicar un numero. Quedan sin escalar hasta
- * que se defina. `power` SI escala (confirmado por el PO).
+ * `damage` y `healing`, que son magnitudes (dados o valores fijos) y NO un numero
+ * que este modulo pueda multiplicar: aqui se publican tal cual. El nivel las
+ * multiplica en el RESULTADO FINAL de la tirada (opcion A, decision del PO:
+ * `1d6`, nivel 3, tirada 4 => 4 x 3 = 12), y eso lo hace Combat al resolver el
+ * dado; este servicio no tira dados. `power` SI escala (confirmado por el PO).
  *
  * HU-28 aplica AHORA solo los modificadores deterministas y permanentes sobre
  * el propio heroe: `STAT_MODIFIER` con `target = SELF`, sin condicion de
@@ -72,7 +73,7 @@ export interface EffectiveStatsResult {
     readonly damage: Magnitude | null
     readonly healing: Magnitude | null
   }
-  /** Base x nivel (CA-06), antes de aplicar el equipamiento. `damage` y `healing` no se escalan. */
+  /** Base x nivel (CA-06), antes de aplicar el equipamiento. `damage` y `healing` se publican como magnitud (el nivel multiplica el resultado de la tirada en Combat). */
   readonly levelStats: {
     readonly power: number
     readonly health: number

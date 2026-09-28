@@ -145,7 +145,7 @@ export interface EquippedHeroDto {
   readonly level: number
   /** Estadisticas base de Catalog (nivel 1), sin escalar. */
   readonly baseStats: HeroStatsDto
-  /** Base x nivel, antes del equipamiento. `damage` y `healing` no se escalan. */
+  /** Base x nivel, antes del equipamiento. `damage` y `healing` se publican como magnitud (el nivel multiplica el resultado de la tirada en Combat). */
   readonly levelStats: HeroStatsDto
   /** `(base x nivel) + equipamiento`. */
   readonly effectiveStats: HeroStatsDto
