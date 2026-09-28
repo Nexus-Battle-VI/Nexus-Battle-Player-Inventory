@@ -712,7 +712,7 @@ fijo no se multiplica por el nivel. Un `SET` fija el valor con independencia del
 | ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `power`, `health`, `defense` | **Sí**                       | `LEVEL_SCALED_STATS` es el único punto donde se recorta o amplía la lista                                          |
 | `attack`                     | **Sí**                       | Nulo (sanadores) sigue nulo                                                                                        |
-| `damage`, `healing`          | **No**                       | Dados o valores fijos: el PO **no** ha definido qué significa multiplicar `1d6` por el nivel. **Decisión abierta** |
+| `damage`, `healing`          | **No (por ahora)**           | No porque el documento los excluya, sino porque la semántica de escalar dados (`1d6` × nivel) **no está definida** |
 
 **`power` escala con el nivel — confirmado por el PO.** El PDF dice que el nivel «actúa como factor
 multiplicador en las demás estadísticas» y lista Poder entre las estadísticas base del héroe; y la
