@@ -76,22 +76,22 @@ el cálculo, y sustituye a la fórmula de `CA-03`.
 
 ## 1. Qué está implementado y qué no
 
-| Pieza                                                                               | Estado                                                                       |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Tabla de umbrales, validación de rango y nivel máximo (`ExperiencePolicy`)          | **Implementado**                                                             |
-| `levelFromTotalXp` (acumulado → nivel), con salto de varios niveles                 | **Implementado**                                                             |
-| `HeroLevel`, `Experience` (con `add`), `HeroProgression` (con `awardExperience`)    | **Implementado**                                                             |
-| Persistencia: migración `008-hero-progressions` y colección `hero-progressions`     | **Implementado**                                                             |
-| Adaptadores Mongo y en memoria, con bloqueo optimista                               | **Implementado**                                                             |
-| Registro en `app.module.ts` y operación reutilizable `QueryExperienceThreshold`     | **Implementado**                                                             |
-| Pruebas: unitarias y contra MongoDB real                                            | **Implementado**                                                             |
-| Matriz de trazabilidad `RF-08 → CA → escenario → nivel → resultado → tipo → script` | **Implementado** en [hu-08-matriz-de-pruebas.md](hu-08-matriz-de-pruebas.md) |
-| Valores de referencia tomados **fuera** del repositorio                             | **Implementado**: `test/fixtures/experience-threshold-reference.json`        |
-| Control de que la tabla aparece una sola vez                                        | **Implementado**                                                             |
-| Otorgar XP y decidir cuándo (`10 × 1,2^(1d8)`, tirada `1d8`, `operationId`)         | **Implementado**: HU-09 (Missions coordina y calcula, Combat tira, este servicio acredita) |
+| Pieza                                                                               | Estado                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tabla de umbrales, validación de rango y nivel máximo (`ExperiencePolicy`)          | **Implementado**                                                                                                                                                                                           |
+| `levelFromTotalXp` (acumulado → nivel), con salto de varios niveles                 | **Implementado**                                                                                                                                                                                           |
+| `HeroLevel`, `Experience` (con `add`), `HeroProgression` (con `awardExperience`)    | **Implementado**                                                                                                                                                                                           |
+| Persistencia: migración `008-hero-progressions` y colección `hero-progressions`     | **Implementado**                                                                                                                                                                                           |
+| Adaptadores Mongo y en memoria, con bloqueo optimista                               | **Implementado**                                                                                                                                                                                           |
+| Registro en `app.module.ts` y operación reutilizable `QueryExperienceThreshold`     | **Implementado**                                                                                                                                                                                           |
+| Pruebas: unitarias y contra MongoDB real                                            | **Implementado**                                                                                                                                                                                           |
+| Matriz de trazabilidad `RF-08 → CA → escenario → nivel → resultado → tipo → script` | **Implementado** en [hu-08-matriz-de-pruebas.md](hu-08-matriz-de-pruebas.md)                                                                                                                               |
+| Valores de referencia tomados **fuera** del repositorio                             | **Implementado**: `test/fixtures/experience-threshold-reference.json`                                                                                                                                      |
+| Control de que la tabla aparece una sola vez                                        | **Implementado**                                                                                                                                                                                           |
+| Otorgar XP y decidir cuándo (`10 × 1,2^(1d8)`, tirada `1d8`, `operationId`)         | **Implementado**: HU-09 (Missions coordina y calcula, Combat tira, este servicio acredita)                                                                                                                 |
 | Endpoint HTTP                                                                       | **Implementado** (2026-09-27, auditoría de progresión en "Mi Inventario", ver sección 13.1). No hay un endpoint propio por héroe: `GetHeroProgression` se reutiliza dentro de `GET /inventories/me/heroes` |
-| El nivel como multiplicador de estadísticas (`CA-06`)                               | **NO implementado: fuera de alcance** (sección 12)                           |
-| Aceptación de la HU                                                                 | **NO**: requiere revisión por pares y aceptación del PO                      |
+| El nivel como multiplicador de estadísticas (`CA-06`)                               | **NO implementado: fuera de alcance** (sección 12)                                                                                                                                                         |
+| Aceptación de la HU                                                                 | **NO**: requiere revisión por pares y aceptación del PO                                                                                                                                                    |
 
 ## 2. Qué es la experiencia requerida
 
@@ -752,16 +752,16 @@ La Task `#188` pide definir «la operación del contrato del servicio responsabl
 añade que «**no es obligatorio exponer esta operación mediante HTTP** si la arquitectura final
 determina otro mecanismo de interacción».
 
-| Aspecto                      | Definición                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Propósito**                | Obtener el umbral de experiencia acumulada requerido para alcanzar el siguiente nivel          |
-| **Entrada**                  | `currentLevel`: entero `1..8`. Es la **única** entrada                                         |
-| **Salida**                   | `ExperienceThreshold`: `AVAILABLE` con `{ forNextLevel, amount }`, o `MAX_LEVEL`               |
-| **Validaciones**             | Entero; `1 ≤ n ≤ 8`; sin truncar, sin convertir cadenas, sin recortar al máximo                |
-| **Nivel máximo**             | `n = 8` → `MAX_LEVEL`. No es error. Nunca se calcula el umbral del nivel 9                     |
-| **Errores funcionales**      | No entero · fuera de `1..8` · ausente · tipo incorrecto → `DomainError` con mensaje en español |
-| **Efectos**                  | Ninguno. No escribe, no publica eventos, no consume azar, no muta la entrada                   |
-| **Idempotencia**             | Total: la misma entrada produce siempre el mismo resultado                                     |
+| Aspecto                      | Definición                                                                                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Propósito**                | Obtener el umbral de experiencia acumulada requerido para alcanzar el siguiente nivel                                                                                                  |
+| **Entrada**                  | `currentLevel`: entero `1..8`. Es la **única** entrada                                                                                                                                 |
+| **Salida**                   | `ExperienceThreshold`: `AVAILABLE` con `{ forNextLevel, amount }`, o `MAX_LEVEL`                                                                                                       |
+| **Validaciones**             | Entero; `1 ≤ n ≤ 8`; sin truncar, sin convertir cadenas, sin recortar al máximo                                                                                                        |
+| **Nivel máximo**             | `n = 8` → `MAX_LEVEL`. No es error. Nunca se calcula el umbral del nivel 9                                                                                                             |
+| **Errores funcionales**      | No entero · fuera de `1..8` · ausente · tipo incorrecto → `DomainError` con mensaje en español                                                                                         |
+| **Efectos**                  | Ninguno. No escribe, no publica eventos, no consume azar, no muta la entrada                                                                                                           |
+| **Idempotencia**             | Total: la misma entrada produce siempre el mismo resultado                                                                                                                             |
 | **Mecanismo de interacción** | **En proceso.** Esta operación pura no tiene endpoint propio; lo que sí se expone por HTTP es `GetHeroProgression`, que la consume (ver sección 13.1 y «Decisiones abiertas», punto 5) |
 
 **Ejemplos:**
@@ -804,7 +804,7 @@ resuelven el nivel, y comparan o acreditan con lo que devuelve esta operación.
 ### 13.1 Exposición pública en «Mi Inventario» (2026-09-27)
 
 La «decisión abierta 5» (no exponer HTTP) queda **superada, no revertida**: la Task `#188` siempre
-dijo que no era *obligatorio* exponer transporte, no que estuviera prohibido, y la Task `HU-09.5`
+dijo que no era _obligatorio_ exponer transporte, no que estuviera prohibido, y la Task `HU-09.5`
 (`#443`) dejó escrito que si la pantalla necesitaba el nivel actual, esa superficie «se decide en
 HU-09.1, no se inventa aquí». Esta auditoría es esa decisión.
 
