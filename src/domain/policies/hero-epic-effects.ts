@@ -5,6 +5,7 @@ import {
   type EquippedProductForStats,
 } from '../services/effective-stats'
 import type { HeroAttributeView } from '../value-objects/equipment-effects'
+import { MIN_HERO_LEVEL } from '../value-objects/hero-level'
 import { isHeroSubtype } from '../value-objects/hero-subtype'
 import {
   applyEpicEffects,
@@ -73,11 +74,12 @@ export const computeHeroEffectsWithEpic = (
   hero: HeroAttributeView,
   equipped: readonly EquippedProductForStats[],
   epicAttributes: unknown = null,
+  level: number = MIN_HERO_LEVEL,
 ): HeroEffectsWithEpic => {
   const epicEffects = applyEpicEffects({
     heroType: hero.heroSubtype,
     epic: epicAttributes === null ? null : parseEpicAttributes(epicAttributes),
   })
 
-  return { ...computeEffectiveStats(hero.baseStats, equipped), epicEffects }
+  return { ...computeEffectiveStats(hero.baseStats, equipped, level), epicEffects }
 }

@@ -33,7 +33,12 @@ export interface HeroProfileDto {
   readonly reference: string
   readonly subtype: string
   readonly name: string
+  /** Nivel del heroe (HU-08). `effectiveStats` ya lo incorpora (CA-06). */
+  readonly level: number
   readonly baseStats: HeroStatsDto
+  /** Base x nivel, antes del equipamiento. */
+  readonly levelStats: HeroStatsDto
+  /** `(base x nivel) + equipamiento`. */
   readonly effectiveStats: HeroStatsDto
   readonly activeEffects: readonly EquippedHeroEffectDto[]
   readonly abilities: readonly EquippedHeroAbilityDto[]

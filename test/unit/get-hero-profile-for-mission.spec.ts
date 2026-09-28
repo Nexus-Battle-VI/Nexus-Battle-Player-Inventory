@@ -1,3 +1,4 @@
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { battleStateKit } from '../fixtures/battle-state'
@@ -150,8 +151,20 @@ const escenario = (
   const loadouts = new InMemoryHeroLoadoutRepository()
 
   return {
-    profile: new GetHeroProfileForMission(inventories, catalog, loadouts),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    profile: new GetHeroProfileForMission(
+      inventories,
+      catalog,
+      loadouts,
+      new InMemoryHeroProgressionRepository(),
+    ),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      new InMemoryHeroProgressionRepository(),
+    ),
   }
 }
 
@@ -221,6 +234,8 @@ describe('HU-71 — perfil de un heroe concreto para Missions (servicio a servic
       'baseStats',
       'effectiveStats',
       'heroId',
+      'level',
+      'levelStats',
       'loadoutVersion',
       'name',
       'playerId',

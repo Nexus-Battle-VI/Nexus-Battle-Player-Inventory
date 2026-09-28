@@ -42,7 +42,13 @@ export interface HeroEquipmentDto {
     readonly armor: Readonly<Record<string, EquippedProductDto | null>>
     readonly items: readonly EquippedProductDto[]
   }
+  /** Nivel del heroe (HU-08) con el que se calcularon `levelStats` y `effectiveStats` (CA-06). */
+  readonly level: number
+  /** Estadisticas base de Catalog (nivel 1), sin escalar. */
   readonly baseStats: HeroStatsDto
+  /** Base x nivel (CA-06), antes del equipamiento. `damage` y `healing` no se escalan. */
+  readonly levelStats: HeroStatsDto
+  /** `levelStats` mas el efecto del equipamiento: `(base x nivel) + equipamiento`. */
   readonly effectiveStats: HeroStatsDto
   readonly deltas: readonly HeroStatDeltaDto[]
   /**

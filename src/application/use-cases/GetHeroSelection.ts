@@ -5,6 +5,7 @@ import { NoHeroSelectedError } from '../errors/ApplicationError'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
 import type { HeroSelectionRepositoryPort } from '../ports/HeroSelectionRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 import { resolveOwnedHero } from './hero-equipment-shared'
 import { assembleSelectionView } from './hero-selection-shared'
@@ -29,6 +30,7 @@ export class GetHeroSelection {
     private readonly catalog: CatalogReadPort,
     private readonly loadouts: HeroLoadoutRepositoryPort,
     private readonly selections: HeroSelectionRepositoryPort,
+    private readonly progressions: HeroProgressionRepositoryPort,
   ) {}
 
   async execute(ownerId: string): Promise<HeroSelectionDto> {
@@ -39,7 +41,11 @@ export class GetHeroSelection {
       throw new NoHeroSelectedError()
     }
 
-    const deps = { inventories: this.inventories, catalog: this.catalog }
+    const deps = {
+      inventories: this.inventories,
+      catalog: this.catalog,
+      progressions: this.progressions,
+    }
     const hero = await resolveOwnedHero(deps, owner, selection.heroId)
 
     const loadout =
