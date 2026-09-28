@@ -8,24 +8,57 @@ import type { ExperienceThreshold } from '../../domain/policies/ExperiencePolicy
  * tocar el almacen de Player/Inventory: pide la acreditacion por esta operacion,
  * que es el unico camino por el que la experiencia entra en un heroe.
  *
- * LA CLAVE ES EL `operationId` DE LA DERROTA, no el de la mision:
- * `mission:{enrollmentId}:encounter:{encounterId}:enemy:{enemyInstanceId}:hero:{heroId}:xp`.
- * Se invoca UNA VEZ POR CADA ENEMIGO DERROTADO, con su clave. Si se llamara una
- * sola vez con la suma de varias derrotas, un reintento parcial no se podria
- * distinguir de una recompensa nueva y la traza por derrota se perderia.
+ * LA CLAVE DEPENDE DEL ORIGEN.
+ *   - HU-09 (`MISSION_RIVAL_DEFEAT`): la de la DERROTA, no la de la mision:
+ *     `mission:{enrollmentId}:encounter:{encounterId}:enemy:{enemyInstanceId}:hero:{heroId}:xp`.
+ *     Se invoca UNA VEZ POR CADA ENEMIGO DERROTADO. Si se llamara una sola vez con
+ *     la suma de varias derrotas, un reintento parcial no se podria distinguir de
+ *     una recompensa nueva y la traza por derrota se perderia.
+ *   - HU-10 (`MISSION_COMPLETION`): la de la finalizacion de la matricula,
+ *     `mission:{enrollmentId}:reward:completion:xp`. Una por matricula.
+ *
+ * NINGUNA FORMULA DE EXPERIENCIA VIVE AQUI: el importe llega ya decidido por
+ * Missions (HU-09: formula y redondeo; HU-10: monto del contenido congelado) y
+ * este contexto solo valida su forma y lo acredita con HU-08.
  *
  * LA ATOMICIDAD ES DEL ADAPTADOR, como en `InventoryGrantPort` (HU-59): este
  * puerto no promete transaccion, la implementacion la hace. El caso de uso que
  * lo consume solo valida y delega.
  */
 
-/** Origen de la experiencia acreditada: la derrota concreta de la que sale. */
-export interface ExperienceGrantSource {
-  /**
-   * Unico origen implementado hoy. Va en el puerto para que el dia que exista
-   * otro (HU-10, recompensa por mision completada) el contrato lo diga en vez de
-   * deducirse del nombre de la coleccion.
-   */
+/**
+ * Origen de la experiencia acreditada. Es una UNION DISCRIMINADA por `kind`: cada
+ * variante tiene SUS campos y ninguno de los de la otra, asi que un estado como
+ * `MISSION_COMPLETION` con `roll` o `enemyInstanceId` no se puede ni escribir.
+ *
+ *   - `MISSION_RIVAL_DEFEAT` -> HU-09: la derrota concreta de un NPC.
+ *   - `MISSION_COMPLETION`   -> HU-10: la finalizacion de la mision
+ *     (`hu-10-mission-completion-reward-v1` §8).
+ *
+ * Las dos usan el MISMO motor de progresion (`HeroProgression`, HU-08): aqui no
+ * vive ninguna formula ni tabla de experiencia.
+ */
+export type ExperienceGrantSource = MissionRivalDefeatSource | MissionCompletionSource
+
+export type MissionCompletionOutcome = 'COMPLETED' | 'FAILED'
+
+/** Vocabulario cerrado de dificultad (HU-75). Player/Inventory valida la forma, no la decide. */
+export const MISSION_DIFFICULTIES = ['NORMAL', 'HEROIC', 'LEGENDARY', 'MYTHIC'] as const
+
+export type MissionDifficulty = (typeof MISSION_DIFFICULTIES)[number]
+
+/** Origen HU-10: la experiencia de FINALIZACION de una mision (`COMPLETED` o `FAILED`). */
+export interface MissionCompletionSource {
+  readonly kind: 'MISSION_COMPLETION'
+  readonly enrollmentId: string
+  readonly missionId: string
+  readonly simulationId: string
+  readonly difficulty: MissionDifficulty
+  readonly missionOutcome: MissionCompletionOutcome
+}
+
+/** Origen HU-09: la derrota concreta de un NPC. */
+export interface MissionRivalDefeatSource {
   readonly kind: 'MISSION_RIVAL_DEFEAT'
   readonly enrollmentId: string
   readonly simulationId: string
@@ -40,7 +73,7 @@ export interface ExperienceGrantSource {
 }
 
 export interface ExperienceGrantCommand {
-  /** Clave de idempotencia de ESTA derrota. Es el `_id` del ledger. */
+  /** Clave de idempotencia de ESTA acreditacion (derrota o finalizacion). Es el `_id` del ledger. */
   readonly operationId: string
   /** Jugador dueno del heroe. Llega de la ruta, firmada por el llamante. */
   readonly ownerId: string

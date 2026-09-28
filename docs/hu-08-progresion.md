@@ -13,7 +13,7 @@ Trazabilidad: `RF-08` → Management `#17` → Tasks `#188` (este diseño), `#18
   la migración `008-hero-progressions`, y la trazabilidad de las pruebas en
   [hu-08-matriz-de-pruebas.md](hu-08-matriz-de-pruebas.md). **No** declara la HU aceptada —eso
   requiere revisión por pares y aceptación del PO— y **no** reparte experiencia por sí sola:
-  acreditar XP es HU-09 (batalla) y HU-10 (misiones).
+  acreditar XP es HU-09 (derrota de un NPC en misión JvE) y HU-10 (finalización de misión).
 
 ## 0. Vigencia: qué manda hoy, y de dónde sale cada decisión
 
@@ -790,8 +790,8 @@ export class QueryExperienceThreshold {
 }
 ```
 
-Los consumidores previstos son **HU-09** (`#18`, victoria en batalla), **HU-10** (`#19`, misión
-completada) y la vista de progreso del héroe. Ninguno aplica la tabla: todos piden el umbral, o
+Los consumidores previstos son **HU-09** (`#18`, derrota de un NPC en misión JvE), **HU-10** (`#19`, misión
+finalizada) y la vista de progreso del héroe. Ninguno aplica la tabla: todos piden el umbral, o
 resuelven el nivel, y comparan o acreditan con lo que devuelve esta operación.
 
 ### 13.1 Exposición pública en «Mi Inventario» (2026-09-27)
@@ -831,8 +831,8 @@ sección 15).
 - La progresión es un atributo **del héroe**: su regla vive en el dominio de Player/Inventory, que
   ya es la fuente de verdad del héroe y de su equipamiento. No está en el comercio electrónico y no
   se copia en Misiones.
-- **Consumidores previstos:** HU-09 (`#18`) al acreditar experiencia por victoria; HU-10 (`#19`) al
-  acreditarla por misión; y una futura vista de progreso del héroe. Consumen la tabla y **no la
+- **Consumidores previstos:** HU-09 (`#18`) al acreditar experiencia por derrota de un NPC; HU-10 (`#19`) al
+  acreditarla por finalización de misión (ver [experience-grants.md](experience-grants.md)); y una futura vista de progreso del héroe. Consumen la tabla y **no la
   reimplementan**.
 - **La recompensa no vive aquí.** `10 × 1,2^(1d8)` es de Missions y la tirada `1d8` es de Combat
   (`ADR-021`). Player/Inventory solo recibe un importe entero y lo acredita.
