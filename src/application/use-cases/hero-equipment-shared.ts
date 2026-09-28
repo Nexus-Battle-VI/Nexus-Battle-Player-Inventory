@@ -6,15 +6,26 @@ import {
   parseHeroAttributes,
   type HeroAttributeView,
 } from '../../domain/value-objects/equipment-effects'
-import type { PlayerId } from '../../domain/value-objects/identifiers'
+import { PlayerId } from '../../domain/value-objects/identifiers'
+import { MIN_HERO_LEVEL } from '../../domain/value-objects/hero-level'
 import type { HeroEquipmentDto, EquippedProductDto } from '../dto/HeroEquipmentDto'
 import { HeroNotOwnedError } from '../errors/ApplicationError'
 import type { CatalogProductView, CatalogReadPort } from '../ports/CatalogReadPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 
-export interface HeroEquipmentDeps {
+/** Lo minimo para resolver un heroe propio (pertenencia + catalogo). */
+export interface HeroResolutionDeps {
   readonly inventories: InventoryQueryPort
   readonly catalog: CatalogReadPort
+}
+
+export interface HeroEquipmentDeps extends HeroResolutionDeps {
+  /**
+   * De donde sale el NIVEL del heroe (HU-08, CA-06). Player/Inventory es la unica
+   * autoridad de nivel; sin documento el heroe esta en el nivel 1.
+   */
+  readonly progressions: HeroProgressionRepositoryPort
 }
 
 /**
@@ -48,7 +59,7 @@ const ownedReferenceSet = (owned: readonly { readonly itemId: string }[]): Reado
  *   estadisticas base no se puede construir la vista del heroe.
  */
 export const resolveOwnedHero = async (
-  deps: HeroEquipmentDeps,
+  deps: HeroResolutionDeps,
   owner: PlayerId,
   heroReference: string,
 ): Promise<ResolvedHero> => {
@@ -129,7 +140,15 @@ export const assembleEquipmentView = async (
     ]
   })
 
-  const stats = computeEffectiveStats(hero.heroView.baseStats, forStats)
+  // CA-06: el nivel es el del propio heroe (nunca el del jugador). Lectura pura:
+  // sin documento de progresion, nivel 1, y no se escribe nada.
+  const progression = await deps.progressions.findByHero(
+    PlayerId.create(loadout.toSnapshot().ownerId),
+    hero.heroProduct.productId,
+  )
+  const level = progression?.level.value ?? MIN_HERO_LEVEL
+
+  const stats = computeEffectiveStats(hero.heroView.baseStats, forStats, level)
 
   const dtoBySlot = new Map<string, EquippedProductDto>(
     entries.map((entry) => [
@@ -162,7 +181,9 @@ export const assembleEquipmentView = async (
         return dto === undefined ? [] : [dto]
       }),
     },
+    level: stats.level,
     baseStats: stats.baseStats,
+    levelStats: stats.levelStats,
     effectiveStats: stats.effectiveStats,
     deltas: stats.deltas,
     activeEffects: stats.activeEffects,

@@ -333,7 +333,9 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
         'reference',
         'subtype',
         'name',
+        'level',
         'baseStats',
+        'levelStats',
         'effectiveStats',
         'activeEffects',
         'abilities',
@@ -347,7 +349,8 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
     expect(response.body).not.toHaveProperty('lifecycleStatus')
     expect(response.body).not.toHaveProperty('equipment')
     expect(response.body).not.toHaveProperty('capacity')
-    expect(response.body).not.toHaveProperty('level')
+    // HU-08 (CA-06): el nivel viaja y `effectiveStats` ya lo incorpora.
+    expect(response.body.level).toBe(1)
     // Heroe sin equipamiento: la lista viaja vacia, no ausente.
     expect(response.body.activeEffects).toEqual([])
     expect(response.body.blockers).toEqual([])

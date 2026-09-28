@@ -1,3 +1,4 @@
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { battleStateKit } from '../fixtures/battle-state'
@@ -129,10 +130,30 @@ const escenario = (
   const selections = new InMemoryHeroSelectionRepository()
 
   return {
-    select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    select: new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    ),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      new InMemoryHeroProgressionRepository(),
+    ),
     forCombat: new GetEquippedHeroForCombat(
-      new GetHeroSelection(inventories, catalog, loadouts, selections),
+      new GetHeroSelection(
+        inventories,
+        catalog,
+        loadouts,
+        selections,
+        new InMemoryHeroProgressionRepository(),
+      ),
       loadouts,
       catalog,
     ),

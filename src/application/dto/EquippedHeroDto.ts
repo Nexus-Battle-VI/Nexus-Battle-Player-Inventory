@@ -70,10 +70,13 @@ export interface EquippedHeroEffectDto {
  * HU-28 que produce `effectiveStats`: no se recalculan para este contrato.
  * Un heroe sin equipamiento que module algo devuelve `[]`.
  *
- * NO INCLUYE "nivel de heroe": ese concepto no existe en el dominio actual
- * (auditoria HU-15.2, hallazgo DP-3, confirmado de nuevo por grep exhaustivo
- * al implementar este contrato). Anadirlo aqui seria inventar un dato que
- * ninguna otra parte del sistema produce.
+ * EL NIVEL VIAJA (HU-08, CA-06). Cuando se escribio este contrato el nivel no
+ * existia en el dominio (auditoria HU-15.2, hallazgo DP-3). Existe desde
+ * HU-08/HU-09, y CA-06 exige que multiplique las estadisticas: `level` es el
+ * nivel del heroe, `levelStats` la base x nivel y `effectiveStats` YA es
+ * `(base x nivel) + equipamiento`. Combat NO debe volver a multiplicar por el
+ * nivel: seria contarlo dos veces. Cambio ADITIVO: un consumidor que ignore
+ * `level`/`levelStats` sigue leyendo `effectiveStats` como siempre.
  *
  * AMPLIACION ADITIVA (HU-16.1/HU-16.2, auditoria de elegibilidad precombate,
  * Management#401/#402):
@@ -138,7 +141,13 @@ export interface EquippedHeroDto {
   readonly reference: string
   readonly subtype: string
   readonly name: string
+  /** Nivel del heroe (HU-08). `effectiveStats` ya lo incorpora (CA-06). */
+  readonly level: number
+  /** Estadisticas base de Catalog (nivel 1), sin escalar. */
   readonly baseStats: HeroStatsDto
+  /** Base x nivel, antes del equipamiento. `damage` y `healing` no se escalan. */
+  readonly levelStats: HeroStatsDto
+  /** `(base x nivel) + equipamiento`. */
   readonly effectiveStats: HeroStatsDto
   readonly activeEffects: readonly EquippedHeroEffectDto[]
   /**

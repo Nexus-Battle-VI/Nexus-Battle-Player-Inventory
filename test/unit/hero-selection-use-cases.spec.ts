@@ -157,9 +157,16 @@ const escenario = (
 
   return {
     list: new ListAvailableHeroes(inventories, catalog, selections, getHeroProgression),
-    select: new SelectHero(inventories, catalog, loadouts, selections, clock),
-    current: new GetHeroSelection(inventories, catalog, loadouts, selections),
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battleStateKit(clock).state),
+    select: new SelectHero(inventories, catalog, loadouts, selections, clock, progressions),
+    current: new GetHeroSelection(inventories, catalog, loadouts, selections, progressions),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battleStateKit(clock).state,
+      progressions,
+    ),
     loadouts,
     progressions,
   }
@@ -405,6 +412,49 @@ describe('HU-07 — configuracion preparada (CA-01, CA-08, CA-10)', () => {
   })
 
   /**
+   * HU-08, CA-06: el nivel del PROPIO heroe multiplica su base y el equipamiento
+   * se aplica despues: (10 x 3) + 3 = 33, no (10 + 3) x 3 = 39.
+   */
+  it('el nivel del heroe multiplica la base y el equipamiento se suma despues (CA-06)', async () => {
+    const { select, equip, current, progressions } = escenario([...OCHO, weapon('espada')], {
+      'jugador-1': ['guerrero-tanque', 'espada'],
+      'jugador-2': ['guerrero-tanque', 'espada'],
+    })
+    await progressions.save(
+      HeroProgression.restore({
+        ownerId: 'jugador-1',
+        heroId: 'pid-guerrero-tanque',
+        level: 3,
+        currentXp: 300,
+        version: 0,
+      }),
+      0,
+    )
+
+    for (const jugador of ['jugador-1', 'jugador-2']) {
+      await select.execute(jugador, 'guerrero-tanque')
+      await equip.execute({
+        ownerId: jugador,
+        heroReference: 'guerrero-tanque',
+        slot: 'WEAPON_1',
+        productReference: 'espada',
+      })
+    }
+
+    const nivel3 = (await current.execute('jugador-1')).configuration
+    expect(nivel3.level).toBe(3)
+    expect(nivel3.baseStats.attack).toBe(10)
+    expect(nivel3.levelStats.attack).toBe(30)
+    expect(nivel3.effectiveStats.attack).toBe(33)
+    expect(nivel3.deltas).toContainEqual({ statistic: 'ATTACK', base: 30, effective: 33, delta: 3 })
+
+    // Otro jugador con el mismo heroe, sin progresion propia: nivel 1.
+    const nivel1 = (await current.execute('jugador-2')).configuration
+    expect(nivel1.level).toBe(1)
+    expect(nivel1.effectiveStats.attack).toBe(13)
+  })
+
+  /**
    * Aislamiento entre jugadores: la configuracion se resuelve SIEMPRE con el
    * sujeto que llega, y no hay parametro con el que pedir la de otra persona.
    */
@@ -431,8 +481,21 @@ describe('HU-07 — configuracion preparada (CA-01, CA-08, CA-10)', () => {
     const catalog = new InMemoryCatalogReadClient([...OCHO])
     const loadouts = new InMemoryHeroLoadoutRepository()
     const selections = new InMemoryHeroSelectionRepository()
-    const select = new SelectHero(inventories, catalog, loadouts, selections, clock)
-    const current = new GetHeroSelection(inventories, catalog, loadouts, selections)
+    const select = new SelectHero(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      clock,
+      new InMemoryHeroProgressionRepository(),
+    )
+    const current = new GetHeroSelection(
+      inventories,
+      catalog,
+      loadouts,
+      selections,
+      new InMemoryHeroProgressionRepository(),
+    )
 
     await select.execute('jugador-1', 'guerrero-tanque')
     inventarios['jugador-1'] = []

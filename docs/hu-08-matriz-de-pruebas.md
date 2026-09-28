@@ -46,7 +46,7 @@ aceptación/DoD». Por eso **`CA-08` no aparece como escenario**.
 | CA-03 | Umbral acumulado para avanzar (tabla vigente, 1→2 … 7→8)        | **Sí** — fronteras exactas y ejemplos del PO          |
 | CA-04 | El cálculo usa como entrada el nivel actual                     | **Sí**                                                |
 | CA-05 | No se calcula un siguiente nivel fuera del rango máximo         | **Sí**                                                |
-| CA-06 | El nivel actúa como factor multiplicador sobre las estadísticas | **NO — fuera de alcance.** Ver sección 7              |
+| CA-06 | El nivel actúa como factor multiplicador sobre las estadísticas | **Sí** — `effective-stats.spec.ts`, ver sección 7     |
 | CA-07 | El valor queda disponible como umbral del siguiente nivel       | **Sí**                                                |
 | CA-08 | Un criterio obligatorio fallido impide aceptar la HU            | **No es un escenario: es la condición de aceptación** |
 
@@ -217,28 +217,30 @@ mensaje de diagnóstico, o forzar una rama que el propio código hace imposible,
 tabla, ni el rango, ni los límites. Se documenta el hueco en lugar de taparlo con una prueba que
 solo sube un número.
 
-## 7. `CA-06` queda fuera, y por qué
+## 7. `CA-06` — el nivel multiplica las estadísticas
 
-`CA-06` —«el nivel del héroe actúa como factor multiplicador sobre el resto de sus estadísticas»—
-**no tiene casos de prueba, y es deliberado**.
+Regla y decisión de orden en `docs/hu-08-progresion.md`, sección 12: `efectiva = (base × nivel) +
+equipamiento`. Casos (`test/unit/effective-stats.spec.ts`, `hero-selection-use-cases.spec.ts`,
+`get-equipped-hero-for-combat.spec.ts`, `test/integration/equipped-hero-http.spec.ts`):
 
-**El motivo cambió respecto de la primera versión de esta matriz, y hay que decirlo:** antes no
-existía fórmula en ninguna fuente. **La aclaración del PO sí la da** (estadística del nivel 1
-multiplicada por el nivel actual, con el equipamiento aplicado después). Sigue fuera porque la Task
-`#188` enumera entre lo que HU-08 **no** hace «recalcular reglas de combate», exige que no quede
-acoplada a batalla o misiones, y porque implementarla tocaría `computeEffectiveStats` (HU-28) y el
-contrato interno `equipped-hero` (HU-15), que hoy no lleva nivel.
+| Escenario                          | Entrada                       | Resultado                                 |
+| ---------------------------------- | ----------------------------- | ----------------------------------------- |
+| Nivel 1 no cambia nada             | nivel 1                       | `levelStats = baseStats = effectiveStats` |
+| Ejemplo del PDF                    | ataque 10, nivel 3            | `30`                                      |
+| Los ocho niveles                   | niveles 1..8                  | poder, vida, defensa y ataque × nivel     |
+| **Orden**                          | ataque 10, nivel 3, arma `+2` | `32` (y no `36`)                          |
+| Equipamiento fijo no se multiplica | defensa 8, `+4`, nivel 1 y 5  | `12` y `44`                               |
+| Porcentaje sobre la base escalada  | vida 40, nivel 2, `+50 %`     | `120`                                     |
+| Multiplicador sobre base escalada  | defensa 8, nivel 3, `×2`      | `48`                                      |
+| `SET` independiente del nivel      | ataque `SET 99`, nivel 6      | `99`                                      |
+| Deltas = solo equipamiento         | ataque 10, nivel 3, `+2`      | delta `+2` sobre `30`                     |
+| Dados no se escalan                | daño `1d6`, nivel 4           | `1d6`                                     |
+| Sanador                            | ataque nulo                   | sigue nulo                                |
+| Nivel inválido                     | `0, 9, 2.5, NaN, '3', null`   | `DomainError`                             |
+| Por héroe, no por jugador          | dos jugadores, mismo héroe    | niveles y estadísticas distintos          |
+| Contrato Combat                    | `equipped-hero`               | trae `level` y `levelStats`               |
 
-**Y hay un caso que la aclaración no resuelve:** las estadísticas expresadas como **dados** (el `1d8`
-que Combat documenta en su `AttackProfile`) no tienen definida la multiplicación por nivel.
-Multiplicar una expresión de dado por un entero no es lo mismo que multiplicar un número, y
-decidirlo es del PO. Automatizar una prueba de `CA-06` hoy fijaría un comportamiento que nadie ha
-decidido.
-
-**Consecuencia que hay que dejar escrita:** como `CA-08` exige que todo criterio obligatorio
-apruebe, **HU-08 no puede aceptarse mientras `CA-06` siga asignado a esta historia**. Requiere
-decisión de PO y arquitectura: implementarlo en HU-08, moverlo a otra historia, o reformularlo como
-no obligatorio.
+**Abierto:** escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
 
 ## 8. `CA-03` es divergente, y no se prueba como cumplido
 
@@ -308,11 +310,10 @@ inserta `nextLevelThreshold` a mano y comprueba que **el motor lo rechaza**.
 enuncia una regla distinta de la aprobada. Ver la sección 8. **Requiere que el Product Owner
 reescriba `CA-03`.**
 
-### D-4 — Abierto: `CA-06` bloquea la aceptación de la HU
+### D-4 — `CA-06` (resuelto en código)
 
-**No es un defecto de código.** El PO ya dio la fórmula, pero no está implementada, no es de esta
-historia y no cubre las estadísticas expresadas como dados. Ver la sección 7. **Requiere decisión
-de Product Owner y arquitectura.**
+Implementado con la decisión `(base × nivel) + equipamiento` (sección 7). **Queda abierto** el
+escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
 
 ### D-5 — La migración `007` chocaba con la de HU-65 (corregido al integrar con `develop`)
 

@@ -4,6 +4,7 @@ import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { HeroProfileDto } from '../dto/HeroProfileDto'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 import { assembleEquipmentView, resolveOwnedHero } from './hero-equipment-shared'
 import { resolveHeroAbilities, toEquippedHeroEffect } from './hero-profile-shared'
@@ -45,12 +46,17 @@ export class GetHeroProfileForMission {
     private readonly inventories: InventoryQueryPort,
     private readonly catalog: CatalogReadPort,
     private readonly loadouts: HeroLoadoutRepositoryPort,
+    private readonly progressions: HeroProgressionRepositoryPort,
   ) {}
 
   async execute(playerId: string, heroId: string): Promise<HeroProfileDto> {
     const owner = PlayerId.create(playerId)
     const heroReference = requireHeroReference(heroId)
-    const deps = { inventories: this.inventories, catalog: this.catalog }
+    const deps = {
+      inventories: this.inventories,
+      catalog: this.catalog,
+      progressions: this.progressions,
+    }
 
     const hero = await resolveOwnedHero(deps, owner, heroReference)
     const loadout =
@@ -68,7 +74,9 @@ export class GetHeroProfileForMission {
       reference: hero.ownedItemId,
       subtype: hero.heroView.heroSubtype,
       name: hero.heroProduct.name,
+      level: view.level,
       baseStats: view.baseStats,
+      levelStats: view.levelStats,
       effectiveStats: view.effectiveStats,
       activeEffects: view.activeEffects.map(toEquippedHeroEffect),
       abilities,

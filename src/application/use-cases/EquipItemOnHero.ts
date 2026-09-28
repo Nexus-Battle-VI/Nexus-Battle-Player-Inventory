@@ -20,6 +20,7 @@ import {
 import type { BattleStatePort } from '../ports/BattleStatePort'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 import { assembleEquipmentView, resolveOwnedHero } from './hero-equipment-shared'
 import { decideEquipmentChange } from '../../domain/policies/EquipmentCombatLockPolicy'
@@ -49,6 +50,7 @@ export class EquipItemOnHero {
   private readonly loadouts: HeroLoadoutRepositoryPort
   private readonly clock: ClockPort
   private readonly battles: BattleStatePort
+  private readonly progressions: HeroProgressionRepositoryPort
 
   constructor(
     inventories: InventoryQueryPort,
@@ -56,7 +58,9 @@ export class EquipItemOnHero {
     loadouts: HeroLoadoutRepositoryPort,
     clock: ClockPort,
     battles: BattleStatePort,
+    progressions: HeroProgressionRepositoryPort,
   ) {
+    this.progressions = progressions
     this.inventories = inventories
     this.catalog = catalog
     this.loadouts = loadouts
@@ -68,7 +72,11 @@ export class EquipItemOnHero {
     const owner = PlayerId.create(command.ownerId)
     const slot = parseEquipmentSlot(command.slot)
     const productReference = command.productReference.trim()
-    const deps = { inventories: this.inventories, catalog: this.catalog }
+    const deps = {
+      inventories: this.inventories,
+      catalog: this.catalog,
+      progressions: this.progressions,
+    }
 
     // 1. El heroe pertenece al jugador y es un HEROE canonico.
     const hero = await resolveOwnedHero(deps, owner, command.heroReference)

@@ -1,3 +1,5 @@
+import { MAX_HERO_LEVEL, MIN_HERO_LEVEL } from '../value-objects/hero-level'
+import { DomainError } from '../errors/DomainError'
 import type {
   EffectStatistic,
   EquippableAttributeView,
@@ -14,6 +16,27 @@ import type {
  * reconstruye siempre desde `baseStats + loadout + definiciones vigentes`, de
  * modo que quitar o cambiar una pieza en una HU futura no exige "adivinar" el
  * valor anterior. Este modulo es una funcion pura sin estado.
+ *
+ * EL NIVEL MULTIPLICA LAS ESTADISTICAS (HU-08, CA-06). Decision funcional vigente,
+ * que sigue la regla del PDF («un mago de fuego de nivel 1 posee un ataque base
+ * de 10; uno de nivel 3, de 30») y del PO:
+ *
+ *   estadistica de nivel = estadistica base (nivel 1) x nivel actual
+ *   estadistica efectiva = estadistica de nivel  +/-  equipamiento
+ *
+ * es decir, `(base x nivel) + efectos del equipamiento`, NO
+ * `(base + equipamiento) x nivel`: no son equivalentes. La «base» sobre la que
+ * operan los efectos porcentuales (`+10 %`), multiplicativos y `SET` del
+ * equipamiento es la base YA ESCALADA por el nivel, porque esa es la base del
+ * heroe a ese nivel. En nivel 1 el factor es 1 y el resultado es identico al de
+ * antes de CA-06.
+ *
+ * QUE SE ESCALA: `power`, `health`, `defense` y `attack` (las estadisticas
+ * numericas que este modulo sabe recalcular; `LEVEL_SCALED_STATS`). QUE NO:
+ * `damage` y `healing`, que son dados o valores fijos: NO porque el documento los
+ * excluya, sino porque la semantica de escalar un dado (`1d6` x 3) no esta
+ * definida y no es lo mismo que multiplicar un numero. Quedan sin escalar hasta
+ * que se defina. `power` SI escala (confirmado por el PO).
  *
  * HU-28 aplica AHORA solo los modificadores deterministas y permanentes sobre
  * el propio heroe: `STAT_MODIFIER` con `target = SELF`, sin condicion de
@@ -38,7 +61,19 @@ export interface NumericStatDelta {
 }
 
 export interface EffectiveStatsResult {
+  /** Nivel del heroe con el que se calcularon las estadisticas de nivel y efectivas. */
+  readonly level: number
+  /** Estadisticas base de Catalog (nivel 1), sin escalar. */
   readonly baseStats: {
+    readonly power: number
+    readonly health: number
+    readonly defense: number
+    readonly attack: number | null
+    readonly damage: Magnitude | null
+    readonly healing: Magnitude | null
+  }
+  /** Base x nivel (CA-06), antes de aplicar el equipamiento. `damage` y `healing` no se escalan. */
+  readonly levelStats: {
     readonly power: number
     readonly health: number
     readonly defense: number
@@ -54,7 +89,7 @@ export interface EffectiveStatsResult {
     readonly damage: Magnitude | null
     readonly healing: Magnitude | null
   }
-  /** Solo las estadisticas numericas que cambiaron respecto a la base. */
+  /** Solo las estadisticas numericas que el EQUIPAMIENTO cambio respecto a `levelStats`. */
   readonly deltas: readonly NumericStatDelta[]
   /** Todos los efectos del equipamiento, con procedencia y si ya estan aplicados. */
   readonly activeEffects: readonly EquippedEffect[]
@@ -63,6 +98,48 @@ export interface EffectiveStatsResult {
 /** Estadisticas numericas del heroe que HU-28 sabe recalcular. */
 /** Estadisticas numericas del heroe que HU-28 sabe recalcular a un valor. */
 const NUMERIC_STATS: ReadonlySet<string> = new Set(['POWER', 'HEALTH', 'DEFENSE', 'ATTACK'])
+
+/** Estadisticas que el nivel multiplica (CA-06). Un unico punto para poder recortarlas. */
+export const LEVEL_SCALED_STATS: readonly EffectStatistic[] = [
+  'POWER',
+  'HEALTH',
+  'DEFENSE',
+  'ATTACK',
+]
+
+/** Rechaza un nivel fuera de `1..8` en lugar de escalar con un dato invalido. */
+const requireLevel = (level: unknown): number => {
+  if (
+    typeof level !== 'number' ||
+    !Number.isInteger(level) ||
+    level < MIN_HERO_LEVEL ||
+    level > MAX_HERO_LEVEL
+  ) {
+    throw new DomainError(
+      `El nivel del heroe debe ser un entero entre ${String(MIN_HERO_LEVEL)} y ${String(MAX_HERO_LEVEL)}.`,
+    )
+  }
+
+  return level
+}
+
+/**
+ * Estadisticas base multiplicadas por el nivel (CA-06). Pura. `attack` nulo
+ * (heroes sin capacidad ofensiva) sigue nulo; `damage` y `healing` no se tocan.
+ */
+export const scaleBaseStatsByLevel = (baseStats: HeroBaseStats, level: number): HeroBaseStats => {
+  const factor = requireLevel(level)
+  const scaled = (stat: EffectStatistic, value: number): number =>
+    LEVEL_SCALED_STATS.includes(stat) ? value * factor : value
+
+  return {
+    ...baseStats,
+    power: scaled('POWER', baseStats.power),
+    health: scaled('HEALTH', baseStats.health),
+    defense: scaled('DEFENSE', baseStats.defense),
+    attack: baseStats.attack === null ? null : scaled('ATTACK', baseStats.attack),
+  }
+}
 
 interface Accumulator {
   additive: number
@@ -113,9 +190,12 @@ const isApplicableStatModifier = (effect: ParsedEffect): effect is ApplicableSta
 const roundClampNonNegative = (value: number): number => Math.max(0, Math.round(value))
 
 export const computeEffectiveStats = (
-  baseStats: HeroBaseStats,
+  catalogBaseStats: HeroBaseStats,
   equipped: readonly EquippedProductForStats[],
+  level: number,
 ): EffectiveStatsResult => {
+  // CA-06: el equipamiento opera sobre la base YA multiplicada por el nivel.
+  const baseStats = scaleBaseStatsByLevel(catalogBaseStats, level)
   const accumulators = new Map<EffectStatistic, Accumulator>()
   const activeEffects: EquippedEffect[] = []
 
@@ -200,7 +280,16 @@ export const computeEffectiveStats = (
   if (baseAttack !== null && effAttack !== null) pushDelta('ATTACK', baseAttack, effAttack)
 
   return {
+    level,
     baseStats: {
+      power: catalogBaseStats.power,
+      health: catalogBaseStats.health,
+      defense: catalogBaseStats.defense,
+      attack: catalogBaseStats.attack,
+      damage: catalogBaseStats.damage,
+      healing: catalogBaseStats.healing,
+    },
+    levelStats: {
       power: basePower,
       health: baseHealth,
       defense: baseDefense,

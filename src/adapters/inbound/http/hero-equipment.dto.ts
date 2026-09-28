@@ -207,10 +207,25 @@ export class HeroEquipmentResponse {
   @ApiProperty({ type: EquipmentResponse })
   readonly equipment!: EquipmentResponse
 
-  @ApiProperty({ type: HeroStatsResponse })
+  @ApiProperty({
+    description:
+      'Nivel del heroe (HU-08) con el que se calculan levelStats y effectiveStats (CA-06).',
+  })
+  readonly level!: number
+
+  @ApiProperty({ type: HeroStatsResponse, description: 'Estadisticas base de Catalog (nivel 1).' })
   readonly baseStats!: HeroStatsResponse
 
-  @ApiProperty({ type: HeroStatsResponse })
+  @ApiProperty({
+    type: HeroStatsResponse,
+    description: 'Base x nivel (CA-06), antes del equipamiento. damage y healing no se escalan.',
+  })
+  readonly levelStats!: HeroStatsResponse
+
+  @ApiProperty({
+    type: HeroStatsResponse,
+    description: '(base x nivel) + efectos del equipamiento.',
+  })
   readonly effectiveStats!: HeroStatsResponse
 
   @ApiProperty({ type: HeroStatDeltaResponse, isArray: true })

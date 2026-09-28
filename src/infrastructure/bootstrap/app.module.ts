@@ -258,14 +258,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         commitments: MissionHeroCommitmentPort,
         clock: ClockPort,
+        progressions: HeroProgressionRepositoryPort,
       ): CommitHeroForMission =>
-        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock),
+        new CommitHeroForMission(inventories, catalog, loadouts, commitments, clock, progressions),
       inject: [
         INVENTORY_QUERY,
         CATALOG_READ,
         HERO_LOADOUT_REPOSITORY,
         MISSION_HERO_COMMITMENTS,
         CLOCK,
+        HERO_PROGRESSION_REPOSITORY,
       ],
     },
     // HU-29 (Task HU-29.2, `hu-29-battle-commitment-v1`): el compromiso de
@@ -513,8 +515,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
         battles: BattleStatePort,
-      ): GetHeroEquipment => new GetHeroEquipment(inventories, catalog, loadouts, battles),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, BATTLE_STATE],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroEquipment =>
+        new GetHeroEquipment(inventories, catalog, loadouts, battles, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        BATTLE_STATE,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-71 (Task HU-71.2, Management#370): perfil de un heroe concreto para
     // Missions. Mismas dependencias que `GetHeroEquipment`: la pertenencia, el
@@ -526,8 +536,10 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         inventories: InventoryQueryPort,
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
-      ): GetHeroProfileForMission => new GetHeroProfileForMission(inventories, catalog, loadouts),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroProfileForMission =>
+        new GetHeroProfileForMission(inventories, catalog, loadouts, progressions),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_PROGRESSION_REPOSITORY],
     },
     {
       provide: EQUIP_ITEM_ON_HERO,
@@ -537,8 +549,17 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         clock: ClockPort,
         battles: BattleStatePort,
-      ): EquipItemOnHero => new EquipItemOnHero(inventories, catalog, loadouts, clock, battles),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, CLOCK, BATTLE_STATE],
+        progressions: HeroProgressionRepositoryPort,
+      ): EquipItemOnHero =>
+        new EquipItemOnHero(inventories, catalog, loadouts, clock, battles, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        CLOCK,
+        BATTLE_STATE,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-07: seleccion y preparacion del heroe. Reutiliza los MISMOS puertos que
     // HU-27 (inventario) y HU-28 (loadout y Catalog); no introduce un almacen
@@ -566,8 +587,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         catalog: CatalogReadPort,
         loadouts: HeroLoadoutRepositoryPort,
         selections: HeroSelectionRepositoryPort,
-      ): GetHeroSelection => new GetHeroSelection(inventories, catalog, loadouts, selections),
-      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_LOADOUT_REPOSITORY, HERO_SELECTION_REPOSITORY],
+        progressions: HeroProgressionRepositoryPort,
+      ): GetHeroSelection =>
+        new GetHeroSelection(inventories, catalog, loadouts, selections, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        HERO_SELECTION_REPOSITORY,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
     },
     // HU-15: contrato interno de Combat. Reutiliza el MISMO GetHeroSelection
     // de arriba -una unica instancia por peticion, una unica fuente de
@@ -605,13 +634,16 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         loadouts: HeroLoadoutRepositoryPort,
         selections: HeroSelectionRepositoryPort,
         clock: ClockPort,
-      ): SelectHero => new SelectHero(inventories, catalog, loadouts, selections, clock),
+        progressions: HeroProgressionRepositoryPort,
+      ): SelectHero =>
+        new SelectHero(inventories, catalog, loadouts, selections, clock, progressions),
       inject: [
         INVENTORY_QUERY,
         CATALOG_READ,
         HERO_LOADOUT_REPOSITORY,
         HERO_SELECTION_REPOSITORY,
         CLOCK,
+        HERO_PROGRESSION_REPOSITORY,
       ],
     },
     {

@@ -4,6 +4,7 @@ import type { HeroEquipmentDto } from '../dto/HeroEquipmentDto'
 import type { BattleStatePort } from '../ports/BattleStatePort'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { InventoryQueryPort } from '../ports/InventoryQueryPort'
 import { assembleEquipmentView, resolveOwnedHero } from './hero-equipment-shared'
 
@@ -26,13 +27,16 @@ export class GetHeroEquipment {
   private readonly catalog: CatalogReadPort
   private readonly loadouts: HeroLoadoutRepositoryPort
   private readonly battles: BattleStatePort
+  private readonly progressions: HeroProgressionRepositoryPort
 
   constructor(
     inventories: InventoryQueryPort,
     catalog: CatalogReadPort,
     loadouts: HeroLoadoutRepositoryPort,
     battles: BattleStatePort,
+    progressions: HeroProgressionRepositoryPort,
   ) {
+    this.progressions = progressions
     this.inventories = inventories
     this.catalog = catalog
     this.loadouts = loadouts
@@ -41,7 +45,11 @@ export class GetHeroEquipment {
 
   async execute(ownerId: string, heroReference: string): Promise<HeroEquipmentDto> {
     const owner = PlayerId.create(ownerId)
-    const deps = { inventories: this.inventories, catalog: this.catalog }
+    const deps = {
+      inventories: this.inventories,
+      catalog: this.catalog,
+      progressions: this.progressions,
+    }
 
     const hero = await resolveOwnedHero(deps, owner, heroReference)
     const heroId = hero.heroProduct.productId

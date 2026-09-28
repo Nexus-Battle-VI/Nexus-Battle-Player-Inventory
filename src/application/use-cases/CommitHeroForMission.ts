@@ -4,6 +4,7 @@ import { PlayerId } from '../../domain/value-objects/identifiers'
 import { HeroNotOwnedError } from '../errors/ApplicationError'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
 import type { ClockPort } from '../ports/ClockPort'
+import type { HeroProgressionRepositoryPort } from '../ports/HeroProgressionRepositoryPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
 import {
   MissionCommitmentConflictError,
@@ -38,6 +39,7 @@ export class CommitHeroForMission {
     private readonly loadouts: HeroLoadoutRepositoryPort,
     private readonly commitments: MissionHeroCommitmentPort,
     private readonly clock: ClockPort,
+    private readonly progressions: HeroProgressionRepositoryPort,
   ) {}
 
   async execute(input: MissionHeroCommitmentInput): Promise<MissionHeroCommitment> {
@@ -59,7 +61,11 @@ export class CommitHeroForMission {
     }
 
     const owner = PlayerId.create(input.playerId)
-    const deps = { inventories: this.inventories, catalog: this.catalog }
+    const deps = {
+      inventories: this.inventories,
+      catalog: this.catalog,
+      progressions: this.progressions,
+    }
     let hero
     try {
       hero = await resolveOwnedHero(deps, owner, input.heroId)

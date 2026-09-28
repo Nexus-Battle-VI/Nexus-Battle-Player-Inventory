@@ -1,3 +1,4 @@
+import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { ConflictException, NotFoundException } from '@nestjs/common'
 
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
@@ -159,8 +160,21 @@ const buildKit = (
   const battles = battleStateKit(clock)
 
   return {
-    equip: new EquipItemOnHero(inventories, catalog, loadouts, clock, battles.state),
-    get: new GetHeroEquipment(inventories, catalog, loadouts, battles.state),
+    equip: new EquipItemOnHero(
+      inventories,
+      catalog,
+      loadouts,
+      clock,
+      battles.state,
+      new InMemoryHeroProgressionRepository(),
+    ),
+    get: new GetHeroEquipment(
+      inventories,
+      catalog,
+      loadouts,
+      battles.state,
+      new InMemoryHeroProgressionRepository(),
+    ),
     loadouts,
     battles,
   }
