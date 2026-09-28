@@ -33,9 +33,10 @@ import type {
  *
  * QUE SE ESCALA: `power`, `health`, `defense` y `attack` (las estadisticas
  * numericas que este modulo sabe recalcular; `LEVEL_SCALED_STATS`). QUE NO:
- * `damage` y `healing`, que son dados o valores fijos y para los que el PO NO ha
- * definido que significa multiplicar por el nivel (multiplicar `1d6` por 3 no es
- * lo mismo que multiplicar un numero). Quedan sin escalar hasta que se decida.
+ * `damage` y `healing`, que son dados o valores fijos: NO porque el documento los
+ * excluya, sino porque la semantica de escalar un dado (`1d6` x 3) no esta
+ * definida y no es lo mismo que multiplicar un numero. Quedan sin escalar hasta
+ * que se defina. `power` SI escala (confirmado por el PO).
  *
  * HU-28 aplica AHORA solo los modificadores deterministas y permanentes sobre
  * el propio heroe: `STAT_MODIFIER` con `target = SELF`, sin condicion de

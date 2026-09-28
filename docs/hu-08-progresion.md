@@ -714,9 +714,11 @@ fijo no se multiplica por el nivel. Un `SET` fija el valor con independencia del
 | `attack`                     | **Sí**                       | Nulo (sanadores) sigue nulo                                                                                        |
 | `damage`, `healing`          | **No**                       | Dados o valores fijos: el PO **no** ha definido qué significa multiplicar `1d6` por el nivel. **Decisión abierta** |
 
-`power` se escala porque «el resto de las estadísticas» lo incluye; como `HeroPowerPolicy` recibe su
-máximo de `effectiveStats.power`, el máximo de Poder crece con el nivel. Si el PO prefiere excluirlo,
-basta quitar `POWER` de `LEVEL_SCALED_STATS`.
+**`power` escala con el nivel — confirmado por el PO.** El PDF dice que el nivel «actúa como factor
+multiplicador en las demás estadísticas» y lista Poder entre las estadísticas base del héroe; y la
+regla del PO es «estadística base del nivel 1 × nivel actual, y después se aplica el equipamiento».
+Consecuencia asumida: como `HeroPowerPolicy` recibe su máximo de `effectiveStats.power`, el máximo de
+Poder crece con el nivel. Solo se quitaría de `LEVEL_SCALED_STATS` ante una aclaración nueva del PO.
 
 ### Contratos
 
@@ -733,9 +735,9 @@ basta quitar `POWER` de `LEVEL_SCALED_STATS`.
 
 ### Pendiente (no se inventa)
 
-1. Escalado de `damage`/`healing` (dados) por nivel.
-2. Confirmar con el PO si `power` debe escalar.
-3. Combat y Web (columna «Por nivel») consumen los campos nuevos en sus propios PR.
+1. Escalado de `damage`/`healing` (dados) por nivel: la semántica de multiplicar un dado no está
+   definida (no es una exclusión del documento).
+2. Combat y Web (columna «Por nivel») consumen los campos nuevos en sus propios PR.
 
 ## 13. Contrato del servicio de progresión
 

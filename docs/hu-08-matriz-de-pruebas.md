@@ -240,7 +240,7 @@ equipamiento`. Casos (`test/unit/effective-stats.spec.ts`, `hero-selection-use-c
 | Por héroe, no por jugador          | dos jugadores, mismo héroe    | niveles y estadísticas distintos          |
 | Contrato Combat                    | `equipped-hero`               | trae `level` y `levelStats`               |
 
-**Abierto:** escalado de `damage`/`healing` y confirmación de que `power` escala.
+**Abierto:** escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
 
 ## 8. `CA-03` es divergente, y no se prueba como cumplido
 
@@ -312,8 +312,8 @@ reescriba `CA-03`.**
 
 ### D-4 — `CA-06` (resuelto en código)
 
-Implementado con la decisión `(base × nivel) + equipamiento` (sección 7). **Quedan abiertos** el
-escalado de `damage`/`healing` (dados) y confirmar que `power` escala.
+Implementado con la decisión `(base × nivel) + equipamiento` (sección 7). **Queda abierto** el
+escalado de `damage`/`healing` (semántica de escalar dados sin definir). `power` escala: confirmado por el PO.
 
 ### D-5 — La migración `007` chocaba con la de HU-65 (corregido al integrar con `develop`)
 
