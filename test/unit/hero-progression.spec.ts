@@ -57,7 +57,7 @@ describe('HeroProgression', () => {
       expect(progression.thresholdForNextLevel()).toEqual({
         status: 'AVAILABLE',
         forNextLevel: 2,
-        amount: 200,
+        amount: 100,
       })
     })
 
@@ -66,7 +66,7 @@ describe('HeroProgression', () => {
         ownerId: 'jugador-1',
         heroId: 'heroe-1',
         level: 8,
-        currentXp: 13000,
+        currentXp: 1500,
         version: 3,
       })
 
@@ -105,53 +105,72 @@ describe('HeroProgression', () => {
         version: 7,
       })
 
-    it('suma sin restar: 749 + 100 deja 849 acumulados y sube al nivel 4', () => {
-      const after = at(3, 749).awardExperience(100)
+    it('suma sin restar: 99 + 1 deja 100 acumulados y sube al nivel 2', () => {
+      const after = at(1, 99).awardExperience(1)
 
-      expect(after.experience.currentXp).toBe(849)
-      expect(after.level.value).toBe(4)
+      expect(after.experience.currentXp).toBe(100)
+      expect(after.level.value).toBe(2)
     })
 
-    it('un solo otorgamiento cruza varios umbrales: 190 + 700 deja en el nivel 4', () => {
-      // No se avanza un nivel por recompensa: se aplica la tabla al acumulado
-      // nuevo. Con 190 acumulados el heroe esta en el nivel 1.
-      const before = at(1, 190)
-      const after = before.awardExperience(700)
+    it('cada umbral sube exactamente un nivel y conserva la XP acumulada', () => {
+      const steps = [
+        [1, 99, 100, 2],
+        [2, 299, 300, 3],
+        [3, 499, 500, 4],
+        [4, 699, 700, 5],
+        [5, 899, 900, 6],
+        [6, 1099, 1100, 7],
+        [7, 1299, 1300, 8],
+      ] as const
 
-      expect(after.experience.currentXp).toBe(890)
+      for (const [level, xp, expectedXp, expectedLevel] of steps) {
+        const after = at(level, xp).awardExperience(1)
+
+        expect(after.experience.currentXp).toBe(expectedXp)
+        expect(after.level.value).toBe(expectedLevel)
+      }
+    })
+
+    it('un solo otorgamiento cruza varios umbrales: 90 + 430 deja 520 en el nivel 4', () => {
+      // No se avanza un nivel por recompensa: se aplica la tabla al acumulado
+      // nuevo. Con 90 acumulados el heroe esta en el nivel 1.
+      const before = at(1, 90)
+      const after = before.awardExperience(430)
+
+      expect(after.experience.currentXp).toBe(520)
       expect(after.level.value).toBe(4)
     })
 
     it('en el nivel maximo la experiencia sigue creciendo y el nivel se queda en 8', () => {
       // No se descarta la experiencia ganada ni se rechaza la operacion.
-      const after = at(8, 13000).awardExperience(500)
+      const after = at(8, 1300).awardExperience(5000)
 
-      expect(after.experience.currentXp).toBe(13500)
+      expect(after.experience.currentXp).toBe(6300)
       expect(after.level.value).toBe(MAX_HERO_LEVEL)
       expect(after.isAtMaxLevel()).toBe(true)
     })
 
     it('no muta la instancia original: devuelve una progresion nueva', () => {
-      const before = at(3, 749)
-      const after = before.awardExperience(100)
+      const before = at(1, 99)
+      const after = before.awardExperience(1)
 
-      expect(before.experience.currentXp).toBe(749)
-      expect(before.level.value).toBe(3)
+      expect(before.experience.currentXp).toBe(99)
+      expect(before.level.value).toBe(1)
       expect(after).not.toBe(before)
     })
 
     it('no incrementa la version: el bloqueo optimista lo gobierna el repositorio', () => {
-      const after = at(3, 749).awardExperience(100)
+      const after = at(1, 99).awardExperience(1)
 
       expect(after.version).toBe(7)
     })
 
     it('acreditar 0 no cambia ni el acumulado ni el nivel', () => {
-      const before = at(4, 900)
+      const before = at(6, 900)
       const after = before.awardExperience(0)
 
       expect(after.experience.currentXp).toBe(900)
-      expect(after.level.value).toBe(4)
+      expect(after.level.value).toBe(6)
     })
 
     it('rechaza una recompensa negativa, fraccionaria o de otro tipo', () => {
@@ -175,12 +194,14 @@ describe('HeroProgression', () => {
     it('levelForTotalXp coincide con el nivel guardado', () => {
       for (const [level, currentXp] of [
         [1, 0],
-        [1, 199],
-        [2, 200],
-        [3, 749],
-        [4, 849],
-        [6, 3500],
-        [8, 13000],
+        [1, 99],
+        [2, 100],
+        [2, 299],
+        [3, 300],
+        [4, 520],
+        [7, 1299],
+        [8, 1300],
+        [8, 6300],
       ] as const) {
         const progression = HeroProgression.restore({
           ownerId: 'jugador-1',
@@ -243,14 +264,14 @@ describe('HeroProgression', () => {
   })
 
   describe('restore valida el documento, no lo confia', () => {
-    // Nivel 3 con 400 acumulados: coherente con la tabla (400 <= 400 < 800).
-    const base = { ownerId: 'jugador-1', heroId: 'heroe-1', level: 3, currentXp: 400, version: 1 }
+    // Nivel 3 con 300 acumulados: coherente con la tabla (300 <= 300 < 500).
+    const base = { ownerId: 'jugador-1', heroId: 'heroe-1', level: 3, currentXp: 300, version: 1 }
 
     it('reconstituye una progresion valida', () => {
       const progression = HeroProgression.restore(base)
 
       expect(progression.level.value).toBe(3)
-      expect(progression.experience.currentXp).toBe(400)
+      expect(progression.experience.currentXp).toBe(300)
       expect(progression.version).toBe(1)
     })
 
@@ -275,28 +296,39 @@ describe('HeroProgression', () => {
      * --de una tabla anterior, de una edicion manual-- y no se acepta.
      */
     it('rechaza un nivel que no corresponde a la experiencia acumulada', () => {
-      // 749 acumulados son nivel 3, no nivel 4 ni nivel 1.
-      expect(() => HeroProgression.restore({ ...base, level: 4, currentXp: 749 })).toThrow(
+      // 100 acumulados son nivel 2: declarar nivel 1 es un dato corrupto.
+      expect(() => HeroProgression.restore({ ...base, level: 1, currentXp: 100 })).toThrow(
         DomainError,
       )
-      expect(() => HeroProgression.restore({ ...base, level: 1, currentXp: 749 })).toThrow(
+      // 499 acumulados son nivel 3, no nivel 4 ni nivel 1.
+      expect(() => HeroProgression.restore({ ...base, level: 4, currentXp: 499 })).toThrow(
         DomainError,
       )
-      // Y al reves: 13000 acumulados son nivel 8, no nivel 7.
-      expect(() => HeroProgression.restore({ ...base, level: 7, currentXp: 13000 })).toThrow(
+      expect(() => HeroProgression.restore({ ...base, level: 1, currentXp: 499 })).toThrow(
+        DomainError,
+      )
+      // Y al reves: 1300 acumulados son nivel 8, no nivel 7.
+      expect(() => HeroProgression.restore({ ...base, level: 7, currentXp: 1300 })).toThrow(
         DomainError,
       )
     })
 
+    it('acepta un documento coherente con el umbral: nivel 2 con 100 acumulados', () => {
+      const progression = HeroProgression.restore({ ...base, level: 2, currentXp: 100 })
+
+      expect(progression.level.value).toBe(2)
+      expect(progression.experience.currentXp).toBe(100)
+    })
+
     it('el error dice que nivel corresponde, para poder diagnosticarlo', () => {
-      expect(() => HeroProgression.restore({ ...base, level: 4, currentXp: 749 })).toThrow(
+      expect(() => HeroProgression.restore({ ...base, level: 4, currentXp: 499 })).toThrow(
         /nivel 3/,
       )
     })
 
     it('acepta los dos extremos coherentes del rango', () => {
       expect(HeroProgression.restore({ ...base, level: 1, currentXp: 0 }).level.value).toBe(1)
-      expect(HeroProgression.restore({ ...base, level: 8, currentXp: 12800 }).level.value).toBe(8)
+      expect(HeroProgression.restore({ ...base, level: 8, currentXp: 1300 }).level.value).toBe(8)
     })
 
     it('ida y vuelta: la instantanea restaurada es la misma', () => {
@@ -307,8 +339,8 @@ describe('HeroProgression', () => {
       const after = HeroProgression.restore(base).awardExperience(1200)
       const restored = HeroProgression.restore(after.toSnapshot())
 
-      expect(restored.experience.currentXp).toBe(1600)
-      expect(restored.level.value).toBe(5)
+      expect(restored.experience.currentXp).toBe(1500)
+      expect(restored.level.value).toBe(8)
     })
   })
 })

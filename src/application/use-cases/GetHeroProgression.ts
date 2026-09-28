@@ -52,16 +52,15 @@ export class GetHeroProgression {
 }
 
 /**
- * Experiencia acumulada minima para estar en `level`, para que quien pinte una
- * barra de progreso no tenga que conocer la tabla de `ExperiencePolicy`.
+ * Experiencia acumulada minima para estar en `level` (el "piso" de la barra de
+ * progreso), para que quien la pinte no tenga que conocer la tabla de
+ * `ExperiencePolicy`.
  *
- * El nivel 1 es el suelo (HU-08, docs/hu-08-progresion.md seccion 2): no hace
- * falta experiencia para tenerlo, asi que su piso es `0` y no el valor literal
- * de la tabla (`EXPERIENCE_THRESHOLDS[0] = 100`), que la propia politica
- * documenta como "redundante en la practica" para ese nivel. Para `level >= 2`
- * el piso ES el umbral que llevo al heroe hasta ahi: el mismo numero que
- * `experienceRequiredForNextLevel(level - 1)` calculo como `amount` para
- * alcanzarlo. No se reimplementa la tabla: se pide ese resultado.
+ * El nivel 1 es el suelo: no hace falta experiencia para tenerlo, asi que su
+ * piso es `0`. Para `level >= 2` el piso ES el umbral que llevo al heroe hasta
+ * ahi: el `amount` de `experienceRequiredForNextLevel(level - 1)` (nivel 2 ->
+ * 100, nivel 3 -> 300, ... nivel 8 -> 1300). No se reimplementa la tabla: se
+ * pide ese resultado.
  */
 const floorForCurrentLevel = (level: number): number => {
   if (level <= MIN_HERO_LEVEL) {

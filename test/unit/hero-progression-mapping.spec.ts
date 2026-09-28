@@ -20,7 +20,7 @@ describe('hero-progression-mapping', () => {
     ownerId: 'jugador-1',
     heroId: 'heroe-1',
     level: 4,
-    currentXp: 890,
+    currentXp: 520,
     version: 2,
   }
 
@@ -29,7 +29,7 @@ describe('hero-progression-mapping', () => {
     ownerId: 'jugador-1',
     heroId: 'heroe-1',
     level: new Int32(4),
-    currentXp: new Int32(890),
+    currentXp: new Int32(520),
     version: new Int32(2),
   }
 
@@ -42,7 +42,7 @@ describe('hero-progression-mapping', () => {
   })
 
   it('acepta numeros planos, que es lo que produce el adaptador en memoria', () => {
-    expect(toSnapshot({ ...document, level: 4, currentXp: 890, version: 2 })).toEqual(snapshot)
+    expect(toSnapshot({ ...document, level: 4, currentXp: 520, version: 2 })).toEqual(snapshot)
   })
 
   it('escribe `int` y no `double`: el validador lo exige', () => {

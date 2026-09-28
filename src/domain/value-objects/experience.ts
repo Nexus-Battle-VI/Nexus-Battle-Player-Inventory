@@ -7,12 +7,12 @@ import { DomainError } from '../errors/DomainError'
  * subir de nivel no la consume ni la reinicia, y llegar al nivel maximo no la
  * descarta. El nivel no es un contador de experiencia gastada, es el resultado de
  * comparar este acumulado con la tabla de umbrales, y por eso
- * `749 + 100 = 849` deja al heroe en el nivel 4 conservando los 849.
+ * `99 + 1 = 100` deja al heroe en el nivel 2 conservando los 100.
  *
- * NO TIENE TECHO. El techo aparente seria el ultimo umbral, pero la tabla es la
- * tabla del NIVEL, no un limite de acumulacion: en el nivel 8 el heroe sigue
- * ganando experiencia y su acumulado sigue creciendo (`13000 + 500 = 13500`,
- * nivel 8). Imponer aqui un maximo obligaria a descartar recompensas ya ganadas.
+ * NO TIENE TECHO. El techo aparente seria el ultimo umbral (1300), pero la tabla
+ * marca cuando se cambia de NIVEL, no es un limite de acumulacion: en el nivel 8
+ * el heroe sigue ganando experiencia y su acumulado sigue creciendo
+ * (`1300 + 5000 = 6300`, nivel 8). Imponer aqui un maximo obligaria a descartar recompensas ya ganadas.
  * Lo unico que se exige es que sea un entero no negativo: no puede ser negativo
  * ni fraccionario, porque la tabla vigente esta en enteros.
  *

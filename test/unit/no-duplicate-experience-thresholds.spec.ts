@@ -10,17 +10,19 @@ import { join } from 'node:path'
  * esta prueba FALLA si alguien reproduce la tabla fuera de `ExperiencePolicy`,
  * que es el mismo criterio con el que HU-07 probo su "noveno heroe".
  *
- * QUE CAMBIO RESPECTO DE LA VERSION ANTERIOR, Y POR QUE. Antes el control
- * buscaba la formula `100 x 1,2^(n - 1)` y tenia que excluir de su propio
- * barrido el archivo de la politica, porque la politica citaba la formula en un
- * comentario. El Product Owner sustituyo la formula por una tabla de ocho
- * enteros, asi que el control cambio de objeto: ahora vigila que la TABLA no se
- * copie.
+ * QUE VIGILA. La regla vigente es una tabla de siete umbrales acumulados
+ * (`100, 300, 500, 700, 900, 1100, 1300`) que sustituye a la formula original y a
+ * la tabla temporal anterior; el control vigila que esa TABLA no se copie.
+ *
+ * UNICA EXCEPCION: la migracion `013-hero-progressions-cumulative-thresholds`,
+ * que congela una foto de la tabla para poder recalcular niveles ya persistidos.
+ * Una migracion debe seguir siendo ejecutable tal como se escribio aunque la
+ * politica cambie, asi que no puede importarla.
  *
  * COMO SE DISTINGUE UNA TABLA DE UN USO SUELTO. Contar apariciones de un valor
  * no sirve: `400` puede ser un numero legitimo en cualquier archivo. Lo que
  * delata una segunda tabla es la COINCIDENCIA de varios valores de la serie en
- * el mismo archivo, asi que el umbral es "cuatro o mas de los ocho". Se ignoran
+ * el mismo archivo, asi que el umbral es "cuatro o mas de los siete". Se ignoran
  * ademas las lineas de comentario, para que explicar la tabla no cuente como
  * duplicarla.
  *
@@ -33,13 +35,16 @@ const SRC = join(__dirname, '..', '..', 'src')
 /** La politica es el UNICO sitio donde la tabla puede estar escrita. */
 const OWNER = 'ExperiencePolicy.ts'
 
-/** Los ocho valores de la aclaracion funcional posterior, en orden de nivel. */
-const THRESHOLD_VALUES: readonly number[] = [100, 200, 400, 800, 1600, 3200, 6400, 12800]
+/** Los siete umbrales de la decision funcional vigente, en orden de nivel. */
+const THRESHOLD_VALUES: readonly number[] = [100, 300, 500, 700, 900, 1100, 1300]
+
+/** Migracion congelada que guarda una foto de la tabla (ver cabecera). */
+const FROZEN_SNAPSHOTS: readonly string[] = ['013-hero-progressions-cumulative-thresholds.ts']
 
 /**
  * Cuantos valores de la serie aparecen en el mismo archivo hacen falta para
  * considerar que alli hay una segunda tabla. Cuatro es holgadamente mas de lo que
- * produce un uso casual y muy por debajo de los ocho de la tabla real.
+ * produce un uso casual y muy por debajo de los siete de la tabla real.
  */
 const MIN_VALUES_TO_BE_A_TABLE = 4
 
@@ -78,7 +83,7 @@ const codeOf = (source: string): string =>
     })
     .join('\n')
 
-/** Cuantos de los ocho valores de la aclaracion aparecen como literal en el codigo. */
+/** Cuantos de los siete valores de la aclaracion aparecen como literal en el codigo. */
 const countThresholdLiterals = (code: string): number =>
   THRESHOLD_VALUES.filter((value) => new RegExp(`\\b${String(value)}\\b`).test(code)).length
 
@@ -94,13 +99,13 @@ describe('HU-08 — la tabla del umbral vive en un unico punto', () => {
     const offenders: string[] = []
 
     for (const file of files) {
-      if (file.endsWith(OWNER)) continue
+      if (file.endsWith(OWNER) || FROZEN_SNAPSHOTS.some((name) => file.endsWith(name))) continue
 
       const code = codeOf(readFileSync(file, 'utf8'))
       const found = countThresholdLiterals(code)
 
       if (found >= MIN_VALUES_TO_BE_A_TABLE) {
-        offenders.push(`${file.replace(SRC, 'src')} -> ${String(found)} de los 8 valores`)
+        offenders.push(`${file.replace(SRC, 'src')} -> ${String(found)} de los 7 valores`)
       }
     }
 
@@ -111,7 +116,7 @@ describe('HU-08 — la tabla del umbral vive en un unico punto', () => {
     const offenders: string[] = []
 
     for (const file of files) {
-      if (file.endsWith(OWNER)) continue
+      if (file.endsWith(OWNER) || FROZEN_SNAPSHOTS.some((name) => file.endsWith(name))) continue
 
       const code = codeOf(readFileSync(file, 'utf8'))
 
@@ -142,7 +147,7 @@ describe('HU-08 — la tabla del umbral vive en un unico punto', () => {
   it('el umbral de "cuatro o mas" no es un colador: un archivo con la tabla entera se detecta', () => {
     // Comprobacion del propio control, para que no pueda quedarse en verde por
     // estar mal calibrado.
-    const tablaCopiada = 'const copia = [100, 200, 400, 800, 1600, 3200, 6400, 12800]'
+    const tablaCopiada = 'const copia = [100, 300, 500, 700, 900, 1100, 1300]'
 
     expect(countThresholdLiterals(tablaCopiada)).toBeGreaterThanOrEqual(MIN_VALUES_TO_BE_A_TABLE)
   })

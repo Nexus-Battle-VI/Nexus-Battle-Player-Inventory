@@ -132,10 +132,10 @@ describe('InMemoryExperienceGrantRepository', () => {
   })
 
   it('dos derrotas distintas del mismo heroe se acumulan', async () => {
-    await repository.grant(commandOf({ operationId: 'op-1', amount: 700 }))
-    const second = await repository.grant(commandOf({ operationId: 'op-2', amount: 700 }))
+    await repository.grant(commandOf({ operationId: 'op-1', amount: 200 }))
+    const second = await repository.grant(commandOf({ operationId: 'op-2', amount: 200 }))
 
-    expect(second).toMatchObject({ currentXp: 1400, level: 4, applied: true })
+    expect(second).toMatchObject({ currentXp: 400, level: 3, applied: true })
   })
 
   it('el ledger guarda el origen aplanado y el resultado acreditado', async () => {
@@ -145,7 +145,7 @@ describe('InMemoryExperienceGrantRepository', () => {
     // devuelve exactamente lo que se acredito, que es para lo que sirve.
     const replay = await repository.grant(commandOf({ amount: 100 }))
 
-    expect(replay).toMatchObject({ applied: false, currentXp: 100, level: 1 })
+    expect(replay).toMatchObject({ applied: false, currentXp: 100, level: 2 })
   })
 
   it('rechaza una progresion ilegible en lugar de inventar un estado', async () => {

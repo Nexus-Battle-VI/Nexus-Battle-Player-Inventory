@@ -98,7 +98,7 @@ describe('POST /api/internal/v1/players/:playerId/heroes/:heroId/experience', ()
       currentXp: 25,
       leveledUp: false,
       levelsGained: 0,
-      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 200 },
+      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 100 },
       maxLevel: 8,
     })
   })
@@ -205,17 +205,17 @@ describe('POST /api/internal/v1/players/:playerId/heroes/:heroId/experience', ()
     // Heroe propio: los casos de arriba ya acreditaron experiencia al otro, y el
     // estado del servicio es el mismo durante toda la suite.
     const path = `/api/internal/v1/players/${PLAYER_ID}/heroes/otro-heroe/experience`
-    const first = await post(path, bodyWith({ operationId: 'mission:derrota-1:xp', amount: 749 }))
-    const second = await post(path, bodyWith({ operationId: 'mission:derrota-2:xp', amount: 100 }))
+    const first = await post(path, bodyWith({ operationId: 'mission:derrota-1:xp', amount: 99 }))
+    const second = await post(path, bodyWith({ operationId: 'mission:derrota-2:xp', amount: 1 }))
 
-    expect(first.body).toMatchObject({ currentXp: 749, level: 3, applied: true })
+    expect(first.body).toMatchObject({ currentXp: 99, level: 1, applied: true })
     expect(second.body).toMatchObject({
-      currentXp: 849,
-      level: 4,
+      currentXp: 100,
+      level: 2,
       leveledUp: true,
       levelsGained: 1,
       applied: true,
     })
-    expect(second.body.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 5, amount: 1600 })
+    expect(second.body.nextLevel).toEqual({ status: 'AVAILABLE', forNextLevel: 3, amount: 300 })
   })
 })

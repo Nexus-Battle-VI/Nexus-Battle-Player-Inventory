@@ -253,7 +253,7 @@ describe('MongoExperienceGrantRepository', () => {
       ownerId: owner,
       heroId: HERO_ID,
       level: 8,
-      currentXp: 12800,
+      currentXp: 1300,
       version: 0,
     })
 
@@ -261,7 +261,7 @@ describe('MongoExperienceGrantRepository', () => {
 
     expect(result).toMatchObject({
       level: 8,
-      currentXp: 13300,
+      currentXp: 1800,
       leveledUp: false,
       levelsGained: 0,
       applied: true,

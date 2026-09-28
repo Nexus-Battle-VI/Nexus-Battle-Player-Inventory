@@ -108,9 +108,9 @@ describe('MongoHeroProgressionRepository', () => {
         ownerId: 'jugador-con-umbral',
         heroId: 'pid-guerrero-tanque',
         level: 3,
-        currentXp: 400,
+        currentXp: 300,
         version: 0,
-        nextLevelThreshold: 800,
+        nextLevelThreshold: 500,
       }),
     ).rejects.toThrow()
   })
@@ -196,11 +196,11 @@ describe('MongoHeroProgressionRepository', () => {
 
     const resultados = await Promise.allSettled([
       repository.save(
-        HeroProgression.restore({ ...inicial.toSnapshot(), currentXp: 150 }),
+        HeroProgression.restore({ ...inicial.toSnapshot(), level: 1, currentXp: 50 }),
         inicial.version,
       ),
       repository.save(
-        HeroProgression.restore({ ...inicial.toSnapshot(), currentXp: 180 }),
+        HeroProgression.restore({ ...inicial.toSnapshot(), level: 1, currentXp: 80 }),
         inicial.version,
       ),
     ])
@@ -233,7 +233,7 @@ describe('MongoHeroProgressionRepository', () => {
         ownerId: jugador.value,
         heroId: 'pid-guerrero-tanque',
         level: 8,
-        currentXp: 13000,
+        currentXp: 1500,
         version: 0,
       }),
       0,
@@ -262,9 +262,9 @@ describe('MongoHeroProgressionRepository', () => {
         _id: clave,
         ownerId: jugador.value,
         heroId: 'pid-guerrero-tanque',
-        // 749 acumulados son nivel 3: declarar 4 es un dato corrupto.
+        // 499 acumulados son nivel 3: declarar 4 es un dato corrupto.
         level: 4,
-        currentXp: 749,
+        currentXp: 499,
         version: 0,
       })
     } finally {
@@ -290,7 +290,7 @@ describe('MongoHeroProgressionRepository', () => {
         ownerId: jugador.value,
         heroId: 'pid-guerrero-tanque',
         level: 7,
-        currentXp: 6400,
+        currentXp: 1100,
         version: 0,
       }),
       0,
@@ -301,7 +301,7 @@ describe('MongoHeroProgressionRepository', () => {
     expect(recuperada?.thresholdForNextLevel()).toEqual({
       status: 'AVAILABLE',
       forNextLevel: 8,
-      amount: 12800,
+      amount: 1300,
     })
   })
 

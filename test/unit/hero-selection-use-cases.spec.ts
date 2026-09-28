@@ -467,7 +467,7 @@ describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
       level: 1,
       currentXp: 0,
       floorForCurrentLevel: 0,
-      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 200 },
+      nextLevel: { status: 'AVAILABLE', forNextLevel: 2, amount: 100 },
       maxLevel: 8,
     })
   })
@@ -481,7 +481,7 @@ describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
         ownerId: 'jugador-1',
         heroId: 'pid-guerrero-tanque',
         level: 2,
-        currentXp: 315,
+        currentXp: 215,
         version: 0,
       }),
       0,
@@ -491,7 +491,7 @@ describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
         ownerId: 'jugador-1',
         heroId: 'pid-mago-hielo',
         level: 3,
-        currentXp: 657,
+        currentXp: 357,
         version: 0,
       }),
       0,
@@ -501,8 +501,8 @@ describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
     const guerrero = heroes.find((entry) => entry.subtype === 'GUERRERO_TANQUE')
     const mago = heroes.find((entry) => entry.subtype === 'MAGO_HIELO')
 
-    expect(guerrero?.progression).toMatchObject({ level: 2, currentXp: 315 })
-    expect(mago?.progression).toMatchObject({ level: 3, currentXp: 657 })
+    expect(guerrero?.progression).toMatchObject({ level: 2, currentXp: 215 })
+    expect(mago?.progression).toMatchObject({ level: 3, currentXp: 357 })
   })
 
   it('la progresion de un heroe no se filtra a la de otro jugador', async () => {
@@ -515,7 +515,7 @@ describe('HU-07 — progresion de cada heroe en la lista (HU-08)', () => {
         ownerId: 'jugador-2',
         heroId: 'pid-guerrero-tanque',
         level: 5,
-        currentXp: 2000,
+        currentXp: 800,
         version: 0,
       }),
       0,

@@ -65,13 +65,13 @@ describe('Cableado de la progresion del heroe (HU-08)', () => {
     expect(threshold.execute(4)).toEqual({
       status: 'AVAILABLE',
       forNextLevel: 5,
-      amount: 1600,
+      amount: 700,
     })
     expect(threshold.execute(8).status).toBe('MAX_LEVEL')
     // Y la otra direccion, que es la que hace falta despues de acreditar una
     // recompensa: en que nivel queda el heroe con este acumulado.
-    expect(threshold.resolveLevel(749)).toBe(3)
-    expect(threshold.resolveLevel(890)).toBe(4)
+    expect(threshold.resolveLevel(299)).toBe(2)
+    expect(threshold.resolveLevel(520)).toBe(4)
   })
 
   it('resuelve el caso de uso de lectura con el repositorio inyectado', async () => {

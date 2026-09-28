@@ -20,12 +20,14 @@ import { MAX_HERO_LEVEL, MIN_HERO_LEVEL, HeroLevel } from '../value-objects/hero
  * almacenar "un valor que puede calcularse de forma deterministica". El estado
  * que si se guarda -- nivel y experiencia acumulada -- vive en `HeroProgression`.
  *
- * QUE ES EXACTAMENTE UN UMBRAL AQUI, porque la palabra admite dos lecturas y
- * confundirlas seria un error de una sola direccion: es la EXPERIENCIA
- * ACUMULADA TOTAL que el heroe necesita tener para estar en un nivel. **No** es
- * la cantidad que le falta, ni un incremento que se suma aparte. La experiencia
- * del heroe nunca se resta al subir de nivel, asi que comparar el acumulado con
- * esta tabla es todo lo que hace falta para conocer su nivel.
+ * QUE ES EXACTAMENTE UN UMBRAL AQUI (decision funcional vigente): es la
+ * EXPERIENCIA ACUMULADA TOTAL que el heroe necesita tener para PASAR de su nivel
+ * actual al siguiente. El umbral del nivel `L` se indexa por el nivel del que se
+ * sale (`L -> L + 1`), no por el nivel al que se llega. **No** es la cantidad que
+ * le falta ni un incremento que se suma aparte: la experiencia nunca se resta al
+ * subir de nivel, asi que comparar el acumulado con esta tabla basta para conocer
+ * su nivel. `100 XP` significa "se alcanzo el umbral para pasar del 1 al 2", no
+ * "100 XP es el nivel 1".
  *
  * NO REPARTE EXPERIENCIA. Aqui solo se calcula el umbral y se resuelve que nivel
  * corresponde a un acumulado. Quien acredita la experiencia, cuando y con que
@@ -37,45 +39,35 @@ import { MAX_HERO_LEVEL, MIN_HERO_LEVEL, HeroLevel } from '../value-objects/hero
 export { MAX_HERO_LEVEL, MIN_HERO_LEVEL }
 
 /**
- * TABLA VIGENTE DEL UMBRAL, FIJADA POR LA ACLARACION FUNCIONAL DEL PRODUCT OWNER (POSTERIOR AL ENUNCIADO).
+ * TABLA VIGENTE, FIJADA POR UNA DECISION FUNCIONAL POSTERIOR AL ENUNCIADO.
  *
- * `EXPERIENCE_THRESHOLDS[L - 1]` es la experiencia ACUMULADA que el heroe
- * necesita para estar en el nivel `L`:
+ * `LEVEL_UP_THRESHOLDS[L - 1]` es la experiencia ACUMULADA necesaria para pasar
+ * del nivel `L` al `L + 1`:
  *
- *   nivel      1     2     3     4      5      6      7       8
- *   umbral   100   200   400   800   1600   3200   6400   12800
+ *   paso        1->2  2->3  3->4  4->5  5->6  6->7   7->8
+ *   umbral      100   300   500   700   900   1100   1300
  *
- * Los ocho valores son los que aprobo el Product Owner. Son enteros cerrados y
- * la serie es exactamente `100 x 2^(L - 1)`: se conserva la estructura
- * `100 x base^(exponente)` del enunciado original y lo que cambia es la base
- * (2 en lugar de 1,2) y el significado del subindice (acumulado para estar en el
- * nivel, no incremento para pasar al siguiente).
+ * Por tanto: 0..99 => nivel 1, 100..299 => 2, 300..499 => 3, 500..699 => 4,
+ * 700..899 => 5, 900..1099 => 6, 1100..1299 => 7, >= 1300 => 8. El nivel 8 es el
+ * maximo y NO existe umbral para un nivel 9 (por eso la tabla tiene siete
+ * entradas y no ocho).
  *
- * POR QUE NO SE CALCULA CON UNA FORMULA. La Task #188 prohibe "introducir una
- * politica de redondeo definitiva mientras no exista una decision funcional
- * aprobada". Con la tabla vigente el problema desaparece: no hay nada que
- * redondear porque no hay coma flotante, y la regla queda escrita con los ocho
- * valores que el PO aprobo en lugar de con una expresion que los reproduzca. Una
- * tabla literal es ademas lo unico que se puede contrastar linea a linea contra
- * la aprobacion.
+ * ESTA TABLA SUSTITUYE, POR DECISION FUNCIONAL POSTERIOR, A LA FORMULA ORIGINAL
+ * DEL PDF (`100 x 1,2^(Nivel - 1)`) Y A LA TABLA TEMPORAL ANTERIOR
+ * (`100, 200, 400, 800, 1600, 3200, 6400, 12800`). No estaba en el PDF: no debe
+ * presentarse como si lo estuviera. CA-03 de la HU #17 se corrige en Management
+ * para que coincida con esta tabla.
  *
- * DIVERGENCIA VIGENTE QUE NO SE TAPA AQUI. `CA-03` de la HU #17 exige el umbral
- * `100 x 1,2^(Nivel - 1)`, que produce `100, 120, 144, 172,8, 207,36, 248,832,
- * 298,5984` -- otra serie, y con decimales. La tabla vigente la sustituye. La
- * Task #188 manda no decidir esto por cuenta propia y la aclaracion del PO es
- * posterior al enunciado, asi que la tabla gobierna el calculo y la divergencia
- * queda registrada en `docs/hu-08-progresion.md` para que el PO corrija `CA-03`
- * en lugar de que este codigo finja que ambos coinciden.
+ * Enteros cerrados, sin coma flotante ni redondeo: no hay nada que decidir.
  */
-export const EXPERIENCE_THRESHOLDS: readonly number[] = Object.freeze([
-  100, // nivel 1
-  200, // nivel 2
-  400, // nivel 3
-  800, // nivel 4
-  1600, // nivel 5
-  3200, // nivel 6
-  6400, // nivel 7
-  12800, // nivel 8
+export const LEVEL_UP_THRESHOLDS: readonly number[] = Object.freeze([
+  100, // 1 -> 2
+  300, // 2 -> 3
+  500, // 3 -> 4
+  700, // 4 -> 5
+  900, // 5 -> 6
+  1100, // 6 -> 7
+  1300, // 7 -> 8
 ])
 
 /**
@@ -85,12 +77,9 @@ export const EXPERIENCE_THRESHOLDS: readonly number[] = Object.freeze([
  *
  * En `AVAILABLE`, `forNextLevel` es siempre `currentLevel + 1` y nunca supera
  * `MAX_HERO_LEVEL`: la politica jamas calcula el umbral de un nivel 9 (CA-05), y
- * `amount` es la experiencia acumulada necesaria para ALCANZAR ese nivel.
+ * `amount` es la experiencia acumulada necesaria para PASAR del nivel actual a ese.
  *
- * `amount` es un entero, no un decimal exacto: la tabla vigente no tiene
- * fracciones. La version anterior de esta politica devolvia ademas un campo
- * `decimal` con la representacion exacta de `100 x 1,2^(n-1)`; se retiro junto
- * con la formula, porque ya no hay ningun valor fraccionario que representar.
+ * `amount` es un entero: la tabla vigente no tiene fracciones.
  */
 export type ExperienceThreshold =
   | {
@@ -98,9 +87,9 @@ export type ExperienceThreshold =
       /** Nivel al que conduce el umbral calculado. Siempre `currentLevel + 1`. */
       readonly forNextLevel: number
       /**
-       * Experiencia ACUMULADA TOTAL necesaria para estar en `forNextLevel`,
-       * segun la tabla vigente. Es el mismo numero que `levelFromTotalXp`
-       * compara: llegar a el es lo que produce el ascenso.
+       * Experiencia ACUMULADA TOTAL necesaria para pasar del nivel actual a
+       * `forNextLevel`. Es el mismo numero que `levelFromTotalXp` compara:
+       * alcanzarlo es lo que produce el ascenso.
        */
       readonly amount: number
     }
@@ -132,10 +121,8 @@ export const isHeroLevel = (value: unknown): value is number => HeroLevel.isVali
  * - `8`    -> `MAX_LEVEL`, sin calcular umbral y sin producir un nivel 9.
  * - cualquier otra cosa -> `DomainError`, sin normalizar en silencio.
  *
- * En resumen, `1..7 -> AVAILABLE` con umbrales `200, 400, 800, 1600, 3200,
- * 6400, 12800`. El nivel 1 necesita 200 acumulados para llegar al 2 porque con
- * 100 acumulados el heroe SIGUE estando en el nivel 1: la tabla reserva 100 para
- * "estar en el nivel 1".
+ * En resumen, `1..7 -> AVAILABLE` con umbrales `100, 300, 500, 700, 900, 1100,
+ * 1300`: el nivel 1 pasa al 2 al llegar a 100 acumulados.
  *
  * El tipo de la entrada es `unknown` a proposito: obliga a validar en la
  * frontera, donde el dato puede venir de un documento persistido antiguo, de una
@@ -162,13 +149,13 @@ export const experienceRequiredForNextLevel = (currentLevel: unknown): Experienc
   return {
     status: 'AVAILABLE',
     forNextLevel,
-    amount: thresholdToReach(forNextLevel),
+    amount: thresholdToLeave(currentLevel),
   }
 }
 
 /**
- * Nivel que corresponde a una experiencia ACUMULADA: `nivel(xp) = mayor L de
- * 1..8 tal que xp >= UMBRAL[L]`.
+ * Nivel que corresponde a una experiencia ACUMULADA: `nivel(xp) = 1 + numero de
+ * umbrales de la tabla que xp alcanza o supera` (maximo 8).
  *
  * ES LA OPERACION QUE HACE POSIBLE SUBIR MAS DE UN NIVEL CON UNA SOLA
  * RECOMPENSA. Una acreditacion calcula el nivel DIRECTAMENTE a partir del nuevo
@@ -196,9 +183,9 @@ export const levelFromTotalXp = (totalXp: unknown): number => {
 
   let reached = MIN_HERO_LEVEL
 
-  for (let level = MIN_HERO_LEVEL; level <= MAX_HERO_LEVEL; level += 1) {
-    if (xp >= thresholdToReach(level)) {
-      reached = level
+  for (let level = MIN_HERO_LEVEL; level < MAX_HERO_LEVEL; level += 1) {
+    if (xp >= thresholdToLeave(level)) {
+      reached = level + 1
     }
   }
 
@@ -206,18 +193,19 @@ export const levelFromTotalXp = (totalXp: unknown): number => {
 }
 
 /**
- * Experiencia acumulada necesaria para ALCANZAR `level`, segun la tabla.
+ * Experiencia acumulada necesaria para PASAR de `level` al siguiente, segun la
+ * tabla. Solo existe para los niveles `1..7`.
  *
  * Es `private` al modulo a proposito: la tabla se lee por sus dos operaciones
  * publicas y no por su indice. Un consumidor que indexara la tabla directamente
  * estaria reimplementando la regla.
  */
-const thresholdToReach = (level: number): number => {
-  const threshold = EXPERIENCE_THRESHOLDS[level - MIN_HERO_LEVEL]
+const thresholdToLeave = (level: number): number => {
+  const threshold = LEVEL_UP_THRESHOLDS[level - MIN_HERO_LEVEL]
 
   if (threshold === undefined) {
     throw new DomainError(
-      `No hay umbral de experiencia para el nivel ${describe(level)}: la tabla cubre los niveles ${String(MIN_HERO_LEVEL)} a ${String(MAX_HERO_LEVEL)}.`,
+      `No hay umbral de experiencia para salir del nivel ${describe(level)}: la tabla cubre los niveles ${String(MIN_HERO_LEVEL)} a ${String(MAX_HERO_LEVEL - 1)}.`,
     )
   }
 

@@ -90,7 +90,7 @@ class ExperienceThresholdResponse {
   @ApiProperty({
     nullable: true,
     type: 'number',
-    description: 'XP acumulada necesaria para alcanzar `forNextLevel`.',
+    description: 'XP acumulada necesaria para pasar del nivel actual a `forNextLevel`.',
   })
   readonly amount!: number | null
 

@@ -1,6 +1,6 @@
 import { DomainError } from '../../src/domain/errors/DomainError'
 import {
-  EXPERIENCE_THRESHOLDS,
+  LEVEL_UP_THRESHOLDS,
   MAX_HERO_LEVEL,
   MIN_HERO_LEVEL,
   experienceRequiredForNextLevel,
@@ -11,76 +11,70 @@ import {
 /**
  * HU-08 / RF-08 — umbral de experiencia por nivel (Task #189).
  *
- * Cubre los escenarios que la Task exige: nivel minimo, intermedios, nivel 7,
- * nivel maximo 8, inferior a 1, superior a 8, y consulta repetida con el mismo
- * resultado. Anade la otra direccion de la tabla -- de acumulado a nivel -- que
- * es la que necesita quien acredita una recompensa.
+ * SEMANTICA VIGENTE: cada umbral es la XP ACUMULADA necesaria para PASAR del
+ * nivel actual al siguiente (`1->2 = 100`, `2->3 = 300`, ... `7->8 = 1300`). El
+ * nivel 8 es el maximo y no hay nivel 9.
  *
- * LOS VALORES SON LOS QUE APROBO EL PRODUCT OWNER, escritos aqui uno a uno y no
- * derivados de una expresion. Si alguien cambiara la tabla, esta suite falla y
- * hay que volver a pasar por el PO: es el control que impide que una tabla
- * distinta entre sin que nadie lo note. La regresion contra un fichero de
- * referencia guardado aparte es la Task #190.
+ * Los valores estan escritos aqui uno a uno y no derivados de una expresion: si
+ * alguien cambiara la tabla, esta suite falla y hay que volver a pasar por el PO.
  *
- * LA TABLA SUSTITUYE A LA FORMULA `100 x 1,2^(n - 1)` DE CA-03, que daba 100,
- * 120, 144, 172,8, 207,36, 248,832 y 298,5984. No es una diferencia de redondeo:
- * son sucesiones distintas. La divergencia esta medida en
- * `docs/hu-08-progresion.md`, seccion 3.
+ * LA TABLA SUSTITUYE, POR DECISION FUNCIONAL POSTERIOR, A LA FORMULA ORIGINAL DEL
+ * PDF (`100 x 1,2^(n - 1)`) Y A LA TABLA TEMPORAL `100, 200, 400 ... 12800`.
  */
 describe('ExperiencePolicy — HU-08 / RF-08', () => {
   describe('la tabla vigente', () => {
-    it('son los ocho valores de la aclaracion, uno por nivel y de 1 a 8', () => {
-      expect(EXPERIENCE_THRESHOLDS).toEqual([100, 200, 400, 800, 1600, 3200, 6400, 12800])
-      expect(EXPERIENCE_THRESHOLDS).toHaveLength(MAX_HERO_LEVEL - MIN_HERO_LEVEL + 1)
+    it('son los siete umbrales vigentes, uno por paso de nivel (1->2 ... 7->8)', () => {
+      expect(LEVEL_UP_THRESHOLDS).toEqual([100, 300, 500, 700, 900, 1100, 1300])
+      expect(LEVEL_UP_THRESHOLDS).toHaveLength(MAX_HERO_LEVEL - MIN_HERO_LEVEL)
     })
 
     it('es inmutable: nadie puede reescribir la regla desde fuera', () => {
-      expect(Object.isFrozen(EXPERIENCE_THRESHOLDS)).toBe(true)
+      expect(Object.isFrozen(LEVEL_UP_THRESHOLDS)).toBe(true)
     })
 
     it('crece estrictamente: mas nivel nunca cuesta menos experiencia', () => {
-      for (let index = 1; index < EXPERIENCE_THRESHOLDS.length; index += 1) {
-        const previous = EXPERIENCE_THRESHOLDS[index - 1] ?? 0
-        const current = EXPERIENCE_THRESHOLDS[index] ?? 0
+      for (let index = 1; index < LEVEL_UP_THRESHOLDS.length; index += 1) {
+        const previous = LEVEL_UP_THRESHOLDS[index - 1] ?? 0
+        const current = LEVEL_UP_THRESHOLDS[index] ?? 0
 
         expect(current).toBeGreaterThan(previous)
       }
     })
 
-    it('sus ocho valores son enteros: no hay nada que redondear', () => {
-      for (const threshold of EXPERIENCE_THRESHOLDS) {
+    it('sus siete valores son enteros: no hay nada que redondear', () => {
+      for (const threshold of LEVEL_UP_THRESHOLDS) {
         expect(Number.isInteger(threshold)).toBe(true)
       }
     })
   })
 
   describe('niveles validos con siguiente nivel', () => {
-    it('el nivel minimo (1) necesita 200 acumulados para llegar al 2', () => {
+    it('el nivel minimo (1) necesita 100 acumulados para pasar al 2', () => {
       expect(experienceRequiredForNextLevel(1)).toEqual({
         status: 'AVAILABLE',
         forNextLevel: 2,
-        amount: 200,
+        amount: 100,
       })
     })
 
-    it('un nivel intermedio (4) necesita 1600 acumulados para llegar al 5', () => {
+    it('un nivel intermedio (4) necesita 700 acumulados para pasar al 5', () => {
       expect(experienceRequiredForNextLevel(4)).toEqual({
         status: 'AVAILABLE',
         forNextLevel: 5,
-        amount: 1600,
+        amount: 700,
       })
     })
 
-    it('el nivel 7 es el ultimo con siguiente nivel y necesita 12800', () => {
+    it('el nivel 7 es el ultimo con siguiente nivel y necesita 1300', () => {
       expect(experienceRequiredForNextLevel(7)).toEqual({
         status: 'AVAILABLE',
         forNextLevel: 8,
-        amount: 12800,
+        amount: 1300,
       })
     })
 
     it('los siete umbrales son los de la tabla, sin excepcion', () => {
-      const expected = [200, 400, 800, 1600, 3200, 6400, 12800]
+      const expected = [100, 300, 500, 700, 900, 1100, 1300]
 
       for (const [index, amount] of expected.entries()) {
         const level = MIN_HERO_LEVEL + index
@@ -130,36 +124,50 @@ describe('ExperiencePolicy — HU-08 / RF-08', () => {
   })
 
   describe('levelFromTotalXp: de acumulado a nivel', () => {
-    it('los cuatro vectores que aprobo el Product Owner', () => {
-      expect(levelFromTotalXp(749)).toBe(3)
-      expect(levelFromTotalXp(3500)).toBe(6)
-      expect(levelFromTotalXp(890)).toBe(4)
-      expect(levelFromTotalXp(13000)).toBe(8)
+    it('fronteras exactas de los ocho niveles (decision funcional vigente)', () => {
+      const boundaries: readonly (readonly [number, number])[] = [
+        [0, 1],
+        [99, 1],
+        [100, 2],
+        [299, 2],
+        [300, 3],
+        [499, 3],
+        [500, 4],
+        [699, 4],
+        [700, 5],
+        [899, 5],
+        [900, 6],
+        [1099, 6],
+        [1100, 7],
+        [1299, 7],
+        [1300, 8],
+        [999_999, 8],
+      ]
+
+      for (const [xp, level] of boundaries) {
+        expect([xp, levelFromTotalXp(xp)]).toEqual([xp, level])
+      }
     })
 
-    it('el nivel 1 es el suelo: sin llegar al primer umbral se sigue en 1', () => {
+    it('el nivel 1 es el suelo: sin llegar a 100 se sigue en 1', () => {
       expect(levelFromTotalXp(0)).toBe(1)
       expect(levelFromTotalXp(1)).toBe(1)
       expect(levelFromTotalXp(99)).toBe(1)
-      // Con 100 acumulados se alcanza UMBRAL[1], y la respuesta sigue siendo el
-      // nivel 1: el umbral del nivel 2 es 200.
-      expect(levelFromTotalXp(100)).toBe(1)
-      expect(levelFromTotalXp(199)).toBe(1)
     })
 
-    it('cada umbral se alcanza exactamente en su valor, y no antes', () => {
-      for (const [index, threshold] of EXPERIENCE_THRESHOLDS.entries()) {
-        const expectedLevel = MIN_HERO_LEVEL + index
+    it('alcanzar un umbral SUBE de nivel en ese mismo valor, y no antes', () => {
+      for (const [index, threshold] of LEVEL_UP_THRESHOLDS.entries()) {
+        const levelBefore = MIN_HERO_LEVEL + index
 
-        expect(levelFromTotalXp(threshold)).toBe(expectedLevel)
-        expect(levelFromTotalXp(threshold - 1)).toBe(Math.max(MIN_HERO_LEVEL, expectedLevel - 1))
+        expect(levelFromTotalXp(threshold)).toBe(levelBefore + 1)
+        expect(levelFromTotalXp(threshold - 1)).toBe(levelBefore)
       }
     })
 
     it('es monotona: mas experiencia nunca da menos nivel', () => {
       let previous = MIN_HERO_LEVEL
 
-      for (let xp = 0; xp <= 14000; xp += 25) {
+      for (let xp = 0; xp <= 1500; xp += 5) {
         const level = levelFromTotalXp(xp)
 
         expect(level).toBeGreaterThanOrEqual(previous)
@@ -168,8 +176,8 @@ describe('ExperiencePolicy — HU-08 / RF-08', () => {
     })
 
     it('el tope no descarta experiencia: por encima de la tabla sigue siendo 8', () => {
-      expect(levelFromTotalXp(12800)).toBe(8)
-      expect(levelFromTotalXp(13500)).toBe(8)
+      expect(levelFromTotalXp(1300)).toBe(8)
+      expect(levelFromTotalXp(6300)).toBe(8)
       expect(levelFromTotalXp(1_000_000)).toBe(8)
     })
 
@@ -190,7 +198,7 @@ describe('ExperiencePolicy — HU-08 / RF-08', () => {
     })
 
     it('rechaza un acumulado negativo, fraccionario o de otro tipo', () => {
-      const invalidos = [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '890', null, undefined]
+      const invalidos = [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '520', null, undefined]
 
       for (const invalid of invalidos) {
         expect(() => levelFromTotalXp(invalid)).toThrow(DomainError)
@@ -250,8 +258,8 @@ describe('ExperiencePolicy — HU-08 / RF-08', () => {
     })
 
     it('el nivel resuelto no depende de haber consultado otros acumulados antes', () => {
-      const ascending = [0, 200, 800, 3500, 13000].map(levelFromTotalXp)
-      const descending = [13000, 3500, 800, 200, 0].map(levelFromTotalXp).reverse()
+      const ascending = [0, 100, 520, 1100, 5000].map(levelFromTotalXp)
+      const descending = [5000, 1100, 520, 100, 0].map(levelFromTotalXp).reverse()
 
       expect(descending).toEqual(ascending)
     })

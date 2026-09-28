@@ -166,10 +166,10 @@ export class HeroProgression {
    *
    * TRES COSAS QUE HACE Y CONVIENE LEER JUNTAS.
    *   1. SUMA. La experiencia es un acumulado que solo crece: subir de nivel no
-   *      la consume. `749 + 100` deja 849 y el nivel pasa a 4.
+   *      la consume. `99 + 1` deja 100 y el nivel pasa a 2.
    *   2. RECALCULA EL NIVEL DE UNA VEZ. El nivel nuevo se obtiene aplicando la
    *      tabla al acumulado nuevo, no avanzando un nivel por recompensa. Una
-   *      sola acreditacion puede cruzar varios umbrales: `190 + 700 = 890` deja
+   *      sola acreditacion puede cruzar varios umbrales: `90 + 430 = 520` deja
    *      al heroe en el nivel 4, no en el 2.
    *   3. NO DESCARTA NADA EN EL NIVEL MAXIMO. Si el heroe ya esta en el 8, el
    *      acumulado sigue creciendo y el nivel se queda en 8. La operacion no se
