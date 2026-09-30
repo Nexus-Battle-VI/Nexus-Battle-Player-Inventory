@@ -164,8 +164,22 @@ describe('ListOwnedInventoryItems — enriquecido con Catalog', () => {
 
     const result = await useCase.execute({ ownerId: OWNER, page: 1 })
 
-    expect(result.items[0]?.product).toMatchObject({ sku: itemId(0), name: 'Espada', type: 'ARMA' })
+    expect(result.items[0]?.product).toMatchObject({
+      sku: itemId(0),
+      name: 'Espada',
+      type: 'ARMA',
+      premium: false,
+    })
     expect(result.items[1]?.product?.name).toBe('Escudo')
+  })
+
+  it('expone premium para que consumidores de la lista no ofrezcan una reventa no permitida', async () => {
+    const { useCase, repo } = build({ inventoryCount: 1, catalog: [product(0, { premium: true })] })
+    await seedInventory(repo, OWNER, 1)
+
+    const result = await useCase.execute({ ownerId: OWNER, page: 1 })
+
+    expect(result.items[0]?.product?.premium).toBe(true)
   })
 
   it('un listado sin búsqueda NO se cae si Catalog no responde: product queda en null', async () => {

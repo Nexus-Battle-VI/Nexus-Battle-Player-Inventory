@@ -178,4 +178,5 @@ const toSummary = (product: CatalogProductView | undefined): CatalogProductSumma
         imageUrl: product.imageUrl,
         type: product.type,
         lifecycleStatus: product.lifecycleStatus,
+        premium: product.premium,
       }

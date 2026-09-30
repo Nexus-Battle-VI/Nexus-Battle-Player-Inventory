@@ -11,6 +11,8 @@ export interface CatalogProductSummary {
   readonly imageUrl: string
   readonly type: string
   readonly lifecycleStatus: string
+  /** La misma política que Auction usa: los productos premium no se revenden. */
+  readonly premium: boolean
 }
 
 /**
