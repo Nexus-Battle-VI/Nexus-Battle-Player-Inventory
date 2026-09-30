@@ -59,6 +59,12 @@ export class CatalogProductSummaryResponse {
 
   @ApiProperty({ enum: ['ACTIVE', 'SUSPENDED'] })
   readonly lifecycleStatus!: string
+
+  @ApiProperty({
+    example: false,
+    description: 'Los productos premium no son comerciables en subasta.',
+  })
+  readonly premium!: boolean
 }
 
 export class OwnedInventoryItemResponse {
