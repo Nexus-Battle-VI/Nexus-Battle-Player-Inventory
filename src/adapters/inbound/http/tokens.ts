@@ -40,6 +40,8 @@ export const COMMIT_HERO_FOR_MISSION = Symbol('CommitHeroForMission')
  * bloqueo de equipamiento.
  */
 export const COMMIT_HERO_FOR_BATTLE = Symbol('CommitHeroForBattle')
+export const TRANSFER_BATTLE_DROP = Symbol('TransferBattleDrop')
+export const CAPTURE_BATTLE_DROP_SNAPSHOT = Symbol('CaptureBattleDropSnapshot')
 
 /**
  * Perfil de un heroe concreto del jugador (HU-71, Task HU-71.2). Es la lectura

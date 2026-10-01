@@ -11,6 +11,13 @@ import { AuctionEligibilityController } from '../../adapters/inbound/http/auctio
 import { HeroExperienceController } from '../../adapters/inbound/http/hero-experience.controller'
 import { MissionCommitmentsController } from '../../adapters/inbound/http/mission-commitments.controller'
 import { BattleCommitmentsController } from '../../adapters/inbound/http/battle-commitments.controller'
+import { BattleDropsController } from '../../adapters/inbound/http/battle-drops.controller'
+import { BATTLE_DROP_TRANSFERS, type BattleDropTransferPort } from '../../application/ports/BattleDropTransferPort'
+import { TransferBattleDrop } from '../../application/use-cases/TransferBattleDrop'
+import { MongoBattleDropTransferRepository } from '../../adapters/outbound/persistence/MongoBattleDropTransferRepository'
+import { BATTLE_DROP_SNAPSHOTS, type BattleDropSnapshotPort } from '../../application/ports/BattleDropSnapshotPort'
+import { MongoBattleDropSnapshotRepository } from '../../adapters/outbound/persistence/MongoBattleDropSnapshotRepository'
+import { CaptureBattleDropSnapshot } from '../../application/use-cases/CaptureBattleDropSnapshot'
 import { CommitHeroForMission } from '../../application/use-cases/CommitHeroForMission'
 import { CommitHeroForBattle } from '../../application/use-cases/CommitHeroForBattle'
 import {
@@ -56,6 +63,8 @@ import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
   ADD_ITEM,
   COMMIT_HERO_FOR_BATTLE,
+  TRANSFER_BATTLE_DROP,
+  CAPTURE_BATTLE_DROP_SNAPSHOT,
   COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
   GET_HERO_EQUIPMENT,
@@ -177,6 +186,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     HeroExperienceController,
     MissionCommitmentsController,
     BattleCommitmentsController,
+    BattleDropsController,
   ],
   providers: [
     {
@@ -280,6 +290,43 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
           ? new InMemoryBattleHeroCommitmentRepository()
           : new MongoBattleHeroCommitmentRepository(db),
       inject: [MONGO_DATABASE],
+    },
+    {
+      provide: BATTLE_DROP_TRANSFERS,
+      useFactory: (db: Db | null): BattleDropTransferPort =>
+        db === null
+          ? {
+              transfer: () => Promise.reject(new Error('HU-30 requiere persistencia MongoDB.')),
+            }
+          : new MongoBattleDropTransferRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: BATTLE_DROP_SNAPSHOTS,
+      useFactory: (db: Db | null): BattleDropSnapshotPort =>
+        db === null
+          ? {
+              capture: () => Promise.reject(new Error('HU-30 requiere persistencia MongoDB.')),
+              find: () => Promise.reject(new Error('HU-30 requiere persistencia MongoDB.')),
+              closeBattle: () => Promise.reject(new Error('HU-30 requiere persistencia MongoDB.')),
+            }
+          : new MongoBattleDropSnapshotRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: CAPTURE_BATTLE_DROP_SNAPSHOT,
+      useFactory: (
+        loadouts: HeroLoadoutRepositoryPort,
+        catalog: CatalogReadPort,
+        snapshots: BattleDropSnapshotPort,
+      ): CaptureBattleDropSnapshot => new CaptureBattleDropSnapshot(loadouts, catalog, snapshots),
+      inject: [HERO_LOADOUT_REPOSITORY, CATALOG_READ, BATTLE_DROP_SNAPSHOTS],
+    },
+    {
+      provide: TRANSFER_BATTLE_DROP,
+      useFactory: (transfers: BattleDropTransferPort): TransferBattleDrop =>
+        new TransferBattleDrop(transfers),
+      inject: [BATTLE_DROP_TRANSFERS],
     },
     {
       provide: COMMIT_HERO_FOR_BATTLE,
