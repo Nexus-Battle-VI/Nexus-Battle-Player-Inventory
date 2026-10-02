@@ -14,6 +14,7 @@ import * as migration011 from '../../adapters/outbound/persistence/migrations/01
 import * as migration012 from '../../adapters/outbound/persistence/migrations/012-inventories-capacity-200'
 import * as migration013 from '../../adapters/outbound/persistence/migrations/013-hero-progressions-cumulative-thresholds'
 import * as migration014 from '../../adapters/outbound/persistence/migrations/014-experience-grants-mission-completion'
+import * as migration015 from '../../adapters/outbound/persistence/migrations/015-battle-drop-units'
 
 export interface DatabaseOptions {
   readonly uri: string
@@ -75,6 +76,7 @@ const MIGRATIONS: readonly { readonly name: string; readonly up: (db: Db) => Pro
   { name: '012-inventories-capacity-200', up: migration012.up },
   { name: '013-hero-progressions-cumulative-thresholds', up: migration013.up },
   { name: '014-experience-grants-mission-completion', up: migration014.up },
+  { name: '015-battle-drop-units', up: migration015.up },
 ]
 
 const REGISTRY = '_migrations'
