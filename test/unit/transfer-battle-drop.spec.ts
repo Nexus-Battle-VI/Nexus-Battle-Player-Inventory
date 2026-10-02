@@ -15,14 +15,12 @@ const command = (overrides: Record<string, unknown> = {}) => ({
 
 describe('TransferBattleDrop (HU-30)', () => {
   const build = () => {
-    const transfer = jest
-      .fn()
-      .mockResolvedValue({
-        ...command(),
-        productId: 'p',
-        itemId: 'i',
-        creditedAt: '2026-10-01T00:00:00.000Z',
-      })
+    const transfer = jest.fn().mockResolvedValue({
+      ...command(),
+      productId: 'p',
+      itemId: 'i',
+      creditedAt: '2026-10-01T00:00:00.000Z',
+    })
     return { transfer, useCase: new TransferBattleDrop({ transfer }) }
   }
 
