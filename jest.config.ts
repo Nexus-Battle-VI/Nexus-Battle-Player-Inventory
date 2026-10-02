@@ -39,6 +39,7 @@ const config: Config = {
     '!src/main.ts',
     '!src/adapters/outbound/persistence/MongoInventoryRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
+    '!src/adapters/outbound/persistence/MongoHeroEpicSelectionRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroProgressionRepository.ts',
     '!src/adapters/outbound/persistence/MongoBattleDropSnapshotRepository.ts',
     '!src/adapters/outbound/persistence/MongoBattleDropTransferRepository.ts',
