@@ -146,6 +146,7 @@ export const resolveHeroEpic = async (
       epicProductId: product.productId,
       epicReference: product.sku,
       name: product.name,
+      imageUrl: product.imageUrl,
       compatibleHeroSubtype: definition.associatedHeroType as string,
       baseEffect: definition.baseEffect ?? null,
       specificEffect: definition.additionalEffect as Record<string, unknown>,

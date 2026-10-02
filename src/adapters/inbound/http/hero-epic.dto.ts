@@ -38,6 +38,9 @@ class EquippedHeroEpicResponse {
   @ApiProperty()
   readonly name!: string
 
+  @ApiProperty({ format: 'uri' })
+  readonly imageUrl!: string
+
   @ApiProperty({ example: 'GUERRERO_TANQUE' })
   readonly compatibleHeroSubtype!: string
 

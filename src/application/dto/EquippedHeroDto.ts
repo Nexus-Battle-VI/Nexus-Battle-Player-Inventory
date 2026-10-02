@@ -150,6 +150,8 @@ export interface EquippedHeroEpicDto {
   readonly epicProductId: string
   readonly epicReference: string
   readonly name: string
+  /** Para presentacion (Web). Combat la ignora: su parser no la declara. */
+  readonly imageUrl: string
   readonly compatibleHeroSubtype: string
   readonly baseEffect: Record<string, unknown> | null
   readonly specificEffect: Record<string, unknown>
