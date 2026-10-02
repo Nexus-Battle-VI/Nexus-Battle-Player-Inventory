@@ -1,6 +1,7 @@
 import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { InMemoryHeroEpicSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroEpicSelectionRepository'
 import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import type { CatalogProductView } from '../../src/application/ports/CatalogReadPort'
@@ -156,6 +157,7 @@ const escenario = (
       ),
       loadouts,
       catalog,
+      new InMemoryHeroEpicSelectionRepository(),
     ),
   }
 }

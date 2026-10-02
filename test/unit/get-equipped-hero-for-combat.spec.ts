@@ -4,6 +4,8 @@ import { GetHeroSelection } from '../../src/application/use-cases/GetHeroSelecti
 import { SelectHero } from '../../src/application/use-cases/SelectHero'
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { InMemoryHeroEpicSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroEpicSelectionRepository'
+import { HeroEpicSelection } from '../../src/domain/entities/HeroEpicSelection'
 import { battleStateKit } from '../fixtures/battle-state'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
@@ -110,6 +112,7 @@ interface Escenario {
   readonly select: SelectHero
   readonly equip: EquipItemOnHero
   readonly forCombat: GetEquippedHeroForCombat
+  readonly epicSelections: InMemoryHeroEpicSelectionRepository
 }
 
 const escenario = (
@@ -121,6 +124,7 @@ const escenario = (
   const catalog = new InMemoryCatalogReadClient([...catalogo], catalogDown)
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
+  const epicSelections = new InMemoryHeroEpicSelectionRepository()
   const current = new GetHeroSelection(
     inventories,
     catalog,
@@ -146,7 +150,8 @@ const escenario = (
       battleStateKit(clock).state,
       new InMemoryHeroProgressionRepository(),
     ),
-    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
+    epicSelections,
+    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog, epicSelections),
   }
 }
 
@@ -244,6 +249,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
       ),
       loadouts,
       catalog,
+      new InMemoryHeroEpicSelectionRepository(),
     )
 
     await select.execute('jugador-1', 'guerrero-tanque')
@@ -283,6 +289,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
       ),
       loadouts,
       catalogAbajo,
+      new InMemoryHeroEpicSelectionRepository(),
     )
 
     await expect(forCombat.execute('jugador-1')).rejects.toBeInstanceOf(CatalogUnavailableError)
@@ -391,6 +398,7 @@ describe('HU-15 — heroe preparado para Combat (contrato interno, Management#24
       ),
       loadouts,
       catalog,
+      new InMemoryHeroEpicSelectionRepository(),
     )
 
     await select.execute('jugador-1', 'guerrero-tanque')
@@ -495,6 +503,7 @@ const preparado = (
   const catalog = new CountingCatalog([...catalogo])
   const loadouts = new InMemoryHeroLoadoutRepository()
   const selections = new InMemoryHeroSelectionRepository()
+  const epicSelections = new InMemoryHeroEpicSelectionRepository()
   const current = new GetHeroSelection(
     inventories,
     catalog,
@@ -520,7 +529,8 @@ const preparado = (
       battleStateKit(clock).state,
       new InMemoryHeroProgressionRepository(),
     ),
-    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog),
+    epicSelections,
+    forCombat: new GetEquippedHeroForCombat(current, loadouts, catalog, epicSelections),
     current,
     catalog,
   }
@@ -1003,5 +1013,106 @@ describe('HU-25 — activeEffects del heroe equipado (contrato interno, Manageme
     })
 
     await expect(e.forCombat.execute('jugador-1')).rejects.toBeInstanceOf(NoHeroSelectedError)
+  })
+})
+
+describe('HU-31 — epic equipada en equipped-hero (contrato hu-31-equipped-epic-v1)', () => {
+  const epicProduct = (sku: string, compatibleHeroSubtype: string): CatalogProductView => ({
+    productId: `pid-${sku}`,
+    sku,
+    name: sku,
+    imageUrl: '',
+    description: sku,
+    type: 'EPICA',
+    lifecycleStatus: 'ACTIVE',
+    creditsPrice: 0,
+    premium: false,
+    realMoneyPrice: null,
+    attributes: {
+      schemaVersion: '1',
+      values: {
+        kind: 'EPICA',
+        compatibleHeroSubtype,
+        generalEffect: {
+          kind: 'STAT_MODIFIER',
+          target: 'SELF',
+          statistic: 'DEFENSE',
+          operation: 'INCREASE',
+          magnitude: { mode: 'FIXED', amount: 4 },
+          stackable: false,
+        },
+        specificEffect: {
+          kind: 'STAT_MODIFIER',
+          target: 'SELF',
+          statistic: 'ATTACK',
+          operation: 'INCREASE',
+          magnitude: { mode: 'FIXED', amount: 2 },
+          stackable: false,
+        },
+      },
+    },
+  })
+
+  const seedEpic = async (
+    e: Escenario,
+    heroId: string,
+    epicItemId: string,
+    epicProductId: string,
+  ): Promise<void> => {
+    const selection = HeroEpicSelection.createEmpty('jugador-1', heroId)
+    selection.equip({ epicItemId, epicProductId, occurredAt: clock.now() })
+    await e.epicSelections.save(selection, 0)
+  }
+
+  it('heroe sin epica equipada: la clave "epic" esta AUSENTE de la respuesta', async () => {
+    const e = escenario([hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque')], {
+      'jugador-1': ['guerrero-tanque'],
+    })
+    await e.select.execute('jugador-1', 'guerrero-tanque')
+
+    const dto = await e.forCombat.execute('jugador-1')
+    expect('epic' in dto).toBe(false)
+  })
+
+  it('subtipo coincidente: base + especifico resueltos y congelables', async () => {
+    const e = escenario(
+      [
+        hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque'),
+        epicProduct('golpe-de-defensa', 'GUERRERO_TANQUE'),
+      ],
+      { 'jugador-1': ['guerrero-tanque'] },
+    )
+    await e.select.execute('jugador-1', 'guerrero-tanque')
+    await seedEpic(e, 'pid-guerrero-tanque', 'golpe-de-defensa', 'pid-golpe-de-defensa')
+
+    const dto = await e.forCombat.execute('jugador-1')
+    expect(dto.epic?.epicReference).toBe('golpe-de-defensa')
+    expect(dto.epic?.compatibleHeroSubtype).toBe('GUERRERO_TANQUE')
+    expect(dto.epic?.applied.baseApplied).not.toBeNull()
+    expect(dto.epic?.applied.additionalApplied).not.toBeNull()
+  })
+
+  it('subtipo no coincidente: solo el efecto base, sin romper la respuesta', async () => {
+    const e = escenario(
+      [hero('medico', 'MEDICO', 'Medico'), epicProduct('golpe-de-defensa', 'GUERRERO_TANQUE')],
+      { 'jugador-1': ['medico'] },
+    )
+    await e.select.execute('jugador-1', 'medico')
+    await seedEpic(e, 'pid-medico', 'golpe-de-defensa', 'pid-golpe-de-defensa')
+
+    const dto = await e.forCombat.execute('jugador-1')
+    expect(dto.epic?.applied.baseApplied).not.toBeNull()
+    expect(dto.epic?.applied.additionalApplied).toBeNull()
+  })
+
+  it('epica equipada cuyo producto ya no resuelve en Catalog: se OMITE (sin tumbar la respuesta)', async () => {
+    const e = escenario([hero('guerrero-tanque', 'GUERRERO_TANQUE', 'Guerrero Tanque')], {
+      'jugador-1': ['guerrero-tanque'],
+    })
+    await e.select.execute('jugador-1', 'guerrero-tanque')
+    await seedEpic(e, 'pid-guerrero-tanque', 'epica-fantasma', 'pid-epica-fantasma')
+
+    const dto = await e.forCombat.execute('jugador-1')
+    expect('epic' in dto).toBe(false)
   })
 })
