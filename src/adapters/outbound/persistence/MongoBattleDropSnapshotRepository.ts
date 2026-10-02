@@ -48,10 +48,7 @@ export class MongoBattleDropSnapshotRepository implements BattleDropSnapshotPort
   }
 
   async closeBattle(battleId: string): Promise<void> {
-    await this.units.updateMany(
-      { battleId },
-      { $set: { battleId: '', heroId: '', slot: '' } },
-    )
+    await this.units.updateMany({ battleId }, { $set: { battleId: '', heroId: '', slot: '' } })
   }
 
   async capture(command: BattleDropSnapshotCommand): Promise<BattleDropSnapshot> {

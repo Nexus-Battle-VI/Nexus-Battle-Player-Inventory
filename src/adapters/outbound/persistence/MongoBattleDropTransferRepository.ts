@@ -69,10 +69,7 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
               }
 
               const unit = await this.units.findOne({ _id: command.productInstanceId }, { session })
-              if (
-                unit?.ownerId !== command.sourcePlayerId ||
-                unit.battleId !== command.battleId
-              ) {
+              if (unit?.ownerId !== command.sourcePlayerId || unit.battleId !== command.battleId) {
                 throw new BattleDropTransferRejectedError('INSTANCE_NOT_OWNED')
               }
 
