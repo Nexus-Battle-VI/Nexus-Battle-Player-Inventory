@@ -30,7 +30,7 @@ export interface ReleaseAuctionCommitment {
   readonly auctionId: string
   readonly ownerId: string
   readonly productId: string
-  readonly reason: 'AUCTION_WITHOUT_BIDS'
+  readonly reason: 'AUCTION_WITHOUT_BIDS' | 'AUCTION_CANCELLED'
 }
 
 export interface PendingAuctionCommitment {

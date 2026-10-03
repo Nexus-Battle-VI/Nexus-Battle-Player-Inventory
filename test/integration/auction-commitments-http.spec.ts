@@ -132,6 +132,31 @@ describe('Auction commitments HTTP', () => {
     })
     expect((await post(`${base}/${secondId}/pending-claim`, pending)).body.applied).toBe(false)
   })
+  // HU-90 (PR2): AUCTION_CANCELLED es un reason valido de release, con la
+  // misma proteccion de DTO que AUCTION_WITHOUT_BIDS.
+  it('acepta release con reason AUCTION_CANCELLED y rechaza un reason desconocido', async () => {
+    await seed()
+    const created = await post(base, commit('auction-cancelled'))
+    const commitmentId = commitmentIdOf(created.body)
+    const released = await post(`${base}/${commitmentId}/release`, {
+      operationId: 'auction-cancelled:release',
+      auctionId: 'auction-cancelled',
+      ownerId: owner,
+      productId: product,
+      reason: 'AUCTION_CANCELLED',
+    })
+    expect(released.body).toMatchObject({ status: 'RELEASED', applied: true })
+    const other = await post(base, commit('auction-invalid-reason'))
+    const otherId = commitmentIdOf(other.body)
+    const invalidReason = await post(`${base}/${otherId}/release`, {
+      operationId: 'auction-invalid-reason:release',
+      auctionId: 'auction-invalid-reason',
+      ownerId: owner,
+      productId: product,
+      reason: 'SOMETHING_ELSE',
+    })
+    expect(invalidReason.status).toBe(400)
+  })
   it('claim entrega el producto al ganador y es idempotente', async () => {
     await seed()
     const winner = 'winner-claim'
