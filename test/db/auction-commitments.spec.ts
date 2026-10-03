@@ -307,6 +307,63 @@ describe('Commitments Auction contra MongoDB', () => {
       (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(owner)))?.totalUnits,
     ).toBe(1)
   })
+  // HU-90 (PR2): AUCTION_CANCELLED se persiste y se comporta igual que
+  // AUCTION_WITHOUT_BIDS; ninguna de las dos decide nada en Mongo.
+  it('release con reason AUCTION_CANCELLED es durable e idempotente, y PENDING_CLAIM lo sigue rechazando', async () => {
+    const owner = randomUUID()
+    const item = randomUUID()
+    await new MongoInventoryRepository(db).save(
+      Inventory.restore({
+        ownerId: PlayerId.create(owner),
+        capacity: 30,
+        slots: [{ itemId: item, quantity: 2 }],
+      }),
+    )
+    const repo = new MongoAuctionCommitmentRepository(db)
+    const make = (auctionId: string) => ({
+      operationId: `auction:${auctionId}:inventory:commit`,
+      auctionId,
+      ownerId: owner,
+      productId: item,
+      expiresAt: '2026-01-01T00:00:00.000Z',
+    })
+    const released = await repo.commit(make('cancelled'))
+    const release = {
+      operationId: 'auction:cancelled:inventory:release',
+      commitmentId: released.commitmentId,
+      auctionId: 'cancelled',
+      ownerId: owner,
+      productId: item,
+      reason: 'AUCTION_CANCELLED' as const,
+    }
+    expect(await repo.release(release)).toMatchObject({ status: 'RELEASED', applied: true })
+    expect(
+      await db.collection('auction_commitments').findOne({ commitmentId: released.commitmentId }),
+    ).toMatchObject({ status: 'RELEASED' })
+    expect(await new MongoAuctionCommitmentRepository(db).release(release)).toMatchObject({
+      applied: false,
+    })
+    expect(
+      (await new MongoInventoryRepository(db).findByOwner(PlayerId.create(owner)))?.totalUnits,
+    ).toBe(2)
+    const pending = await repo.commit(make('cancelled-pending'))
+    await repo.markPendingClaim({
+      operationId: 'auction:cancelled-pending:inventory:pending-claim',
+      commitmentId: pending.commitmentId,
+      auctionId: 'cancelled-pending',
+      sellerId: owner,
+      winnerId: randomUUID(),
+      productId: item,
+    })
+    await expect(
+      repo.release({
+        ...release,
+        operationId: 'auction:cancelled-pending:inventory:release',
+        commitmentId: pending.commitmentId,
+        auctionId: 'cancelled-pending',
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+  })
   it('serializa commits concurrentes y release idempotente sin duplicar unidades', async () => {
     const owner = randomUUID()
     const item = randomUUID()

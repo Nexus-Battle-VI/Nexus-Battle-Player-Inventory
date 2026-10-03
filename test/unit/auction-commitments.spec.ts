@@ -4,7 +4,10 @@ import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persi
 import { Inventory } from '../../src/domain/entities/Inventory'
 import { HeroLoadout } from '../../src/domain/entities/HeroLoadout'
 import { PlayerId } from '../../src/domain/value-objects/identifiers'
-import { AuctionCommitmentRejectedError } from '../../src/application/ports/AuctionCommitmentPort'
+import {
+  AuctionCommitmentConflictError,
+  AuctionCommitmentRejectedError,
+} from '../../src/application/ports/AuctionCommitmentPort'
 
 const product = '11111111-1111-4111-8111-111111111111'
 const owner = 'seller-a'
@@ -124,6 +127,60 @@ describe('Auction commitments en memoria', () => {
         value: product,
       } as never),
     ).toBe(1)
+  })
+  // HU-90 (PR2): AUCTION_CANCELLED reutiliza exactamente la misma semantica
+  // de release que AUCTION_WITHOUT_BIDS (ninguna implementacion lee `reason`
+  // para decidir el comportamiento; solo es parte del fingerprint de
+  // idempotencia).
+  it('libera con reason AUCTION_CANCELLED, no duplica en replay, y conflicto si el reason cambia', async () => {
+    const { inventories, repository } = await setup()
+    const created = await repository.commit(commit())
+    const release = {
+      operationId: 'auction:a:inventory:release',
+      commitmentId: created.commitmentId,
+      auctionId: 'a',
+      ownerId: owner,
+      productId: product,
+      reason: 'AUCTION_CANCELLED' as const,
+    }
+    const first = await repository.release(release)
+    expect(first).toMatchObject({ status: 'RELEASED', applied: true })
+    expect(
+      (await inventories.findByOwner(PlayerId.create(owner)))?.quantityOf({
+        value: product,
+      } as never),
+    ).toBe(1)
+    expect((await repository.release(release)).applied).toBe(false)
+    await expect(
+      repository.release({ ...release, reason: 'AUCTION_WITHOUT_BIDS' }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentConflictError)
+  })
+  it('retiene el producto en pending claim y rechaza release con AUCTION_CANCELLED', async () => {
+    const { inventories, repository } = await setup()
+    const created = await repository.commit(commit())
+    await repository.markPendingClaim({
+      operationId: 'auction:a:inventory:pending-claim',
+      commitmentId: created.commitmentId,
+      auctionId: 'a',
+      sellerId: owner,
+      winnerId: 'winner',
+      productId: product,
+    })
+    await expect(
+      repository.release({
+        operationId: 'auction:a:inventory:release',
+        commitmentId: created.commitmentId,
+        auctionId: 'a',
+        ownerId: owner,
+        productId: product,
+        reason: 'AUCTION_CANCELLED',
+      }),
+    ).rejects.toBeInstanceOf(AuctionCommitmentRejectedError)
+    expect(
+      (await inventories.findByOwner(PlayerId.create(owner)))?.quantityOf({
+        value: product,
+      } as never),
+    ).toBe(0)
   })
   it('retiene el producto en pending claim y rechaza release', async () => {
     const { inventories, repository } = await setup()
