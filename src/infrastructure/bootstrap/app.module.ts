@@ -64,6 +64,7 @@ import {
 } from '../../application/use-cases/GetAuctionProductEligibility'
 import { MyInventoryController } from '../../adapters/inbound/http/my-inventory.controller'
 import { HeroEquipmentController } from '../../adapters/inbound/http/hero-equipment.controller'
+import { HeroEpicController } from '../../adapters/inbound/http/hero-epic.controller'
 import { HeroSelectionController } from '../../adapters/inbound/http/hero-selection.controller'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import {
@@ -73,6 +74,8 @@ import {
   CAPTURE_BATTLE_DROP_SNAPSHOT,
   COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
+  EQUIP_EPIC_ON_HERO,
+  GET_HERO_EPIC,
   GET_HERO_EQUIPMENT,
   GET_HERO_SELECTION,
   GET_INVENTORY,
@@ -99,6 +102,8 @@ import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwne
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
 import { GetHeroProfileForMission } from '../../application/use-cases/GetHeroProfileForMission'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
+import { GetHeroEpic } from '../../application/use-cases/GetHeroEpic'
+import { EquipEpicOnHero } from '../../application/use-cases/EquipEpicOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
 import { GetHeroSelection } from '../../application/use-cases/GetHeroSelection'
 import { SelectHero } from '../../application/use-cases/SelectHero'
@@ -108,6 +113,8 @@ import { INVENTORY_REPOSITORY } from '../../application/ports/InventoryRepositor
 import { INVENTORY_QUERY } from '../../application/ports/InventoryQueryPort'
 import { CATALOG_READ } from '../../application/ports/CatalogReadPort'
 import { HERO_LOADOUT_REPOSITORY } from '../../application/ports/HeroLoadoutRepositoryPort'
+import { HERO_EPIC_SELECTION_REPOSITORY } from '../../application/ports/HeroEpicSelectionRepositoryPort'
+import type { HeroEpicSelectionRepositoryPort } from '../../application/ports/HeroEpicSelectionRepositoryPort'
 import { HERO_SELECTION_REPOSITORY } from '../../application/ports/HeroSelectionRepositoryPort'
 import { HERO_PROGRESSION_REPOSITORY } from '../../application/ports/HeroProgressionRepositoryPort'
 import { CLOCK } from '../../application/ports/ClockPort'
@@ -126,6 +133,8 @@ import { InMemoryAuctionCommitmentRepository } from '../../adapters/outbound/per
 import { MongoAuctionCommitmentRepository } from '../../adapters/outbound/persistence/MongoAuctionCommitmentRepository'
 import { InMemoryHeroLoadoutRepository } from '../../adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { MongoHeroLoadoutRepository } from '../../adapters/outbound/persistence/MongoHeroLoadoutRepository'
+import { InMemoryHeroEpicSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroEpicSelectionRepository'
+import { MongoHeroEpicSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroEpicSelectionRepository'
 import { InMemoryHeroSelectionRepository } from '../../adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import { MongoHeroSelectionRepository } from '../../adapters/outbound/persistence/MongoHeroSelectionRepository'
 import { InMemoryHeroProgressionRepository } from '../../adapters/outbound/persistence/InMemoryHeroProgressionRepository'
@@ -182,6 +191,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     MyInventoryController,
     HeroSelectionController,
     HeroEquipmentController,
+    HeroEpicController,
     HealthController,
     InventoryGrantsController,
     ProductOwnersController,
@@ -266,6 +276,17 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       inject: [MONGO_DATABASE],
     },
     { provide: MISSION_HERO_COMMITMENTS, useExisting: HERO_LOADOUT_REPOSITORY },
+    // HU-31: agregado HERMANO del loadout, coleccion propia
+    // (`hero-epic-selections`), sin la maquinaria de compromiso de mision
+    // que si necesita HeroLoadout (ver MongoHeroEpicSelectionRepository).
+    {
+      provide: HERO_EPIC_SELECTION_REPOSITORY,
+      useFactory: (db: Db | null): HeroEpicSelectionRepositoryPort =>
+        db === null
+          ? new InMemoryHeroEpicSelectionRepository()
+          : new MongoHeroEpicSelectionRepository(db),
+      inject: [MONGO_DATABASE],
+    },
     {
       provide: COMMIT_HERO_FOR_MISSION,
       useFactory: (
@@ -660,9 +681,39 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         getHeroSelection: GetHeroSelection,
         loadouts: HeroLoadoutRepositoryPort,
         catalog: CatalogReadPort,
+        epicSelections: HeroEpicSelectionRepositoryPort,
       ): GetEquippedHeroForCombat =>
-        new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog),
-      inject: [GET_HERO_SELECTION, HERO_LOADOUT_REPOSITORY, CATALOG_READ],
+        new GetEquippedHeroForCombat(getHeroSelection, loadouts, catalog, epicSelections),
+      inject: [
+        GET_HERO_SELECTION,
+        HERO_LOADOUT_REPOSITORY,
+        CATALOG_READ,
+        HERO_EPIC_SELECTION_REPOSITORY,
+      ],
+    },
+    // HU-31: lectura/escritura de la epica equipada, mismo patron de
+    // dependencias que GET_HERO_EQUIPMENT/EQUIP_ITEM_ON_HERO.
+    {
+      provide: GET_HERO_EPIC,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        epicSelections: HeroEpicSelectionRepositoryPort,
+        battles: BattleStatePort,
+      ): GetHeroEpic => new GetHeroEpic(inventories, catalog, epicSelections, battles),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_EPIC_SELECTION_REPOSITORY, BATTLE_STATE],
+    },
+    {
+      provide: EQUIP_EPIC_ON_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        epicSelections: HeroEpicSelectionRepositoryPort,
+        clock: ClockPort,
+        battles: BattleStatePort,
+      ): EquipEpicOnHero =>
+        new EquipEpicOnHero(inventories, catalog, epicSelections, clock, battles),
+      inject: [INVENTORY_QUERY, CATALOG_READ, HERO_EPIC_SELECTION_REPOSITORY, CLOCK, BATTLE_STATE],
     },
     // HU-08: la operacion reutilizable del umbral. NO tiene controlador a
     // proposito --la Task #188 permite no exponerla por HTTP y no hay consumidor

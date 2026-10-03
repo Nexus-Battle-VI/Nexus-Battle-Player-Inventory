@@ -4,10 +4,16 @@ import {
   type EquippedEffect,
   type ParsedEffect,
 } from '../../domain/value-objects/equipment-effects'
+import { applyEpicEffects } from '../../domain/policies/EpicEffectPolicy'
+import {
+  parseEpicAttributes,
+  parseEpicCombatDefaults,
+} from '../../domain/policies/hero-epic-effects'
 import type {
   EquippedHeroAbilityDto,
   EquippedHeroAbilityEffectDto,
   EquippedHeroEffectDto,
+  EquippedHeroEpicDto,
 } from '../dto/EquippedHeroDto'
 import type { CatalogProductView, CatalogReadPort } from '../ports/CatalogReadPort'
 
@@ -104,6 +110,60 @@ export const resolveHeroAbilities = async (
 
     return ability === null ? [] : [ability]
   })
+}
+
+/**
+ * Resuelve la epica equipada de un heroe (HU-31), si tiene una.
+ *
+ * UNA llamada a Catalog por el producto de la epica (nunca N+1: ya se resuelve
+ * una sola vez por peticion, igual que `resolveHeroAbilities`). Reutiliza
+ * `parseEpicAttributes`/`applyEpicEffects` TAL CUAL existen desde PR #18 --no
+ * se reimplementa el resolver aqui, solo se invoca con datos reales--.
+ *
+ * Una epica cuyo producto Catalog no resuelva (`null`) o cuya definicion no
+ * cumpla el contrato canonico (`parseEpicAttributes` lanza `DomainError`) se
+ * OMITE (`null`), igual criterio que una habilidad no resoluble en
+ * `resolveHeroAbilities`: no se inventa, no se tumba la respuesta. Un fallo
+ * de Catalog en si (`CatalogUnavailableError`) SI se propaga: sin sus datos
+ * no se puede saber si la epica existe.
+ */
+export const resolveHeroEpic = async (
+  catalog: CatalogReadPort,
+  heroSubtype: string,
+  epic: { readonly epicProductId: string } | null,
+): Promise<EquippedHeroEpicDto | null> => {
+  if (epic === null) {
+    return null
+  }
+
+  const product = await catalog.getByReference(epic.epicProductId)
+  if (product === null) {
+    return null
+  }
+
+  try {
+    const definition = parseEpicAttributes(product.attributes)
+    const { powerCost, cooldownTurns } = parseEpicCombatDefaults(product.attributes)
+    const resolved = applyEpicEffects({ heroType: heroSubtype, epic: definition })
+
+    return {
+      epicProductId: product.productId,
+      epicReference: product.sku,
+      name: product.name,
+      imageUrl: product.imageUrl,
+      compatibleHeroSubtype: definition.associatedHeroType as string,
+      powerCost,
+      cooldownTurns,
+      baseEffect: definition.baseEffect ?? null,
+      specificEffects: definition.additionalEffects as readonly Record<string, unknown>[],
+      applied: {
+        baseApplied: resolved.baseApplied,
+        additionalApplied: resolved.additionalApplied,
+      },
+    }
+  } catch {
+    return null
+  }
 }
 
 /**

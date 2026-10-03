@@ -1,9 +1,10 @@
 import { PlayerId } from '../../domain/value-objects/identifiers'
 import type { EquippedHeroDto } from '../dto/EquippedHeroDto'
 import type { CatalogReadPort } from '../ports/CatalogReadPort'
+import type { HeroEpicSelectionRepositoryPort } from '../ports/HeroEpicSelectionRepositoryPort'
 import type { HeroLoadoutRepositoryPort } from '../ports/HeroLoadoutRepositoryPort'
 import type { GetHeroSelection } from './GetHeroSelection'
-import { resolveHeroAbilities, toEquippedHeroEffect } from './hero-profile-shared'
+import { resolveHeroAbilities, resolveHeroEpic, toEquippedHeroEffect } from './hero-profile-shared'
 
 /**
  * Heroe preparado/equipado de un jugador, para el contrato interno de Combat
@@ -48,20 +49,38 @@ import { resolveHeroAbilities, toEquippedHeroEffect } from './hero-profile-share
  * ni de calculo. `blockers` reutiliza la MISMA lista de
  * `HeroReadinessPolicy` que ya expone el contrato publico de HU-07: no crea
  * una segunda taxonomia de motivos de bloqueo.
+ *
+ * AMPLIACION ADITIVA (HU-31, contrato `hu-31-equipped-epic-v1` §5): lee
+ * ademas `HeroEpicSelectionRepositoryPort` para la epica equipada del heroe
+ * -agregado HERMANO del loadout, no una segunda implementacion de HU-28- y
+ * la resuelve con `resolveHeroEpic` (que reutiliza `applyEpicEffects` tal
+ * cual, sin duplicar el resolver). `epic` esta AUSENTE de la respuesta (no
+ * `null`) cuando el heroe no tiene epica equipada.
  */
 export class GetEquippedHeroForCombat {
   constructor(
     private readonly getHeroSelection: GetHeroSelection,
     private readonly loadouts: HeroLoadoutRepositoryPort,
     private readonly catalog: CatalogReadPort,
+    private readonly epicSelections: HeroEpicSelectionRepositoryPort,
   ) {}
 
   async execute(playerId: string): Promise<EquippedHeroDto> {
     const selection = await this.getHeroSelection.execute(playerId)
     const heroId = selection.configuration.hero.heroId
+    const owner = PlayerId.create(playerId)
 
-    const loadout = await this.loadouts.findByHero(PlayerId.create(playerId), heroId)
+    const loadout = await this.loadouts.findByHero(owner, heroId)
     const abilities = await resolveHeroAbilities(this.catalog, heroId)
+
+    const epicSelection = await this.epicSelections.findByHero(owner, heroId)
+    const epicProductId = epicSelection?.epicProductId ?? null
+    const epic =
+      epicProductId === null
+        ? null
+        : await resolveHeroEpic(this.catalog, selection.configuration.hero.subtype, {
+            epicProductId,
+          })
 
     return {
       playerId,
@@ -79,6 +98,7 @@ export class GetEquippedHeroForCombat {
       blockers: selection.readiness.blockers,
       loadoutVersion: loadout?.version ?? 0,
       selectedAt: selection.selectedAt,
+      ...(epic === null ? {} : { epic }),
     }
   }
 }

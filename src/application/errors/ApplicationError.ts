@@ -162,6 +162,40 @@ export class HeroProgressionConflictError extends Error {
 }
 
 /**
+ * La referencia de epica no esta en el inventario del jugador, o Catalog no
+ * la conoce (HU-31, contrato `hu-31-equipped-epic-v1` §11). 404 por la misma
+ * politica anti-enumeracion que `EquipmentProductNotOwnedError`.
+ */
+export class EpicProductNotOwnedError extends Error {
+  constructor(productReference: string) {
+    super(`El jugador no posee la epica "${productReference}".`)
+    this.name = 'EpicProductNotOwnedError'
+  }
+}
+
+/**
+ * La referencia SI es un producto poseido, pero su tipo canonico no es
+ * `EPICA` (HU-31). Dato valido con una regla incumplida: 422.
+ */
+export class EpicProductInvalidTypeError extends Error {
+  constructor(productReference: string, productType: string) {
+    super(`El producto "${productReference}" es de tipo ${productType} y no es una epica.`)
+    this.name = 'EpicProductInvalidTypeError'
+  }
+}
+
+/**
+ * Otra escritura modifico la epica equipada entre la lectura y el guardado
+ * (bloqueo optimista). 409: la peticion es correcta y puede reintentarse.
+ */
+export class HeroEpicSelectionConflictError extends Error {
+  constructor(heroId: string) {
+    super(`La epica equipada del heroe ${heroId} cambio durante la operacion. Reintentelo.`)
+    this.name = 'HeroEpicSelectionConflictError'
+  }
+}
+
+/**
  * El mismo `operationId` de acreditacion llego con OTRO contenido (HU-09, Task
  * HU-09.3). 409: la peticion es correcta pero no puede aplicarse.
  *

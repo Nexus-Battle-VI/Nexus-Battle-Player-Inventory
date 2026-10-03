@@ -51,15 +51,58 @@ const hero = (heroSubtype = 'MAGO_HIELO') =>
   })
 
 describe('adaptacion de EPICA Catalog v1 a HU-31', () => {
-  it('mapea los nombres del contrato sin perder metadatos ni referencias', () => {
+  it('mapea los nombres del contrato sin perder metadatos ni referencias (specificEffect legado)', () => {
     const epic = parseEpicAttributes(epicAttributes)
     expect(epic).toEqual({
       associatedHeroType: 'MAGO_HIELO',
       baseEffect: generalEffect,
-      additionalEffect: specificEffect,
+      additionalEffects: [specificEffect],
     })
     expect(epic.baseEffect).toBe(generalEffect)
-    expect(epic.additionalEffect).toBe(specificEffect)
+    expect(epic.additionalEffects?.[0]).toBe(specificEffect)
+  })
+
+  it('acepta la forma canonica specificEffects con varios efectos', () => {
+    const critBonus = Object.freeze({
+      kind: 'STAT_MODIFIER',
+      target: 'SELF',
+      statistic: 'CRITICAL_CHANCE',
+      operation: 'INCREASE',
+      magnitude: Object.freeze({ mode: 'PERCENTAGE', basisPoints: 200 }),
+      stackable: false,
+    })
+    const epic = parseEpicAttributes({
+      schemaVersion: '1',
+      values: {
+        kind: 'EPICA',
+        compatibleHeroSubtype: 'MAGO_HIELO',
+        generalEffect,
+        specificEffects: [specificEffect, critBonus],
+        powerCost: 0,
+        cooldownTurns: 2,
+      },
+    })
+    expect(epic).toEqual({
+      associatedHeroType: 'MAGO_HIELO',
+      baseEffect: generalEffect,
+      additionalEffects: [specificEffect, critBonus],
+    })
+  })
+
+  it('rechaza specificEffects y specificEffect (legado) declarados a la vez', () => {
+    expect(() =>
+      parseEpicAttributes({
+        schemaVersion: '1',
+        values: {
+          kind: 'EPICA',
+          compatibleHeroSubtype: 'MAGO_HIELO',
+          specificEffects: [specificEffect],
+          specificEffect,
+          powerCost: 0,
+          cooldownTurns: 2,
+        },
+      }),
+    ).toThrow(DomainError)
   })
 
   it('traduce generalEffect omitido al null explicito del resolver (Medico)', () => {
@@ -83,9 +126,9 @@ describe('adaptacion de EPICA Catalog v1 a HU-31', () => {
     expect(epic).toEqual({
       associatedHeroType: 'MEDICO',
       baseEffect: null,
-      additionalEffect: revive,
+      additionalEffects: [revive],
     })
-    expect(epic.additionalEffect).toBe(revive)
+    expect(epic.additionalEffects?.[0]).toBe(revive)
   })
 
   it.each([null, undefined, [], 'epica', 1, {}, { values: epicAttributes.values }])(
@@ -165,7 +208,7 @@ describe('composicion pura con el calculo HU-28', () => {
     })
     expect(result.epicEffects).toEqual({
       baseApplied: generalEffect,
-      additionalApplied: specificEffect,
+      additionalApplied: [specificEffect],
       combined: [generalEffect, specificEffect],
     })
     expect(result.epicEffects.combined[0]).toBe(generalEffect)
@@ -177,7 +220,7 @@ describe('composicion pura con el calculo HU-28', () => {
   it('un subtipo distinto solo recibe la base de la epica', () => {
     expect(computeHeroEffectsWithEpic(hero('MAGO_FUEGO'), [], epicAttributes).epicEffects).toEqual({
       baseApplied: generalEffect,
-      additionalApplied: null,
+      additionalApplied: [],
       combined: [generalEffect],
     })
   })
@@ -185,7 +228,7 @@ describe('composicion pura con el calculo HU-28', () => {
   it('retirar la epica no altera las estadisticas del equipamiento ni deja efectos residuales', () => {
     const withEpic = computeHeroEffectsWithEpic(hero(), equipment, epicAttributes)
     const withoutEpic = computeHeroEffectsWithEpic(hero(), equipment, null)
-    const empty = { baseApplied: null, additionalApplied: null, combined: [] }
+    const empty = { baseApplied: null, additionalApplied: [], combined: [] }
     expect(withoutEpic).toEqual({ ...withEpic, epicEffects: empty })
     expect(computeHeroEffectsWithEpic(hero(), equipment)).toEqual(withoutEpic)
   })
@@ -223,12 +266,12 @@ describe('composicion pura con el calculo HU-28', () => {
     }
     expect(computeHeroEffectsWithEpic(hero(subtype), [], attributes).epicEffects).toEqual({
       baseApplied: null,
-      additionalApplied: effect,
+      additionalApplied: [effect],
       combined: [effect],
     })
     expect(computeHeroEffectsWithEpic(hero(), [], attributes).epicEffects).toEqual({
       baseApplied: null,
-      additionalApplied: null,
+      additionalApplied: [],
       combined: [],
     })
   })

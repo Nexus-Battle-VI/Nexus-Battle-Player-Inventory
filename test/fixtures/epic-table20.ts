@@ -17,17 +17,28 @@ export interface Table20EpicFixture {
   readonly definition: EpicDefinition & {
     readonly associatedHeroType: HeroSubtype
     readonly baseEffect: EpicEffect | null
-    readonly additionalEffect: EpicEffect
+    readonly additionalEffects: readonly EpicEffect[]
   }
 }
 
+/**
+ * GAP-HU31-CATALOG-MULTI-EFFECT: cuatro de las ocho filas combinaban dos
+ * modificadores independientes (daño/vida + critico) dentro de un unico
+ * objeto opaco, por la limitacion previa de Catalog (un solo efecto
+ * especifico). Se dividen en dos elementos de `additionalEffects` para
+ * representar fielmente dos efectos simultaneos pero independientes. Las
+ * filas restantes (Frio concentrado, Toma y lleva, Te changua, Reanimador
+ * 3000) ya eran UN solo efecto compuesto (una condicion/cantidad describiendo
+ * el MISMO efecto, no dos efectos distintos) y se conservan como un unico
+ * elemento.
+ */
 export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> = {
   GUERRERO_TANQUE: {
     name: 'Golpe de defensa',
     definition: {
       associatedHeroType: 'GUERRERO_TANQUE',
       baseEffect: { attack: 1 },
-      additionalEffect: { damage: 4, criticalPercent: 2 },
+      additionalEffects: [{ damage: 4 }, { criticalPercent: 2 }],
     },
   },
   GUERRERO_ARMAS: {
@@ -35,7 +46,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'GUERRERO_ARMAS',
       baseEffect: { recoverHealthDice: { count: 1, sides: 4 } },
-      additionalEffect: { health: 3, criticalPercent: 5 },
+      additionalEffects: [{ health: 3 }, { criticalPercent: 5 }],
     },
   },
   MAGO_FUEGO: {
@@ -43,7 +54,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'MAGO_FUEGO',
       baseEffect: { health: 1 },
-      additionalEffect: { damage: 2, criticalPercent: 1 },
+      additionalEffects: [{ damage: 2 }, { criticalPercent: 1 }],
     },
   },
   MAGO_HIELO: {
@@ -51,7 +62,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'MAGO_HIELO',
       baseEffect: { opponentPower: -1 },
-      additionalEffect: { receivesDamage: false, appliesOn: 'NEXT_TURN' },
+      additionalEffects: [{ receivesDamage: false, appliesOn: 'NEXT_TURN' }],
     },
   },
   PICARO_VENENO: {
@@ -59,7 +70,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'PICARO_VENENO',
       baseEffect: { attack: 1 },
-      additionalEffect: { opponentDamageFraction: 0.5, returnReducedDamageToOpponent: true },
+      additionalEffects: [{ opponentDamageFraction: 0.5, returnReducedDamageToOpponent: true }],
     },
   },
   PICARO_MACHETE: {
@@ -67,7 +78,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'PICARO_MACHETE',
       baseEffect: { damage: 1 },
-      additionalEffect: { health: 2, criticalPercent: 2 },
+      additionalEffects: [{ health: 2 }, { criticalPercent: 2 }],
     },
   },
   CHAMAN: {
@@ -75,7 +86,7 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'CHAMAN',
       baseEffect: null,
-      additionalEffect: { healingTarget: 'ALL', healingDice: { count: 4, sides: 8 } },
+      additionalEffects: [{ healingTarget: 'ALL', healingDice: { count: 4, sides: 8 } }],
     },
   },
   MEDICO: {
@@ -83,11 +94,13 @@ export const TABLE_20_EPICS: Readonly<Record<HeroSubtype, Table20EpicFixture>> =
     definition: {
       associatedHeroType: 'MEDICO',
       baseEffect: null,
-      additionalEffect: {
-        linkedTarget: 'COMPANION',
-        trigger: 'LINKED_COMPANION_DIES',
-        revivedHealthPercent: 20,
-      },
+      additionalEffects: [
+        {
+          linkedTarget: 'COMPANION',
+          trigger: 'LINKED_COMPANION_DIES',
+          revivedHealthPercent: 20,
+        },
+      ],
     },
   },
 }

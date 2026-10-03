@@ -31,15 +31,15 @@ describe('EpicEffectPolicy (RF-31)', () => {
     const result = applyEpicEffects({ heroType: definition.associatedHeroType, epic: definition })
     const expectedLayers =
       definition.baseEffect === null
-        ? [definition.additionalEffect]
-        : [definition.baseEffect, definition.additionalEffect]
+        ? [...definition.additionalEffects]
+        : [definition.baseEffect, ...definition.additionalEffects]
 
     expect(result).toEqual({
       baseApplied: definition.baseEffect,
-      additionalApplied: definition.additionalEffect,
+      additionalApplied: definition.additionalEffects,
       combined: expectedLayers,
     })
-    expect(result.additionalApplied).toBe(definition.additionalEffect)
+    expect(result.additionalApplied).toBe(definition.additionalEffects)
     expect(result.baseApplied).toBe(definition.baseEffect)
   })
 
@@ -48,14 +48,14 @@ describe('EpicEffectPolicy (RF-31)', () => {
     ({ definition, heroType }) => {
       expect(applyEpicEffects({ heroType, epic: definition })).toEqual({
         baseApplied: definition.baseEffect,
-        additionalApplied: null,
+        additionalApplied: [],
         combined: definition.baseEffect === null ? [] : [definition.baseEffect],
       })
     },
   )
 
   it.each(HERO_SUBTYPES)('sin epica no aplica efectos a %s', (heroType) => {
-    const expected = { baseApplied: null, additionalApplied: null, combined: [] }
+    const expected = { baseApplied: null, additionalApplied: [], combined: [] }
 
     expect(applyEpicEffects({ heroType, epic: null })).toEqual(expected)
     expect(applyEpicEffects({ heroType })).toEqual(expected)
@@ -65,12 +65,12 @@ describe('EpicEffectPolicy (RF-31)', () => {
   it('P4: no reemplaza el general ni pierde los componentes del especifico', () => {
     expect(applyEpicEffects({ heroType: 'GUERRERO_TANQUE', epic: tankEpic })).toEqual({
       baseApplied: { attack: 1 },
-      additionalApplied: { damage: 4, criticalPercent: 2 },
-      combined: [{ attack: 1 }, { damage: 4, criticalPercent: 2 }],
+      additionalApplied: [{ damage: 4 }, { criticalPercent: 2 }],
+      combined: [{ attack: 1 }, { damage: 4 }, { criticalPercent: 2 }],
     })
   })
 
-  it('preserva recuperacion por dados y el bono compuesto de Segundo impulso', () => {
+  it('preserva recuperacion por dados y los dos componentes de Segundo impulso', () => {
     expect(
       applyEpicEffects({
         heroType: 'GUERRERO_ARMAS',
@@ -78,8 +78,12 @@ describe('EpicEffectPolicy (RF-31)', () => {
       }),
     ).toEqual({
       baseApplied: { recoverHealthDice: { count: 1, sides: 4 } },
-      additionalApplied: { health: 3, criticalPercent: 5 },
-      combined: [{ recoverHealthDice: { count: 1, sides: 4 } }, { health: 3, criticalPercent: 5 }],
+      additionalApplied: [{ health: 3 }, { criticalPercent: 5 }],
+      combined: [
+        { recoverHealthDice: { count: 1, sides: 4 } },
+        { health: 3 },
+        { criticalPercent: 5 },
+      ],
     })
   })
 
@@ -89,12 +93,12 @@ describe('EpicEffectPolicy (RF-31)', () => {
 
     expect(applyEpicEffects({ heroType: 'CHAMAN', epic })).toEqual({
       baseApplied: null,
-      additionalApplied: specific,
+      additionalApplied: [specific],
       combined: [specific],
     })
     expect(applyEpicEffects({ heroType: 'MEDICO', epic })).toEqual({
       baseApplied: null,
-      additionalApplied: null,
+      additionalApplied: [],
       combined: [],
     })
   })
@@ -109,12 +113,12 @@ describe('EpicEffectPolicy (RF-31)', () => {
 
     expect(applyEpicEffects({ heroType: 'MEDICO', epic })).toEqual({
       baseApplied: null,
-      additionalApplied: specific,
+      additionalApplied: [specific],
       combined: [specific],
     })
     expect(applyEpicEffects({ heroType: 'CHAMAN', epic })).toEqual({
       baseApplied: null,
-      additionalApplied: null,
+      additionalApplied: [],
       combined: [],
     })
   })
@@ -157,7 +161,7 @@ describe('EpicEffectPolicy (RF-31)', () => {
         heroType: 'MAGO_FUEGO',
         epic: {
           associatedHeroType: 'GUERRERO_TANQUE',
-          additionalEffect: tankEpic.additionalEffect,
+          additionalEffects: tankEpic.additionalEffects,
         },
       }),
     ).toThrow(/debe declarar baseEffect/)
@@ -175,24 +179,24 @@ describe('EpicEffectPolicy (RF-31)', () => {
     },
   )
 
-  it('rechaza additionalEffect ausente incluso sin coincidencia', () => {
+  it('rechaza additionalEffects ausente incluso sin coincidencia', () => {
     expect(() =>
       applyEpicEffects({
         heroType: 'MEDICO',
         epic: { associatedHeroType: 'GUERRERO_TANQUE', baseEffect: tankEpic.baseEffect },
       }),
-    ).toThrow(/debe declarar additionalEffect como un objeto/)
+    ).toThrow(/debe declarar additionalEffects como una lista/)
   })
 
-  it.each([undefined, null, '', 0, false, []])(
-    'rechaza additionalEffect %p',
-    (additionalEffect) => {
+  it.each([undefined, null, '', 0, false, [], [null], [1], [{}, null]])(
+    'rechaza additionalEffects %p',
+    (additionalEffects) => {
       expect(() =>
         applyEpicEffects({
           heroType: 'GUERRERO_TANQUE',
-          epic: invalidDefinition({ ...tankEpic, additionalEffect }),
+          epic: invalidDefinition({ ...tankEpic, additionalEffects }),
         }),
-      ).toThrow(/debe declarar additionalEffect como un objeto/)
+      ).toThrow(/debe declarar additionalEffects como una lista/)
     },
   )
 
@@ -219,13 +223,14 @@ describe('EpicEffectPolicy (RF-31)', () => {
   it('es determinista y conserva objetos congelados sin mutar ni compartir la lista de resultado', () => {
     const nested = Object.freeze({ dice: Object.freeze({ count: 4, sides: 8 }) })
     const baseEffect = Object.freeze({ opaque: nested })
-    const additionalEffect = Object.freeze({
-      opaque: Object.freeze({ health: 3, criticalPercent: 5 }),
-    })
+    const additionalEffects = Object.freeze([
+      Object.freeze({ opaque: Object.freeze({ health: 3 }) }),
+      Object.freeze({ opaque: Object.freeze({ criticalPercent: 5 }) }),
+    ])
     const epic = Object.freeze({
       associatedHeroType: 'GUERRERO_ARMAS',
       baseEffect,
-      additionalEffect,
+      additionalEffects,
     })
     const input = Object.freeze({ heroType: 'GUERRERO_ARMAS', epic })
     const before = JSON.stringify(input)
@@ -234,36 +239,37 @@ describe('EpicEffectPolicy (RF-31)', () => {
 
     expect(first).toEqual({
       baseApplied: baseEffect,
-      additionalApplied: additionalEffect,
-      combined: [baseEffect, additionalEffect],
+      additionalApplied: additionalEffects,
+      combined: [baseEffect, ...additionalEffects],
     })
     expect(second).toEqual(first)
     expect(first).not.toBe(second)
     expect(first.combined).not.toBe(second.combined)
     expect(first.combined[0]).toBe(baseEffect)
-    expect(first.combined[1]).toBe(additionalEffect)
+    expect(first.combined[1]).toBe(additionalEffects[0])
+    expect(first.combined[2]).toBe(additionalEffects[1])
     expect(JSON.stringify(input)).toBe(before)
 
     ;(first.combined as EpicEffect[]).pop()
-    expect(second.combined).toEqual([baseEffect, additionalEffect])
-    expect(epic).toEqual({ associatedHeroType: 'GUERRERO_ARMAS', baseEffect, additionalEffect })
+    expect(second.combined).toEqual([baseEffect, ...additionalEffects])
+    expect(epic).toEqual({ associatedHeroType: 'GUERRERO_ARMAS', baseEffect, additionalEffects })
   })
 
   it('acepta una definicion nueva sin decidir su nombre, estructura o aritmetica', () => {
     const baseEffect = { sourceText: 'Efecto general definido por el catalogo de la mision' }
-    const additionalEffect = {
-      components: [{ unknownMechanic: 'delegada a combate' }, { customData: [2, 3] }],
-    }
+    const additionalEffects = [
+      { components: [{ unknownMechanic: 'delegada a combate' }, { customData: [2, 3] }] },
+    ]
 
     expect(
       applyEpicEffects({
         heroType: 'PICARO_VENENO',
-        epic: { associatedHeroType: 'PICARO_VENENO', baseEffect, additionalEffect },
+        epic: { associatedHeroType: 'PICARO_VENENO', baseEffect, additionalEffects },
       }),
     ).toEqual({
       baseApplied: baseEffect,
-      additionalApplied: additionalEffect,
-      combined: [baseEffect, additionalEffect],
+      additionalApplied: additionalEffects,
+      combined: [baseEffect, ...additionalEffects],
     })
   })
 })
