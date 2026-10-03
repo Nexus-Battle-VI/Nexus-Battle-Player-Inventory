@@ -102,6 +102,8 @@ const epic = (
         magnitude: { mode: 'FIXED', amount: 2 },
         stackable: false,
       },
+      powerCost: 0,
+      cooldownTurns: 2,
       ...overrides,
     },
   },
@@ -263,7 +265,7 @@ describe('EquipEpicOnHero (HU-31, contrato hu-31-equipped-epic-v1)', () => {
     })
 
     expect(state.epic?.applied.baseApplied).not.toBeNull()
-    expect(state.epic?.applied.additionalApplied).not.toBeNull()
+    expect(state.epic?.applied.additionalApplied.length).toBeGreaterThan(0)
   })
 
   it('T-PI-06: subtipo NO coincidente -> solo base, sin rechazar el equipamiento', async () => {
@@ -279,7 +281,7 @@ describe('EquipEpicOnHero (HU-31, contrato hu-31-equipped-epic-v1)', () => {
     })
 
     expect(state.epic?.applied.baseApplied).not.toBeNull()
-    expect(state.epic?.applied.additionalApplied).toBeNull()
+    expect(state.epic?.applied.additionalApplied).toEqual([])
   })
 
   it('T-PI-07: generalEffect ausente ("No aplica") se preserva: baseApplied null con match', async () => {
@@ -301,6 +303,8 @@ describe('EquipEpicOnHero (HU-31, contrato hu-31-equipped-epic-v1)', () => {
           compatibleHeroSubtype: 'MEDICO',
           // generalEffect ausente a proposito: "No aplica" (Tabla 20, Medico/Chaman).
           specificEffect: { kind: 'REVIVE', target: 'ALLY', stackable: false },
+          powerCost: 0,
+          cooldownTurns: 2,
         },
       },
     }
@@ -317,7 +321,7 @@ describe('EquipEpicOnHero (HU-31, contrato hu-31-equipped-epic-v1)', () => {
 
     expect(state.epic?.baseEffect).toBeNull()
     expect(state.epic?.applied.baseApplied).toBeNull()
-    expect(state.epic?.applied.additionalApplied).not.toBeNull()
+    expect(state.epic?.applied.additionalApplied.length).toBeGreaterThan(0)
   })
 
   it('T-PI-09: con compromiso de batalla activo, equipar se rechaza (409 battle_lock) y no cambia la seleccion', async () => {

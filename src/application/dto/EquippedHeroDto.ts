@@ -138,13 +138,20 @@ export interface EquippedHeroAbilityDto {
 /**
  * Epica equipada resuelta (HU-31, contrato `hu-31-equipped-epic-v1` §5).
  *
- * Lista blanca, no el documento crudo de Catalog. `baseEffect`/`specificEffect`
+ * Lista blanca, no el documento crudo de Catalog. `baseEffect`/`specificEffects`
  * son la definicion tal como la publica Catalog (`null` en `baseEffect` =
  * "No aplica", misma semantica que `EpicDefinition` de `EpicEffectPolicy`).
+ * `specificEffects` es una lista (minimo 1) desde la correccion
+ * GAP-HU31-CATALOG-MULTI-EFFECT: una epica puede combinar varios efectos
+ * especificos simultaneos (Tabla 20).
  * `applied.*` es el resultado YA resuelto por `applyEpicEffects` con el
  * subtype real del heroe: lo que Combat congela y lo que Web presenta como
  * "aplicado"/"no aplicado por subtipo". No se reimplementa el resolver aqui:
  * este DTO solo transporta su salida.
+ * `powerCost`/`cooldownTurns` son los mismos valores que Catalog deriva para
+ * toda EPICA (0 y 2): viajan para que Combat los ejecute sin inventar
+ * constantes propias, mismo criterio que `powerCost`/`chargeTurns` en
+ * `EquippedHeroAbilityDto`.
  */
 export interface EquippedHeroEpicDto {
   readonly epicProductId: string
@@ -153,11 +160,13 @@ export interface EquippedHeroEpicDto {
   /** Para presentacion (Web). Combat la ignora: su parser no la declara. */
   readonly imageUrl: string
   readonly compatibleHeroSubtype: string
+  readonly powerCost: number
+  readonly cooldownTurns: number
   readonly baseEffect: Record<string, unknown> | null
-  readonly specificEffect: Record<string, unknown>
+  readonly specificEffects: readonly Record<string, unknown>[]
   readonly applied: {
     readonly baseApplied: Record<string, unknown> | null
-    readonly additionalApplied: Record<string, unknown> | null
+    readonly additionalApplied: readonly Record<string, unknown>[]
   }
 }
 

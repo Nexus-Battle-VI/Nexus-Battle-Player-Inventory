@@ -48,12 +48,68 @@ export const parseEpicAttributes = (attributes: unknown): EpicDefinition => {
     }
   }
 
-  const additionalEffect = asRecord(values.specificEffect)
-  if (additionalEffect === null) {
-    throw new DomainError('La epica debe declarar specificEffect como un objeto de efecto.')
+  const additionalEffects = parseAdditionalEffects(values)
+
+  return { associatedHeroType, baseEffect, additionalEffects }
+}
+
+/**
+ * Catalog publica la forma canonica `specificEffects` (lista, minimo 1,
+ * GAP-HU31-CATALOG-MULTI-EFFECT) o, para productos historicos, la forma
+ * legada `specificEffect` (un unico objeto) -- este consumidor acepta ambas
+ * y normaliza siempre a una lista, igual criterio que el propio parser de
+ * Catalog. Las dos claves a la vez describen un documento hibrido invalido.
+ */
+const parseAdditionalEffects = (values: Record<string, unknown>): EpicEffect[] => {
+  const hasList = Object.prototype.hasOwnProperty.call(values, 'specificEffects')
+  const hasLegacy = Object.prototype.hasOwnProperty.call(values, 'specificEffect')
+
+  if (hasList && hasLegacy) {
+    throw new DomainError('La epica no puede declarar specificEffects y specificEffect a la vez.')
   }
 
-  return { associatedHeroType, baseEffect, additionalEffect }
+  if (hasList) {
+    const list = values.specificEffects
+    if (
+      !Array.isArray(list) ||
+      list.length === 0 ||
+      !list.every((item) => asRecord(item) !== null)
+    ) {
+      throw new DomainError('specificEffects debe ser una lista con al menos un objeto de efecto.')
+    }
+    return list as EpicEffect[]
+  }
+
+  if (hasLegacy) {
+    const legacy = asRecord(values.specificEffect)
+    if (legacy === null) {
+      throw new DomainError('La epica debe declarar specificEffect como un objeto de efecto.')
+    }
+    return [legacy]
+  }
+
+  throw new DomainError('La epica debe declarar specificEffects (minimo 1 efecto).')
+}
+
+/**
+ * Costo de Poder y recarga de la epica, tal como Catalog los deriva para
+ * TODA EPICA (0 y 2, `EpicAttributes.powerCost`/`cooldownTurns`). Lectura
+ * separada de `parseEpicAttributes`: son metadatos de ejecucion (HU-19), no
+ * de aplicabilidad (HU-31) -- no se mezclan en `EpicDefinition`.
+ */
+export const parseEpicCombatDefaults = (
+  attributes: unknown,
+): { readonly powerCost: number; readonly cooldownTurns: number } => {
+  const envelope = asRecord(attributes)
+  const values = asRecord(envelope?.values)
+  const powerCost = values?.powerCost
+  const cooldownTurns = values?.cooldownTurns
+
+  if (typeof powerCost !== 'number' || typeof cooldownTurns !== 'number') {
+    throw new DomainError('La epica debe declarar powerCost y cooldownTurns numericos.')
+  }
+
+  return { powerCost, cooldownTurns }
 }
 
 export interface HeroEffectsWithEpic extends EffectiveStatsResult {

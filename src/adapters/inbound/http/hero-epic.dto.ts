@@ -24,8 +24,8 @@ class EquippedHeroEpicAppliedResponse {
   @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
   readonly baseApplied!: Record<string, unknown> | null
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
-  readonly additionalApplied!: Record<string, unknown> | null
+  @ApiProperty({ type: 'object', additionalProperties: true, isArray: true })
+  readonly additionalApplied!: readonly Record<string, unknown>[]
 }
 
 class EquippedHeroEpicResponse {
@@ -44,11 +44,17 @@ class EquippedHeroEpicResponse {
   @ApiProperty({ example: 'GUERRERO_TANQUE' })
   readonly compatibleHeroSubtype!: string
 
+  @ApiProperty({ example: 0 })
+  readonly powerCost!: number
+
+  @ApiProperty({ example: 2 })
+  readonly cooldownTurns!: number
+
   @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
   readonly baseEffect!: Record<string, unknown> | null
 
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  readonly specificEffect!: Record<string, unknown>
+  @ApiProperty({ type: 'object', additionalProperties: true, isArray: true })
+  readonly specificEffects!: readonly Record<string, unknown>[]
 
   @ApiProperty({ type: EquippedHeroEpicAppliedResponse })
   readonly applied!: EquippedHeroEpicAppliedResponse

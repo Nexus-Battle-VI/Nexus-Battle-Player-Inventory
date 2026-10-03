@@ -1049,6 +1049,8 @@ describe('HU-31 — epic equipada en equipped-hero (contrato hu-31-equipped-epic
           magnitude: { mode: 'FIXED', amount: 2 },
           stackable: false,
         },
+        powerCost: 0,
+        cooldownTurns: 2,
       },
     },
   })
@@ -1089,7 +1091,7 @@ describe('HU-31 — epic equipada en equipped-hero (contrato hu-31-equipped-epic
     expect(dto.epic?.epicReference).toBe('golpe-de-defensa')
     expect(dto.epic?.compatibleHeroSubtype).toBe('GUERRERO_TANQUE')
     expect(dto.epic?.applied.baseApplied).not.toBeNull()
-    expect(dto.epic?.applied.additionalApplied).not.toBeNull()
+    expect(dto.epic?.applied.additionalApplied.length).toBeGreaterThan(0)
   })
 
   it('subtipo no coincidente: solo el efecto base, sin romper la respuesta', async () => {
@@ -1102,7 +1104,7 @@ describe('HU-31 — epic equipada en equipped-hero (contrato hu-31-equipped-epic
 
     const dto = await e.forCombat.execute('jugador-1')
     expect(dto.epic?.applied.baseApplied).not.toBeNull()
-    expect(dto.epic?.applied.additionalApplied).toBeNull()
+    expect(dto.epic?.applied.additionalApplied).toEqual([])
   })
 
   it('epica equipada cuyo producto ya no resuelve en Catalog: se OMITE (sin tumbar la respuesta)', async () => {

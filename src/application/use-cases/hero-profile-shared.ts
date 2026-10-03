@@ -5,7 +5,10 @@ import {
   type ParsedEffect,
 } from '../../domain/value-objects/equipment-effects'
 import { applyEpicEffects } from '../../domain/policies/EpicEffectPolicy'
-import { parseEpicAttributes } from '../../domain/policies/hero-epic-effects'
+import {
+  parseEpicAttributes,
+  parseEpicCombatDefaults,
+} from '../../domain/policies/hero-epic-effects'
 import type {
   EquippedHeroAbilityDto,
   EquippedHeroAbilityEffectDto,
@@ -140,6 +143,7 @@ export const resolveHeroEpic = async (
 
   try {
     const definition = parseEpicAttributes(product.attributes)
+    const { powerCost, cooldownTurns } = parseEpicCombatDefaults(product.attributes)
     const resolved = applyEpicEffects({ heroType: heroSubtype, epic: definition })
 
     return {
@@ -148,8 +152,10 @@ export const resolveHeroEpic = async (
       name: product.name,
       imageUrl: product.imageUrl,
       compatibleHeroSubtype: definition.associatedHeroType as string,
+      powerCost,
+      cooldownTurns,
       baseEffect: definition.baseEffect ?? null,
-      specificEffect: definition.additionalEffect as Record<string, unknown>,
+      specificEffects: definition.additionalEffects as readonly Record<string, unknown>[],
       applied: {
         baseApplied: resolved.baseApplied,
         additionalApplied: resolved.additionalApplied,
