@@ -11,6 +11,12 @@ import type { Db } from 'mongodb'
  * o ninguno de los dos: el agregado nunca persiste una pareja incompleta.
  *
  * El validador vive en el MOTOR, mismo criterio que `002-hero-loadouts`.
+ *
+ * `epicItemId` admite kebab-case O UUID, mismo patron que `006-hero-loadouts-uuid-itemid`
+ * ya establecio para `hero-loadouts.entries[].itemId`: `ItemId.create` (dominio) siempre
+ * acepto las dos formas -una compra completada guarda el `productId` (UUID) como `itemId`,
+ * no un slug-, y un validador que solo declare kebab-case rechaza esos documentos con
+ * `MongoServerError: Document failed validation` (codigo 121) en vez de un error de dominio.
  */
 export const up = async (db: Db): Promise<void> => {
   await db.createCollection('hero-epic-selections', {
@@ -27,7 +33,8 @@ export const up = async (db: Db): Promise<void> => {
           version: { bsonType: 'int', minimum: 0 },
           epicItemId: {
             bsonType: ['string', 'null'],
-            pattern: '^[a-z][a-z0-9]*(-[a-z0-9]+)*$',
+            pattern:
+              '^([a-z][a-z0-9]*(-[a-z0-9]+)*|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$',
           },
           epicProductId: { bsonType: ['string', 'null'], minLength: 1 },
         },

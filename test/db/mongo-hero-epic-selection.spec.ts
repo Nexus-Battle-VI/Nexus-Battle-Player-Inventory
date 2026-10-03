@@ -83,6 +83,19 @@ describe('MongoHeroEpicSelectionRepository', () => {
     expect(found?.version).toBe(1)
   })
 
+  it('acepta un epicItemId con forma de productId UUID, como el que deja una compra real', async () => {
+    const player = owner()
+    const selection = HeroEpicSelection.createEmpty(player.value, 'heroe-uuid')
+    selection.equip({
+      epicItemId: '3f1e2d3c-4b5a-4c6d-8e7f-9a0b1c2d3e4f',
+      epicProductId: 'pid-golpe',
+      occurredAt: AT,
+    })
+
+    const saved = await repository.save(selection, 0)
+    expect(saved.epicItemId).toBe('3f1e2d3c-4b5a-4c6d-8e7f-9a0b1c2d3e4f')
+  })
+
   it('devuelve null cuando el heroe no tiene epica equipada', async () => {
     const player = owner()
     await expect(repository.findByHero(player, 'heroe-sin-epica')).resolves.toBeNull()
