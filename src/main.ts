@@ -40,6 +40,12 @@ const bootstrap = async (): Promise<void> => {
         .setTitle('Nexus Battles VI — Player / Inventory')
         .setDescription('API del bounded context Player/Inventory.')
         .setVersion(config.version)
+        .addSecurity('internal-hmac', {
+          type: 'apiKey',
+          in: 'header',
+          name: 'x-internal-signature',
+          description: 'HMAC vigente; requiere tambien x-internal-service y x-internal-timestamp.',
+        })
         .build(),
     )
 

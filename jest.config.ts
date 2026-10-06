@@ -38,6 +38,8 @@ const config: Config = {
     '!src/**/index.ts',
     '!src/main.ts',
     '!src/adapters/outbound/persistence/MongoInventoryRepository.ts',
+    '!src/adapters/outbound/persistence/MongoTournamentPrizeRepository.ts',
+    '!src/adapters/outbound/persistence/migrations/017-tournament-prize-grants.ts',
     '!src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroEpicSelectionRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroProgressionRepository.ts',
