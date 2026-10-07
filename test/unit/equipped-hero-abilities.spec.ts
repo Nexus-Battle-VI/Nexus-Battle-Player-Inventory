@@ -1,6 +1,7 @@
 import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroProgressionRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
+import { InMemoryHeroEpicSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroEpicSelectionRepository'
 import { InMemoryHeroSelectionRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroSelectionRepository'
 import {
   CatalogUnavailableError,
@@ -236,6 +237,7 @@ const escenario = async (
       ),
       loadouts,
       catalog,
+      new InMemoryHeroEpicSelectionRepository(),
     ),
     catalog,
   }

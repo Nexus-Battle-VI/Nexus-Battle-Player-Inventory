@@ -135,6 +135,41 @@ export interface EquippedHeroAbilityDto {
   readonly effects: readonly EquippedHeroAbilityEffectDto[]
 }
 
+/**
+ * Epica equipada resuelta (HU-31, contrato `hu-31-equipped-epic-v1` §5).
+ *
+ * Lista blanca, no el documento crudo de Catalog. `baseEffect`/`specificEffects`
+ * son la definicion tal como la publica Catalog (`null` en `baseEffect` =
+ * "No aplica", misma semantica que `EpicDefinition` de `EpicEffectPolicy`).
+ * `specificEffects` es una lista (minimo 1) desde la correccion
+ * GAP-HU31-CATALOG-MULTI-EFFECT: una epica puede combinar varios efectos
+ * especificos simultaneos (Tabla 20).
+ * `applied.*` es el resultado YA resuelto por `applyEpicEffects` con el
+ * subtype real del heroe: lo que Combat congela y lo que Web presenta como
+ * "aplicado"/"no aplicado por subtipo". No se reimplementa el resolver aqui:
+ * este DTO solo transporta su salida.
+ * `powerCost`/`cooldownTurns` son los mismos valores que Catalog deriva para
+ * toda EPICA (0 y 2): viajan para que Combat los ejecute sin inventar
+ * constantes propias, mismo criterio que `powerCost`/`chargeTurns` en
+ * `EquippedHeroAbilityDto`.
+ */
+export interface EquippedHeroEpicDto {
+  readonly epicProductId: string
+  readonly epicReference: string
+  readonly name: string
+  /** Para presentacion (Web). Combat la ignora: su parser no la declara. */
+  readonly imageUrl: string
+  readonly compatibleHeroSubtype: string
+  readonly powerCost: number
+  readonly cooldownTurns: number
+  readonly baseEffect: Record<string, unknown> | null
+  readonly specificEffects: readonly Record<string, unknown>[]
+  readonly applied: {
+    readonly baseApplied: Record<string, unknown> | null
+    readonly additionalApplied: readonly Record<string, unknown>[]
+  }
+}
+
 export interface EquippedHeroDto {
   readonly playerId: string
   readonly heroId: string
@@ -161,4 +196,11 @@ export interface EquippedHeroDto {
   readonly blockers: readonly HeroReadinessBlocker[]
   readonly loadoutVersion: number
   readonly selectedAt: string
+  /**
+   * Epica equipada del heroe (HU-31). AUSENTE (la clave entera no existe en
+   * el JSON) cuando el heroe no tiene epica equipada -- nunca `null` ni `{}`,
+   * mismo criterio de ausencia explicita que el resto de este contrato.
+   * Ampliacion aditiva: ningun consumidor existente se rompe por su ausencia.
+   */
+  readonly epic?: EquippedHeroEpicDto
 }

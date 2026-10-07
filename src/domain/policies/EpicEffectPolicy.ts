@@ -15,12 +15,18 @@ export type EpicEffect = Readonly<Record<string, unknown>>
 /**
  * Las propiedades opcionales permiten validar contratos incompletos en la
  * frontera. Una base explicita en null significa "No aplica"; omitirla o
- * declararla undefined es invalido. El efecto adicional debe existir.
+ * declararla undefined es invalido. La lista de efectos adicionales debe
+ * existir y tener al menos un elemento.
+ *
+ * `additionalEffects` es plural desde la correccion GAP-HU31-CATALOG-MULTI-EFFECT:
+ * Catalog confirma epicas oficiales con mas de un efecto especifico simultaneo
+ * (Tabla 20). `generalEffect`/`baseEffect` se mantiene singular: ninguna fuente
+ * exige multiples efectos generales.
  */
 export interface EpicDefinition {
   readonly associatedHeroType?: unknown
   readonly baseEffect?: EpicEffect | null
-  readonly additionalEffect?: EpicEffect
+  readonly additionalEffects?: readonly EpicEffect[]
 }
 
 export interface ApplyEpicEffectsInput {
@@ -30,14 +36,15 @@ export interface ApplyEpicEffectsInput {
 
 export interface AppliedEpicEffects {
   readonly baseApplied: EpicEffect | null
-  readonly additionalApplied: EpicEffect | null
+  /** Vacio si el subtipo no coincide; todos los efectos especificos si coincide. */
+  readonly additionalApplied: readonly EpicEffect[]
   readonly combined: readonly EpicEffect[]
 }
 
 interface ValidatedEpicDefinition extends EpicDefinition {
   readonly associatedHeroType: HeroType
   readonly baseEffect: EpicEffect | null
-  readonly additionalEffect: EpicEffect
+  readonly additionalEffects: readonly EpicEffect[]
 }
 
 const isRecord = (value: unknown): value is EpicEffect =>
@@ -69,8 +76,15 @@ const validateEpic: (epic: EpicDefinition) => asserts epic is ValidatedEpicDefin
     throw new DomainError('baseEffect debe ser un objeto de efecto o null.')
   }
 
-  if (!hasOwn(epic, 'additionalEffect') || !isRecord(epic.additionalEffect)) {
-    throw new DomainError('La epica debe declarar additionalEffect como un objeto de efecto.')
+  if (
+    !hasOwn(epic, 'additionalEffects') ||
+    !Array.isArray(epic.additionalEffects) ||
+    epic.additionalEffects.length === 0 ||
+    !epic.additionalEffects.every(isRecord)
+  ) {
+    throw new DomainError(
+      'La epica debe declarar additionalEffects como una lista con al menos un objeto de efecto.',
+    )
   }
 }
 
@@ -91,7 +105,7 @@ export const applyEpicEffects = (input: ApplyEpicEffectsInput): AppliedEpicEffec
   if (input.epic === null || input.epic === undefined) {
     return {
       baseApplied: null,
-      additionalApplied: null,
+      additionalApplied: [],
       combined: [],
     }
   }
@@ -104,14 +118,11 @@ export const applyEpicEffects = (input: ApplyEpicEffectsInput): AppliedEpicEffec
 
   const baseApplied = input.epic.baseEffect
   const additionalApplied =
-    heroType === input.epic.associatedHeroType ? input.epic.additionalEffect : null
+    heroType === input.epic.associatedHeroType ? input.epic.additionalEffects : []
 
   return {
     baseApplied,
     additionalApplied,
-    combined: [
-      ...(baseApplied === null ? [] : [baseApplied]),
-      ...(additionalApplied === null ? [] : [additionalApplied]),
-    ],
+    combined: [...(baseApplied === null ? [] : [baseApplied]), ...additionalApplied],
   }
 }

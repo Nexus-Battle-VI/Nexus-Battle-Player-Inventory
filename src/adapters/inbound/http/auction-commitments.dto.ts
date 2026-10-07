@@ -11,7 +11,8 @@ export class CreateAuctionCommitmentRequest extends Base {
 }
 export class ReleaseAuctionCommitmentRequest extends Base {
   @IsString() @MinLength(1) @MaxLength(200) ownerId!: string
-  @IsIn(['AUCTION_WITHOUT_BIDS']) reason!: 'AUCTION_WITHOUT_BIDS'
+  @IsIn(['AUCTION_WITHOUT_BIDS', 'AUCTION_CANCELLED'])
+  reason!: 'AUCTION_WITHOUT_BIDS' | 'AUCTION_CANCELLED'
 }
 export class PendingAuctionCommitmentRequest extends Base {
   @IsString() @MinLength(1) @MaxLength(200) sellerId!: string

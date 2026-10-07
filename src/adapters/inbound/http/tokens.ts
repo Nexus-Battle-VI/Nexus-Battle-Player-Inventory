@@ -40,6 +40,8 @@ export const COMMIT_HERO_FOR_MISSION = Symbol('CommitHeroForMission')
  * bloqueo de equipamiento.
  */
 export const COMMIT_HERO_FOR_BATTLE = Symbol('CommitHeroForBattle')
+export const TRANSFER_BATTLE_DROP = Symbol('TransferBattleDrop')
+export const CAPTURE_BATTLE_DROP_SNAPSHOT = Symbol('CaptureBattleDropSnapshot')
 
 /**
  * Perfil de un heroe concreto del jugador (HU-71, Task HU-71.2). Es la lectura
@@ -48,3 +50,10 @@ export const COMMIT_HERO_FOR_BATTLE = Symbol('CommitHeroForBattle')
  * `GET_EQUIPPED_HERO_FOR_COMBAT`, que sirve solo al heroe seleccionado.
  */
 export const GET_HERO_PROFILE_FOR_MISSION = Symbol('GetHeroProfileForMission')
+
+/**
+ * Epica equipada del heroe (HU-31, contrato `hu-31-equipped-epic-v1`).
+ * Agregado hermano del loadout de HU-28, con su propio par lectura/escritura.
+ */
+export const GET_HERO_EPIC = Symbol('GetHeroEpic')
+export const EQUIP_EPIC_ON_HERO = Symbol('EquipEpicOnHero')

@@ -24,3 +24,17 @@ export const decideEquipmentChange = (
   battleActive && LOCKED_CATEGORIES.has(kind)
     ? { ok: false, reason: 'battle_lock', message: BATTLE_LOCK_MESSAGE }
     : { ok: true }
+
+/**
+ * Misma decision que `decideEquipmentChange`, para la epica equipada (HU-31,
+ * contrato `hu-31-equipped-epic-v1` §9).
+ *
+ * La epica NO es una `EquipmentCategory` (HU-28 la excluye), asi que no entra
+ * en `LOCKED_CATEGORIES`: no se fuerza su encaje en esa tabla solo para
+ * reutilizar la firma. En su lugar, esta funcion hermana aplica el MISMO
+ * mensaje y la MISMA forma de decision a la unica mutacion que existe sobre
+ * la epica -no hay categorias que distinguir, porque solo hay una regla: con
+ * batalla activa, no se cambia-.
+ */
+export const decideEpicChange = (battleActive: boolean): EquipmentChangeDecision =>
+  battleActive ? { ok: false, reason: 'battle_lock', message: BATTLE_LOCK_MESSAGE } : { ok: true }
