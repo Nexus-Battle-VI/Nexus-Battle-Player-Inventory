@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { up as widenPrizeSource } from '../../src/adapters/outbound/persistence/migrations/018-tournament-prize-absence'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
@@ -78,6 +79,46 @@ describe('HU-86 contra MongoDB real (QA-HU86-INVENTORY-v1)', () => {
     await container?.stop()
   })
 
+  it('018 conserva recibos/índices y valida las demás referencias al ampliar la sala', async () => {
+    const c = command()
+    const service = await prepare(c)
+    const receipt = await service.execute(c)
+    const before = await db
+      .collection('tournament_prize_grants')
+      .findOne({ _id: c.operationId as never })
+    const indexes = await db.collection('tournament_prize_grants').indexes()
+    await widenPrizeSource(db)
+    expect(
+      await db.collection('tournament_prize_grants').findOne({ _id: c.operationId as never }),
+    ).toEqual(before)
+    expect(await db.collection('tournament_prize_grants').indexes()).toEqual(indexes)
+    expect(await service.execute(c)).toEqual(receipt)
+    const missing = Object.fromEntries(
+      Object.entries(receipt).filter(([key]) => key !== 'finalRoomId'),
+    )
+    for (const value of [{ ...receipt, playerId: '' }, missing]) {
+      await expect(
+        db.collection('tournament_prize_grants').insertOne({
+          _id: randomUUID() as never,
+          fingerprint: 'invalid-control',
+          receipt: value,
+          grantedAt: new Date(),
+        }),
+      ).rejects.toMatchObject({ code: 121 })
+    }
+  })
+  it('entrega por ausencia sin sala, conserva replay y rechaza cambiar la fuente', async () => {
+    const c = { ...command(), finalRoomId: null }
+    const service = await prepare(c)
+    const receipts = await Promise.all(Array.from({ length: 10 }, () => service.execute(c)))
+    for (const receipt of receipts)
+      expect(receipt).toEqual({ ...c, status: 'DELIVERED', receiptId: receipts[0]!.receiptId })
+    expect(await quantity(c)).toBe(1)
+    await expect(service.execute({ ...c, finalRoomId: 'invented-room' })).rejects.toMatchObject({
+      code: 'OPERATION_ID_REUSED',
+    })
+    expect(await service.execute(c)).toEqual(receipts[0])
+  })
   it('replay, veinte solicitudes y pool nuevo conceden una unidad y recibo estable', async () => {
     const c = command()
     const useCase = await prepare(c)

@@ -40,6 +40,7 @@ const config: Config = {
     '!src/adapters/outbound/persistence/MongoInventoryRepository.ts',
     '!src/adapters/outbound/persistence/MongoTournamentPrizeRepository.ts',
     '!src/adapters/outbound/persistence/migrations/017-tournament-prize-grants.ts',
+    '!src/adapters/outbound/persistence/migrations/018-tournament-prize-absence.ts',
     '!src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroEpicSelectionRepository.ts',
     '!src/adapters/outbound/persistence/MongoHeroProgressionRepository.ts',

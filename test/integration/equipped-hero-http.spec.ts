@@ -296,6 +296,25 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
       )
   }
 
+  it('Tournament consulta el héroe propio para premios con su firma y conserva restricciones de otras rutas', async () => {
+    const jugador = 'tournament-prize-recipient'
+    await own(jugador, 'guerrero-tanque')
+    await select(jugador, 'guerrero-tanque')
+    const response = await signedGet(equippedHeroPath(jugador), 'tournament')
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({ playerId: jugador, heroId: 'pid-guerrero-tanque' })
+    expect(
+      (await signedGet(equippedHeroPath('tournament-without-hero'), 'tournament')).status,
+    ).toBe(404)
+    expect(
+      (
+        await signedGet(
+          '/api/internal/v1/inventory/products/11111111-1111-4111-8111-111111111111/owners',
+          'tournament',
+        )
+      ).status,
+    ).toBe(401)
+  })
   it('devuelve el heroe preparado de un jugador con heroe equipado', async () => {
     const jugador = 'combat-con-heroe'
     await own(jugador, 'guerrero-tanque')

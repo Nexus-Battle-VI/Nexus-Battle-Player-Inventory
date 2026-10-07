@@ -458,3 +458,7 @@ reinterpretar un `STAT_MODIFIER` que llegue sin `statistic`.
   `heroId` y `abilities[].abilityId`, `404` con `code: HERO_NOT_OWNED`, `401` para los
   servicios de la lista global, `401` con una firma de otra ruta, `503` con Catalog caído y
   el control de que la lista global no se amplió.
+
+## Consumidor adicional HU-86
+
+La ruta GET /api/internal/v1/players/:playerId/equipped-hero permite también caller HMAC tournament para resolver el héroe propio de un campeón sin sala de Combat. El playerId procede del roster campeón, el DTO conserva playerId/heroId y el permiso se limita a esta ruta. Las firmas públicas JWT y las solicitudes de Web siguen denegadas. No amplía los permisos de grants, owners, compromisos o experiencia.

@@ -34,6 +34,16 @@ describe('HU-86 validacion del destino Inventory', () => {
     const catalog = new InMemoryCatalogReadClient([qaHero, qaEpic])
     return { inventory, port, catalog, useCase: new GrantTournamentPrize(port, inventory, catalog) }
   }
+  it('acepta null explícito por ausencia y rechaza referencia vacía u omitida', async () => {
+    const { useCase, port } = await fixture()
+    const c = { ...qaCommand(), finalRoomId: null }
+    expect(await useCase.execute(c)).toEqual({ ...c, status: 'DELIVERED', receiptId: 'qa-receipt' })
+    expect(port.grant).toHaveBeenCalledWith(c, QA_HERO_ID)
+    for (const finalRoomId of [undefined, '', ' '])
+      expect(() => normalizeTournamentPrize({ ...c, finalRoomId })).toThrow(TournamentPrizeError)
+    const missing = Object.fromEntries(Object.entries(c).filter(([key]) => key !== 'finalRoomId'))
+    expect(() => normalizeTournamentPrize(missing)).toThrow(TournamentPrizeError)
+  })
   it('valida el producto y entrega una unidad sin equipar', async () => {
     const { useCase, port } = await fixture()
     expect(await useCase.execute(qaCommand())).toEqual({

@@ -1,10 +1,7 @@
 # HU-86 — destino durable de épicas
 
 Refs Nexus-Battle-VI/Nexus-Battle-Management#472, #493, #494 y #496.
-Adición a `torneos-hu77-84-78-hu83-v2.0.0`; acuse propio de Inventory de
-`torneos-cierre-v0.1.0-propuesta`. No congela el acuerdo ni aprueba G2.
-Fuente: Infrastructure `a5cdcc5c9f610d0ee7eaa4ab57b224ea34a4966b`, contrato
-`docs/contracts/torneos-cierre-premios-v0.1.0.md` y schema correspondiente.
+Adición compatible con [torneos-v3.0.0 revisión 5](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/docs/torneos-v3-hu85-20261007/docs/contracts/torneos-v3.0.0.md). No atribuye aprobación G2 ni aceptación del PO.
 
 ## Ruta y permiso
 
@@ -16,7 +13,7 @@ El permiso se declara por ruta con `InternalCallers`; Tournament no entra en la
 lista de acceso general ni obtiene grants de Commerce/Missions/Combat.
 JWT y roles públicos no sustituyen HMAC. OpenAPI se genera en `/api/docs`.
 
-DTO cerrado de diez campos; strings no vacíos, sin espacios externos ni controles:
+DTO cerrado de diez campos; strings no vacíos, sin espacios externos ni controles. finalRoomId puede ser null explícito por ausencia; la clave sigue siendo obligatoria y participa en la huella:
 
 | Campo                                    | Límite / valor                                 |
 | ---------------------------------------- | ---------------------------------------------- |
@@ -90,6 +87,8 @@ soporte transacciones, `INTERNAL_SERVICE_AUTH_SECRET`, `CATALOG_BASE_URL` y
 Modo memory, secreto ausente o dependencias inaccesibles fallan cerrado con 503.
 No se crean héroes/productos DEV ni se activan respuestas simuladas en producto.
 La topología se basa en las [transacciones de MongoDB](https://www.mongodb.com/docs/manual/core/transactions/).
+
+La migración forward `018-tournament-prize-absence` amplía solo finalRoomId del validador de 017 a string/null, preservando recibos e índices. Tournament obtiene el héroe del campeón por `GET /api/internal/v1/players/:playerId/equipped-hero`, con su propio caller HMAC autorizado exclusivamente en esa ruta adicional. No obtiene acceso a grants, owners ni experiencia. El héroe propio y la compatibilidad se vuelven a comprobar antes de conceder una épica nueva.
 
 ## QA reproducible
 

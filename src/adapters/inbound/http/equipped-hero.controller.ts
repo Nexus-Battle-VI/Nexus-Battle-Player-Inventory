@@ -65,7 +65,7 @@ import { InternalCallers, InternalOnly } from './auth/decorators'
  * contrato.
  */
 @InternalOnly()
-@InternalCallers('commerce', 'notifications', 'combat')
+@InternalCallers('commerce', 'notifications', 'combat', 'tournament')
 @ApiTags('internal-combat')
 @Controller('internal/v1/players')
 export class EquippedHeroController {
@@ -76,7 +76,8 @@ export class EquippedHeroController {
 
   @Get(':playerId/equipped-hero')
   @ApiOperation({
-    summary: 'Heroe preparado/equipado del jugador, para Combat (servicio-a-servicio).',
+    summary:
+      'Heroe preparado/equipado para consumidores internos autorizados, incluidos premios de Tournament.',
   })
   @ApiResponse({ status: 200 })
   @ApiResponse({

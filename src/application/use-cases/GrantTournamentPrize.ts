@@ -47,6 +47,7 @@ export const normalizeTournamentPrize = (raw: unknown): TournamentPrizeCommand =
     return invalid()
   for (const [field, max] of Object.entries(limits)) {
     const value = c[field]
+    if (field === 'finalRoomId' && value === null) continue
     if (
       typeof value !== 'string' ||
       value.length === 0 ||
@@ -62,7 +63,7 @@ export const normalizeTournamentPrize = (raw: unknown): TournamentPrizeCommand =
     tournamentId: c.tournamentId as string,
     championTeamId: c.championTeamId as string,
     finalEncounterId: c.finalEncounterId as string,
-    finalRoomId: c.finalRoomId as string,
+    finalRoomId: c.finalRoomId as string | null,
     playerId: c.playerId as string,
     heroId: c.heroId as string,
     kind: 'EPIC',

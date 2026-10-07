@@ -83,6 +83,14 @@ describe('HU-86 HTTP/HMAC (dobles explicitos, no evidencia durable)', () => {
       )
       .send(body as object)
 
+  it('acepta ausencia con las diez claves y rechaza la sala omitida', async () => {
+    const c = { ...qaCommand(), finalRoomId: null }
+    const response = await send(c)
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ ...c, status: 'DELIVERED', receiptId: 'qa-receipt' })
+    const missing = Object.fromEntries(Object.entries(c).filter(([key]) => key !== 'finalRoomId'))
+    expect((await send(missing)).status).toBe(400)
+  })
   it('Tournament obtiene el eco exacto y un receiptId', async () => {
     const r = await send(qaCommand())
     expect(r.status).toBe(200)

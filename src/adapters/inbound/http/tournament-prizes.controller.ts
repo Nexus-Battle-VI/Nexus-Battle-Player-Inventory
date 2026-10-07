@@ -76,7 +76,12 @@ const commandLimits: [string, number][] = [
 const commandProperties = Object.fromEntries<SchemaObject>(
   commandLimits.map(([name, maxLength]): [string, SchemaObject] => [
     name,
-    { type: 'string', minLength: 1, maxLength },
+    {
+      type: 'string',
+      minLength: 1,
+      maxLength,
+      ...(name === 'finalRoomId' ? { nullable: true } : {}),
+    },
   ]),
 )
 const schema = {
