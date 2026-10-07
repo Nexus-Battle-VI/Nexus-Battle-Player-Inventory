@@ -26,6 +26,18 @@ interface PrizeDocument {
   readonly grantedAt: Date
 }
 
+/**
+ * Los filtros de Mongo solo aceptan identificadores que sean cadenas: un objeto
+ * con operadores (`{ $ne: null }`) llegaria como filtro y no como valor. Los
+ * valores vienen de un DTO que este repositorio no controla.
+ */
+const identifier = (value: unknown, field: string): string => {
+  if (typeof value !== 'string' || value === '') {
+    throw new TypeError(`${field} debe ser una cadena no vacia.`)
+  }
+  return value
+}
+
 /** Tres documentos en una transaccion majority; nunca escribe en una base ajena. */
 export class MongoTournamentPrizeRepository implements TournamentPrizePort {
   private readonly operations: Collection<OperationDocument>
@@ -46,11 +58,12 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
     command: TournamentPrizeCommand,
     session?: ClientSession,
   ): Promise<TournamentPrizeReceipt | null> {
+    const operationId = identifier(command.operationId, 'operationId')
     const options = {
       session,
       readConcern: session === undefined ? { level: 'majority' as const } : undefined,
     }
-    const operation = await this.operations.findOne({ _id: command.operationId }, options)
+    const operation = await this.operations.findOne({ _id: operationId }, options)
     if (operation === null) return null
     const fingerprint = tournamentPrizeFingerprint(command)
     if (operation.fingerprint !== fingerprint)
@@ -59,7 +72,7 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
         409,
         'El operationId ya fue usado con otro derecho o proposito.',
       )
-    const prize = await this.prizes.findOne({ _id: command.operationId }, options)
+    const prize = await this.prizes.findOne({ _id: operationId }, options)
     if (
       prize?.fingerprint !== fingerprint ||
       tournamentPrizeFingerprint(prize.receipt) !== fingerprint ||
@@ -78,6 +91,8 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
     command: TournamentPrizeCommand,
     ownedHeroItemId: string,
   ): Promise<TournamentPrizeReceipt> {
+    const operationId = identifier(command.operationId, 'operationId')
+    const playerId = identifier(command.playerId, 'playerId')
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         return await this.db.client.withSession(async (session) =>
@@ -85,10 +100,7 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
             async () => {
               const previous = await this.previous(command, session)
               if (previous !== null) return previous
-              const document = await this.inventories.findOne(
-                { _id: command.playerId },
-                { session },
-              )
+              const document = await this.inventories.findOne({ _id: playerId }, { session })
               if (
                 !document?.slots.some(
                   (slot) => slot.itemId === ownedHeroItemId && Number(slot.quantity) > 0,
@@ -127,7 +139,7 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
               // reutilizar el identificador con otro proposito en esas capacidades.
               await this.operations.insertOne(
                 {
-                  _id: command.operationId,
+                  _id: operationId,
                   fingerprint,
                   result: null,
                   rejection: null,
@@ -141,7 +153,7 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
                   ? { $or: [{ revision: 0 }, { revision: { $exists: false } }] }
                   : { revision }
               const written = await this.inventories.replaceOne(
-                { _id: command.playerId, ...revisionQuery },
+                { _id: playerId, ...revisionQuery },
                 { ...toDocument(inventory.toSnapshot()), revision: new Int32(revision + 1) },
                 { session },
               )
@@ -152,7 +164,7 @@ export class MongoTournamentPrizeRepository implements TournamentPrizePort {
                   'El inventario cambio. Reintente el mismo derecho.',
                 )
               await this.prizes.insertOne(
-                { _id: command.operationId, fingerprint, receipt, grantedAt },
+                { _id: operationId, fingerprint, receipt, grantedAt },
                 { session },
               )
               return receipt
