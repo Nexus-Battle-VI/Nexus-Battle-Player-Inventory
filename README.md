@@ -231,6 +231,14 @@ Contrato interno de solo lectura para que Notifications resuelva a qué jugadore
 
 ## Contribución
 
+### Premios de torneo HU-86
+
+`POST /api/internal/v1/inventory/tournament-prizes` acepta exclusivamente HMAC
+de Tournament. Valida héroe propio y épica activa/compatible de Catálogo; concede
+una unidad con operación y recibo atómicos en Mongo, sin equiparla. Replay recupera
+el mismo recibo. [Contrato, errores, migración 017 y límites](docs/tournament-prizes.md).
+La aceptación del campeón real depende de HU-85/HU-80 y la política de producto G2.
+
 Se aplican las convenciones descritas en [CONTRIBUTING.md](CONTRIBUTING.md) y la [política de trazabilidad entre repositorios](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/blob/main/docs/governance/cross-repository-traceability.md) de Management.
 
 ## Licencia

@@ -128,6 +128,16 @@ import type { ClockPort } from '../../application/ports/ClockPort'
 import { BATTLE_STATE, type BattleStatePort } from '../../application/ports/BattleStatePort'
 
 import { InMemoryInventoryRepository } from '../../adapters/outbound/persistence/InMemoryInventoryRepository'
+import { MongoTournamentPrizeRepository } from '../../adapters/outbound/persistence/MongoTournamentPrizeRepository'
+import { TournamentPrizesController } from '../../adapters/inbound/http/tournament-prizes.controller'
+import {
+  TOURNAMENT_PRIZES,
+  type TournamentPrizePort,
+} from '../../application/ports/TournamentPrizePort'
+import {
+  GRANT_TOURNAMENT_PRIZE,
+  GrantTournamentPrize,
+} from '../../application/use-cases/GrantTournamentPrize'
 import { MongoInventoryRepository } from '../../adapters/outbound/persistence/MongoInventoryRepository'
 import { InMemoryAuctionCommitmentRepository } from '../../adapters/outbound/persistence/InMemoryAuctionCommitmentRepository'
 import { MongoAuctionCommitmentRepository } from '../../adapters/outbound/persistence/MongoAuctionCommitmentRepository'
@@ -194,6 +204,7 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
     HeroEpicController,
     HealthController,
     InventoryGrantsController,
+    TournamentPrizesController,
     ProductOwnersController,
     EquippedHeroController,
     AuctionCommitmentsController,
@@ -484,6 +495,27 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
       inject: [APP_CONFIG, Reflector, CLOCK, LOGGER],
     },
     { provide: INVENTORY_GRANTS, useExisting: INVENTORY_REPOSITORY },
+    {
+      provide: TOURNAMENT_PRIZES,
+      useFactory: (db: Db | null): TournamentPrizePort =>
+        db === null
+          ? {
+              find: () => Promise.reject(new Error('HU-86 requiere persistencia MongoDB durable.')),
+              grant: () =>
+                Promise.reject(new Error('HU-86 requiere persistencia MongoDB durable.')),
+            }
+          : new MongoTournamentPrizeRepository(db),
+      inject: [MONGO_DATABASE],
+    },
+    {
+      provide: GRANT_TOURNAMENT_PRIZE,
+      useFactory: (
+        prizes: TournamentPrizePort,
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+      ): GrantTournamentPrize => new GrantTournamentPrize(prizes, inventories, catalog),
+      inject: [TOURNAMENT_PRIZES, INVENTORY_QUERY, CATALOG_READ],
+    },
     {
       provide: AUCTION_COMMITMENTS,
       useFactory: (
