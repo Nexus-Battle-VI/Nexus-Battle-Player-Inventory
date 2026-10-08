@@ -3,6 +3,14 @@
 Datos de prueba **compartidos por varias suites** de este repositorio. No son código de
 producción y no los importa nada de `src/`.
 
+## `tournament-prize.ts`
+
+Dataset `QA-HU86-INVENTORY-v1`: héroe/épica canónicos controlados, destinatario,
+torneo/final/sala sintéticos explícitos. Se usa en validación, HTTP y Mongo real;
+no define reparto, exclusividad global ni campeón operativo. La prueba entre
+servicios crea un dataset aislado con el caso de uso real de Catálogo y sus
+validaciones; ese dataset separado exige las tres habilidades del héroe.
+
 ## `experience-threshold-reference.json`
 
 Tabla de umbrales de experiencia por nivel de HU-08 (RF-08), para la prueba de regresión

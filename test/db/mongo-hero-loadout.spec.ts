@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import { type Collection, type Db, type MongoClient } from 'mongodb'
@@ -31,7 +32,7 @@ import {
  * una gana y la otra recibe conflicto—.
  */
 describe('MongoHeroLoadoutRepository', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoHeroLoadoutRepository
@@ -58,8 +59,12 @@ describe('MongoHeroLoadoutRepository', () => {
   }
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `qa_mongo_hero_loadout_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -72,8 +77,9 @@ describe('MongoHeroLoadoutRepository', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   beforeEach(() => {

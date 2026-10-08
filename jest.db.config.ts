@@ -28,6 +28,9 @@ const config: Config = {
   // Entre las dos configuraciones no queda codigo sin medir.
   collectCoverageFrom: [
     'src/adapters/outbound/persistence/MongoInventoryRepository.ts',
+    'src/adapters/outbound/persistence/MongoTournamentPrizeRepository.ts',
+    'src/adapters/outbound/persistence/migrations/017-tournament-prize-grants.ts',
+    'src/adapters/outbound/persistence/migrations/018-tournament-prize-absence.ts',
     'src/adapters/outbound/persistence/MongoHeroLoadoutRepository.ts',
     'src/adapters/outbound/persistence/MongoHeroSelectionRepository.ts',
     'src/adapters/outbound/persistence/MongoHeroProgressionRepository.ts',
