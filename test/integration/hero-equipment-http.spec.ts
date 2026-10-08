@@ -216,6 +216,11 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
       .set('Authorization', bearer(subject))
       .send({ productReference })
 
+  const unequip = (subject: string, heroId: string, slot: string): request.Test =>
+    request(app.getHttpServer())
+      .delete(`/api/inventories/me/heroes/${heroId}/equipment/${slot}`)
+      .set('Authorization', bearer(subject))
+
   it('sin testimonio responde 401', async () => {
     await request(app.getHttpServer())
       .get('/api/inventories/me/heroes/guerrero-tanque/equipment')
@@ -413,6 +418,157 @@ describe('HU-28 — configuracion de equipamiento del heroe (HTTP)', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.pageSize).toBe(16)
+  })
+
+  describe('HU-28.4 — desequipar', () => {
+    it.each([
+      ['weapon', 'WEAPON_1', 'espada-de-fuego'] as const,
+      ['armor', 'HELMET', 'casco-de-acero'] as const,
+      ['item', 'ITEM_1', 'pocion-de-vida'] as const,
+    ])(
+      'desequipa %s: la ranura queda vacia y el producto sigue en el inventario',
+      async (kind, slot, sku) => {
+        const subject = `s-unequip-${kind}`
+        await own(subject, 'guerrero-tanque')
+        await own(subject, sku)
+        await equip(subject, 'guerrero-tanque', slot, sku).expect(200)
+
+        const del = await unequip(subject, 'guerrero-tanque', slot)
+        expect(del.status).toBe(200)
+
+        const after = await getEquipment(subject, 'guerrero-tanque')
+        if (slot.startsWith('WEAPON')) {
+          expect(after.body.equipment.weapons).toEqual([])
+        } else if (slot.startsWith('ITEM')) {
+          expect(after.body.equipment.items).toEqual([])
+        } else {
+          expect(after.body.equipment.armor[slot]).toBeNull()
+        }
+
+        // El producto sigue siendo del jugador: una nueva consulta del inventario
+        // propio lo sigue mostrando (este caso de uso solo borra la asociacion,
+        // nunca el objeto).
+        const owned = await request(app.getHttpServer())
+          .get('/api/inventories/me/items')
+          .set('Authorization', bearer(subject))
+        expect(owned.status).toBe(200)
+        expect((owned.body.items as { itemId: string }[]).some((it) => it.itemId === sku)).toBe(
+          true,
+        )
+      },
+    )
+
+    it('recalcula las estadisticas efectivas al desequipar', async () => {
+      const subject = 's-unequip-stats'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'espada-de-fuego')
+      const equipped = await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego')
+      expect(equipped.body.effectiveStats.attack).toBe(12)
+
+      const after = await unequip(subject, 'guerrero-tanque', 'WEAPON_1')
+      expect(after.status).toBe(200)
+      expect(after.body.effectiveStats.attack).toBe(after.body.baseStats.attack)
+    })
+
+    it('el efecto cuyo origen es la pieza removida desaparece; otros efectos permanecen', async () => {
+      const subject = 's-unequip-effects'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'espada-de-fuego')
+      await own(subject, 'casco-de-acero')
+      await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego')
+      await equip(subject, 'guerrero-tanque', 'HELMET', 'casco-de-acero')
+
+      const after = await unequip(subject, 'guerrero-tanque', 'WEAPON_1')
+      const sources = (after.body.activeEffects as { sourceSlot: string }[]).map(
+        (effect) => effect.sourceSlot,
+      )
+      expect(sources).not.toContain('WEAPON_1')
+      expect(sources).toContain('HELMET')
+    })
+
+    it('la capacidad decrementa tras desequipar', async () => {
+      const subject = 's-unequip-capacity'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'casco-de-acero')
+      await equip(subject, 'guerrero-tanque', 'HELMET', 'casco-de-acero')
+
+      const occupied = await getEquipment(subject, 'guerrero-tanque')
+      const usedBefore = Object.values(
+        occupied.body.equipment.armor as Record<string, unknown>,
+      ).filter((v) => v !== null).length
+      expect(usedBefore).toBe(1)
+
+      await unequip(subject, 'guerrero-tanque', 'HELMET')
+      const after = await getEquipment(subject, 'guerrero-tanque')
+      const usedAfter = Object.values(after.body.equipment.armor as Record<string, unknown>).filter(
+        (v) => v !== null,
+      ).length
+      expect(usedAfter).toBe(0)
+    })
+
+    it('desequipar una ranura ya vacia responde 409 (nunca 500)', async () => {
+      const subject = 's-unequip-empty'
+      await own(subject, 'guerrero-tanque')
+
+      await unequip(subject, 'guerrero-tanque', 'WEAPON_1').expect(409)
+    })
+
+    it('desequipar en un heroe ajeno responde 404', async () => {
+      await unequip('s-unequip-ajeno', 'guerrero-tanque', 'WEAPON_1').expect(404)
+    })
+
+    it('desequipar una ranura invalida responde 400', async () => {
+      const subject = 's-unequip-badslot'
+      await own(subject, 'guerrero-tanque')
+
+      await unequip(subject, 'guerrero-tanque', 'ANILLO_1').expect(400)
+    })
+
+    it('sin testimonio responde 401', async () => {
+      await request(app.getHttpServer())
+        .delete('/api/inventories/me/heroes/guerrero-tanque/equipment/WEAPON_1')
+        .expect(401)
+    })
+
+    it('HU-29: batalla activa bloquea el desequipado con 409 y deja el loadout intacto', async () => {
+      const subject = 's-unequip-battle'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'espada-de-fuego')
+      await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(200)
+      await commitBattle(subject, 'pid-guerrero-tanque')
+
+      const blocked = await unequip(subject, 'guerrero-tanque', 'WEAPON_1')
+      expect(blocked.status).toBe(409)
+      expect(blocked.body).toMatchObject({ reason: 'battle_lock' })
+
+      await releaseBattle(subject, 'pid-guerrero-tanque')
+      const after = await getEquipment(subject, 'guerrero-tanque')
+      expect(after.body.equipment.weapons[0].itemId).toBe('espada-de-fuego')
+    })
+
+    it('regresion: Equip sigue funcionando normalmente tras los cambios de Unequip', async () => {
+      const subject = 's-unequip-regression'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'espada-de-fuego')
+
+      const put = await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego')
+      expect(put.status).toBe(200)
+      expect(put.body.equipment.weapons[0]).toMatchObject({ itemId: 'espada-de-fuego' })
+    })
+
+    it('replacement: tras desequipar, la MISMA ranura admite una pieza distinta', async () => {
+      const subject = 's-unequip-replace'
+      await own(subject, 'guerrero-tanque')
+      await own(subject, 'espada-de-fuego')
+      await own(subject, 'hacha-de-hielo')
+      await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'espada-de-fuego').expect(200)
+
+      await unequip(subject, 'guerrero-tanque', 'WEAPON_1').expect(200)
+      const replaced = await equip(subject, 'guerrero-tanque', 'WEAPON_1', 'hacha-de-hielo')
+
+      expect(replaced.status).toBe(200)
+      expect(replaced.body.equipment.weapons[0]).toMatchObject({ itemId: 'hacha-de-hielo' })
+    })
   })
 })
 

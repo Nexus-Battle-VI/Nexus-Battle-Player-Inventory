@@ -2,6 +2,7 @@ import { InMemoryHeroProgressionRepository } from '../../src/adapters/outbound/p
 import { ConflictException, NotFoundException } from '@nestjs/common'
 
 import { EquipItemOnHero } from '../../src/application/use-cases/EquipItemOnHero'
+import type { UnequipItemFromHero } from '../../src/application/use-cases/UnequipItemFromHero'
 import { GetHeroEquipment } from '../../src/application/use-cases/GetHeroEquipment'
 import { InMemoryHeroLoadoutRepository } from '../../src/adapters/outbound/persistence/InMemoryHeroLoadoutRepository'
 import { InMemoryCatalogReadClient } from '../../src/adapters/outbound/catalog/InMemoryCatalogReadClient'
@@ -323,9 +324,15 @@ describe('HU-29.3 — registro del bloqueo (controlador)', () => {
     const { logger, lines } = recordingLogger()
     const equipItemOnHero = { execute: () => equipResult } as unknown as EquipItemOnHero
     const getHeroEquipment = { execute: () => Promise.resolve(view) } as unknown as GetHeroEquipment
+    const unequipItemFromHero = { execute: () => equipResult } as unknown as UnequipItemFromHero
 
     return {
-      controller: new HeroEquipmentController(getHeroEquipment, equipItemOnHero, logger),
+      controller: new HeroEquipmentController(
+        getHeroEquipment,
+        equipItemOnHero,
+        unequipItemFromHero,
+        logger,
+      ),
       lines,
     }
   }
