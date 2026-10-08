@@ -34,6 +34,20 @@ interface TransferDocument {
 const fingerprintOf = (command: BattleDropTransferCommand): string => JSON.stringify(command)
 
 /**
+ * Los identificadores llegan de otro servicio. El controlador ya los valida como
+ * cadenas, pero un filtro de Mongo construido con un objeto (`{ $ne: '' }`) no
+ * falla: cambia el significado de la consulta. Se comprueba el tipo aqui, justo
+ * antes de armar cualquier filtro, para que la garantia no dependa de una capa
+ * que este repositorio no controla.
+ */
+const identifier = (value: unknown, field: string): string => {
+  if (typeof value !== 'string' || value === '') {
+    throw new TypeError(`${field} debe ser una cadena no vacia.`)
+  }
+  return value
+}
+
+/**
  * Una transacción Mongo cubre ambos inventarios, la identidad de unidad, las
  * referencias de loadout y el ledger de idempotencia. Una respuesta perdida se
  * recupera leyendo el mismo operationId; no se hace remove + grant remoto.
@@ -52,35 +66,31 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
   }
 
   async transfer(command: BattleDropTransferCommand): Promise<BattleDropTransferResult> {
+    const operationId = identifier(command.operationId, 'operationId')
+    const battleId = identifier(command.battleId, 'battleId')
+    const sourcePlayerId = identifier(command.sourcePlayerId, 'sourcePlayerId')
+    const targetPlayerId = identifier(command.targetPlayerId, 'targetPlayerId')
+    const productInstanceId = identifier(command.productInstanceId, 'productInstanceId')
     const fingerprint = fingerprintOf(command)
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.db.client.withSession(async (session) =>
           session.withTransaction(
             async () => {
-              const previous = await this.transfers.findOne(
-                { _id: command.operationId },
-                { session },
-              )
+              const previous = await this.transfers.findOne({ _id: operationId }, { session })
               if (previous !== null) {
                 if (previous.fingerprint !== fingerprint)
                   throw new BattleDropTransferConflictError()
                 return previous.result
               }
 
-              const unit = await this.units.findOne({ _id: command.productInstanceId }, { session })
-              if (unit?.ownerId !== command.sourcePlayerId || unit.battleId !== command.battleId) {
+              const unit = await this.units.findOne({ _id: productInstanceId }, { session })
+              if (unit?.ownerId !== sourcePlayerId || unit.battleId !== battleId) {
                 throw new BattleDropTransferRejectedError('INSTANCE_NOT_OWNED')
               }
 
-              const sourceDoc = await this.inventories.findOne(
-                { _id: command.sourcePlayerId },
-                { session },
-              )
-              const targetDoc = await this.inventories.findOne(
-                { _id: command.targetPlayerId },
-                { session },
-              )
+              const sourceDoc = await this.inventories.findOne({ _id: sourcePlayerId }, { session })
+              const targetDoc = await this.inventories.findOne({ _id: targetPlayerId }, { session })
               if (sourceDoc === null) {
                 throw new BattleDropTransferRejectedError('INSTANCE_NOT_OWNED')
               }
@@ -88,18 +98,15 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
               const sourceSnapshot = toSnapshot(sourceDoc)
               const targetSnapshot = targetDoc === null ? null : toSnapshot(targetDoc)
               const source = Inventory.restore({
-                ownerId: PlayerId.create(command.sourcePlayerId),
+                ownerId: PlayerId.create(sourcePlayerId),
                 capacity: sourceSnapshot.capacity,
                 slots: sourceSnapshot.slots,
               })
               const target =
                 targetSnapshot === null
-                  ? Inventory.createEmpty(
-                      PlayerId.create(command.targetPlayerId),
-                      CapacityPolicy.default(),
-                    )
+                  ? Inventory.createEmpty(PlayerId.create(targetPlayerId), CapacityPolicy.default())
                   : Inventory.restore({
-                      ownerId: PlayerId.create(command.targetPlayerId),
+                      ownerId: PlayerId.create(targetPlayerId),
                       capacity: targetSnapshot.capacity,
                       slots: targetSnapshot.slots,
                     })
@@ -131,14 +138,14 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
               // el origen aún posee otra unidad del mismo producto.
               if (source.quantityOf(item) === 0) {
                 await this.loadouts.updateMany(
-                  { ownerId: command.sourcePlayerId, 'entries.itemId': unit.itemId },
+                  { ownerId: sourcePlayerId, 'entries.itemId': unit.itemId },
                   { $pull: { entries: { itemId: unit.itemId } }, $inc: { version: 1 } },
                   { session },
                 )
               } else {
                 await this.loadouts.updateOne(
                   {
-                    ownerId: command.sourcePlayerId,
+                    ownerId: sourcePlayerId,
                     heroId: unit.heroId,
                     'entries.slot': unit.slot,
                     'entries.itemId': unit.itemId,
@@ -151,8 +158,8 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
                 )
               }
               const moved = await this.units.updateOne(
-                { _id: unit._id, ownerId: command.sourcePlayerId },
-                { $set: { ownerId: command.targetPlayerId, battleId: '', heroId: '', slot: '' } },
+                { _id: unit._id, ownerId: sourcePlayerId },
+                { $set: { ownerId: targetPlayerId, battleId: '', heroId: '', slot: '' } },
                 { session },
               )
               if (moved.matchedCount !== 1) {
@@ -166,10 +173,7 @@ export class MongoBattleDropTransferRepository implements BattleDropTransferPort
                 creditedAt: new Date().toISOString(),
                 applied: true,
               }
-              await this.transfers.insertOne(
-                { _id: command.operationId, fingerprint, result },
-                { session },
-              )
+              await this.transfers.insertOne({ _id: operationId, fingerprint, result }, { session })
               return result
             },
             { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } },

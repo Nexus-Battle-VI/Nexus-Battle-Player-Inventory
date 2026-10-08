@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import { type Collection, type Db, type MongoClient } from 'mongodb'
@@ -23,7 +24,7 @@ import { PlayerId } from '../../src/domain/value-objects/identifiers'
  * optimista de `save` sea real.
  */
 describe('MongoHeroSelectionRepository', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoHeroSelectionRepository
@@ -41,8 +42,12 @@ describe('MongoHeroSelectionRepository', () => {
     db.collection<Record<string, unknown> & { _id: string }>('hero-selections')
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `qa_mongo_hero_selection_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -57,8 +62,9 @@ describe('MongoHeroSelectionRepository', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   it('sin seleccion previa devuelve null', async () => {

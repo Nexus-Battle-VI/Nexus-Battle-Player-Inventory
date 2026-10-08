@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import { type Collection, type Db, type MongoClient } from 'mongodb'
@@ -22,7 +23,7 @@ import { documentId } from '../../src/adapters/outbound/persistence/hero-epic-se
  * `save` sea real.
  */
 describe('MongoHeroEpicSelectionRepository', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoHeroEpicSelectionRepository
@@ -39,8 +40,12 @@ describe('MongoHeroEpicSelectionRepository', () => {
     db.collection<Record<string, unknown> & { _id: string }>('hero-epic-selections')
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `qa_mongo_hero_epic_selection_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -53,8 +58,9 @@ describe('MongoHeroEpicSelectionRepository', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   beforeEach(() => {

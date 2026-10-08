@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 
 import { MongoDBContainer, type StartedMongoDBContainer } from '@testcontainers/mongodb'
 import { type Collection, type Db, type MongoClient } from 'mongodb'
@@ -27,7 +28,7 @@ import { PlayerId } from '../../src/domain/value-objects/identifiers'
  * redundante".
  */
 describe('MongoHeroProgressionRepository', () => {
-  let container: StartedMongoDBContainer
+  let container: StartedMongoDBContainer | undefined
   let client: MongoClient
   let db: Db
   let repository: MongoHeroProgressionRepository
@@ -42,8 +43,12 @@ describe('MongoHeroProgressionRepository', () => {
     db.collection<Record<string, unknown> & { _id: string }>('hero-progressions')
 
   beforeAll(async () => {
-    container = await new MongoDBContainer('mongo:8.0').start()
-    const options = { uri: `${container.getConnectionString()}/?directConnection=true` }
+    const externalUri = process.env.MONGO_TEST_URI
+    if (externalUri === undefined) container = await new MongoDBContainer('mongo:8.0').start()
+    const options = {
+      uri: externalUri ?? `${container!.getConnectionString()}/?directConnection=true`,
+      databaseName: `qa_mongo_hero_progression_${randomUUID().replaceAll('-', '')}`,
+    }
 
     client = createMongoClient(options)
     await client.connect()
@@ -58,8 +63,9 @@ describe('MongoHeroProgressionRepository', () => {
   }, 180_000)
 
   afterAll(async () => {
+    await db.dropDatabase()
     await client.close()
-    await container.stop()
+    await container?.stop()
   })
 
   it('sin progresion previa devuelve null, sin crear el documento', async () => {
