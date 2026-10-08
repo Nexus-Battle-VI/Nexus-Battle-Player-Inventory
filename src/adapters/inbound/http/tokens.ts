@@ -12,6 +12,8 @@ export const LIST_OWNED_ITEMS = Symbol('ListOwnedInventoryItems')
 export const GET_ITEM_DETAIL = Symbol('GetOwnedInventoryItemDetail')
 export const GET_HERO_EQUIPMENT = Symbol('GetHeroEquipment')
 export const EQUIP_ITEM_ON_HERO = Symbol('EquipItemOnHero')
+/** Desequipar una ranura exacta de un heroe propio (HU-28.4). */
+export const UNEQUIP_ITEM_FROM_HERO = Symbol('UnequipItemFromHero')
 export const LIST_AVAILABLE_HEROES = Symbol('ListAvailableHeroes')
 export const GET_HERO_SELECTION = Symbol('GetHeroSelection')
 export const SELECT_HERO = Symbol('SelectHero')

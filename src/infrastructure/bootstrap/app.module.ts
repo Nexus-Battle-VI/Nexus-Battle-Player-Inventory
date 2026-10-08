@@ -74,6 +74,7 @@ import {
   CAPTURE_BATTLE_DROP_SNAPSHOT,
   COMMIT_HERO_FOR_MISSION,
   EQUIP_ITEM_ON_HERO,
+  UNEQUIP_ITEM_FROM_HERO,
   EQUIP_EPIC_ON_HERO,
   GET_HERO_EPIC,
   GET_HERO_EQUIPMENT,
@@ -102,6 +103,7 @@ import { GetOwnedInventoryItemDetail } from '../../application/use-cases/GetOwne
 import { GetHeroEquipment } from '../../application/use-cases/GetHeroEquipment'
 import { GetHeroProfileForMission } from '../../application/use-cases/GetHeroProfileForMission'
 import { EquipItemOnHero } from '../../application/use-cases/EquipItemOnHero'
+import { UnequipItemFromHero } from '../../application/use-cases/UnequipItemFromHero'
 import { GetHeroEpic } from '../../application/use-cases/GetHeroEpic'
 import { EquipEpicOnHero } from '../../application/use-cases/EquipEpicOnHero'
 import { ListAvailableHeroes } from '../../application/use-cases/ListAvailableHeroes'
@@ -626,6 +628,27 @@ export const MONGO_LIFECYCLE = Symbol('MongoLifecycle')
         progressions: HeroProgressionRepositoryPort,
       ): EquipItemOnHero =>
         new EquipItemOnHero(inventories, catalog, loadouts, clock, battles, progressions),
+      inject: [
+        INVENTORY_QUERY,
+        CATALOG_READ,
+        HERO_LOADOUT_REPOSITORY,
+        CLOCK,
+        BATTLE_STATE,
+        HERO_PROGRESSION_REPOSITORY,
+      ],
+    },
+    {
+      // HU-28.4: desequipar, mismo patron de dependencias que EQUIP_ITEM_ON_HERO.
+      provide: UNEQUIP_ITEM_FROM_HERO,
+      useFactory: (
+        inventories: InventoryQueryPort,
+        catalog: CatalogReadPort,
+        loadouts: HeroLoadoutRepositoryPort,
+        clock: ClockPort,
+        battles: BattleStatePort,
+        progressions: HeroProgressionRepositoryPort,
+      ): UnequipItemFromHero =>
+        new UnequipItemFromHero(inventories, catalog, loadouts, clock, battles, progressions),
       inject: [
         INVENTORY_QUERY,
         CATALOG_READ,
