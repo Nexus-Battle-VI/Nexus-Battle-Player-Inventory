@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -19,6 +20,7 @@ import { DomainError } from '../../../domain/errors/DomainError'
 import { LOGGER, type Logger } from '../../../infrastructure/observability/logger'
 import {
   ArmorCapacityExceededError,
+  EquipmentSlotEmptyError,
   EquipmentSlotOccupiedError,
   InvalidEquipmentSlotError,
   ItemAlreadyEquippedError,
@@ -38,9 +40,10 @@ import { CatalogUnavailableError } from '../../../application/ports/CatalogReadP
 import { HeroCommittedError } from '../../../application/ports/MissionHeroCommitmentPort'
 import type { HeroEquipmentDto } from '../../../application/dto/HeroEquipmentDto'
 import type { EquipItemOnHero } from '../../../application/use-cases/EquipItemOnHero'
+import type { UnequipItemFromHero } from '../../../application/use-cases/UnequipItemFromHero'
 import type { GetHeroEquipment } from '../../../application/use-cases/GetHeroEquipment'
 import type { VerifiedIdentity } from '../../../application/ports/TokenVerifierPort'
-import { EQUIP_ITEM_ON_HERO, GET_HERO_EQUIPMENT } from './tokens'
+import { EQUIP_ITEM_ON_HERO, GET_HERO_EQUIPMENT, UNEQUIP_ITEM_FROM_HERO } from './tokens'
 import { CurrentIdentity } from './auth/decorators'
 import { EquipItemRequest, HeroEquipmentResponse } from './hero-equipment.dto'
 
@@ -64,6 +67,7 @@ export class HeroEquipmentController {
   constructor(
     @Inject(GET_HERO_EQUIPMENT) private readonly getHeroEquipment: GetHeroEquipment,
     @Inject(EQUIP_ITEM_ON_HERO) private readonly equipItemOnHero: EquipItemOnHero,
+    @Inject(UNEQUIP_ITEM_FROM_HERO) private readonly unequipItemFromHero: UnequipItemFromHero,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
@@ -143,6 +147,58 @@ export class HeroEquipmentController {
     }
   }
 
+  @Delete(':heroId/equipment/:slot')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Desequipa la pieza de una ranura exacta del heroe y devuelve el nuevo estado',
+  })
+  @ApiResponse({ status: 200, type: HeroEquipmentResponse })
+  @ApiResponse({ status: 400, description: 'Ranura invalida' })
+  @ApiResponse({ status: 401, description: 'Falta el testimonio o no es valido' })
+  @ApiResponse({ status: 404, description: 'Heroe no propio' })
+  @ApiResponse({
+    status: 409,
+    description: 'Batalla activa (reason=battle_lock), ranura ya vacia o conflicto',
+  })
+  @ApiResponse({ status: 503, description: 'Catalog no respondio' })
+  async unequip(
+    @Param('heroId') heroId: string,
+    @Param('slot') slot: string,
+    @CurrentIdentity() identity: VerifiedIdentity,
+  ): Promise<HeroEquipmentDto> {
+    try {
+      const view = await this.unequipItemFromHero.execute({
+        ownerId: identity.subject,
+        heroReference: heroId,
+        slot,
+      })
+
+      // Mismo registro simetrico que el equipado (ver `equip` arriba): el
+      // exito fuera de batalla tambien se registra, para distinguir «no se
+      // intento» de «se intento y paso».
+      this.logger.info('equipment_change_applied', {
+        playerId: identity.subject,
+        heroId,
+        slot,
+        action: 'unequip',
+      })
+
+      return view
+    } catch (error: unknown) {
+      if (error instanceof EquipmentLockedDuringBattleError) {
+        this.logger.warn('equipment_change_rejected', {
+          reason: error.reason,
+          playerId: identity.subject,
+          heroId,
+          slot,
+          action: 'unequip',
+        })
+      }
+
+      throw HeroEquipmentController.translate(error)
+    }
+  }
+
   private static translate(error: unknown): Error {
     if (error instanceof HeroNotOwnedError || error instanceof EquipmentProductNotOwnedError) {
       return new NotFoundException(error.message)
@@ -160,6 +216,7 @@ export class HeroEquipmentController {
     if (
       error instanceof EquipmentLockedDuringBattleError ||
       error instanceof EquipmentSlotOccupiedError ||
+      error instanceof EquipmentSlotEmptyError ||
       error instanceof ItemAlreadyEquippedError ||
       error instanceof WeaponCapacityExceededError ||
       error instanceof ArmorCapacityExceededError ||

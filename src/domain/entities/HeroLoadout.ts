@@ -1,6 +1,6 @@
 import { DomainError } from '../errors/DomainError'
 import type { DomainEvent } from '../events/DomainEvent'
-import { heroItemEquipped } from '../events/HeroLoadoutEvents'
+import { heroItemEquipped, heroItemUnequipped } from '../events/HeroLoadoutEvents'
 import {
   ALL_EQUIPMENT_SLOTS,
   categoryOfSlot,
@@ -76,6 +76,17 @@ export class ItemCapacityExceededError extends DomainError {
   constructor() {
     super('Un heroe no puede llevar mas de 2 items equipados.')
     this.name = 'ItemCapacityExceededError'
+  }
+}
+
+/**
+ * La ranura ya esta vacia: no hay nada que desequipar (HU-28.4). Dato valido,
+ * regla incumplida: 409, igual que `EquipmentSlotOccupiedError` para equipar.
+ */
+export class EquipmentSlotEmptyError extends DomainError {
+  constructor(slot: string) {
+    super(`La ranura ${slot} ya esta vacia.`)
+    this.name = 'EquipmentSlotEmptyError'
   }
 }
 
@@ -221,6 +232,32 @@ export class HeroLoadout {
         slot,
         itemId,
         productId: params.productId,
+        occurredAt: params.occurredAt,
+      }),
+    )
+  }
+
+  /**
+   * Vacia una ranura EXACTA (HU-28.4): la pieza deja de estar equipada, pero
+   * el objeto sigue siendo del jugador en su inventario -este agregado solo
+   * conoce asociaciones heroe/ranura, nunca propiedad-. Ranura ya vacia:
+   * `EquipmentSlotEmptyError` (409), simetrico a "ya ocupada" al equipar.
+   */
+  unequip(params: { readonly slot: EquipmentSlot; readonly occurredAt: Date }): void {
+    const { slot } = params
+    const entry = this.slots.get(slot)
+    if (entry === undefined) {
+      throw new EquipmentSlotEmptyError(slot)
+    }
+
+    this.slots.delete(slot)
+    this.events.push(
+      heroItemUnequipped({
+        aggregateId: `${this.ownerId}:${this.heroId}`,
+        heroId: this.heroId,
+        slot,
+        itemId: entry.itemId,
+        productId: entry.productId,
         occurredAt: params.occurredAt,
       }),
     )
