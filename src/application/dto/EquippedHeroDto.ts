@@ -133,6 +133,13 @@ export interface EquippedHeroAbilityDto {
   readonly powerCost: AbilityPowerCost
   readonly chargeTurns: number
   readonly effects: readonly EquippedHeroAbilityEffectDto[]
+  /**
+   * Nivel del heroe desde el que la habilidad se puede usar (EN-031,
+   * `AbilityUnlockPolicy`: 1, 3 y 5 por posicion). Aditivo: un consumidor que
+   * no lo conozca lo ignora. Las habilidades bloqueadas VIAJAN igual, para que
+   * Combat las publique como bloqueadas en vez de esconderlas.
+   */
+  readonly unlockLevel: number
 }
 
 /**

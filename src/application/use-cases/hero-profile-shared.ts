@@ -4,6 +4,7 @@ import {
   type EquippedEffect,
   type ParsedEffect,
 } from '../../domain/value-objects/equipment-effects'
+import { abilityUnlockLevel } from '../../domain/policies/AbilityUnlockPolicy'
 import { applyEpicEffects } from '../../domain/policies/EpicEffectPolicy'
 import {
   parseEpicAttributes,
@@ -45,7 +46,10 @@ const heroAbilityReferences = (heroProduct: CatalogProductView): readonly string
   }
 }
 
-const toAbilityDto = (product: CatalogProductView): EquippedHeroAbilityDto | null => {
+const toAbilityDto = (
+  product: CatalogProductView,
+  unlockLevel: number,
+): EquippedHeroAbilityDto | null => {
   try {
     const view = parseAbilityAttributes(product.attributes)
 
@@ -56,6 +60,7 @@ const toAbilityDto = (product: CatalogProductView): EquippedHeroAbilityDto | nul
       powerCost: view.powerCost,
       chargeTurns: view.chargeTurns,
       effects: view.effects.map(toAbilityEffectDto),
+      unlockLevel,
     }
   } catch {
     return null
@@ -104,9 +109,12 @@ export const resolveHeroAbilities = async (
     byReference.set(product.sku, product)
   }
 
-  return references.flatMap((reference) => {
+  // La posicion es la DECLARADA en el heroe, no la de la lista ya filtrada: si
+  // Catalog no devuelve la primera, la segunda no pasa a desbloquearse en nivel 1.
+  return references.flatMap((reference, position) => {
     const product = byReference.get(reference)
-    const ability = product === undefined ? null : toAbilityDto(product)
+    const ability =
+      product === undefined ? null : toAbilityDto(product, abilityUnlockLevel(position))
 
     return ability === null ? [] : [ability]
   })
