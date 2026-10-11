@@ -356,14 +356,15 @@ equipamiento **no** se vuelve a leer.
 
 ### Campos
 
-| Campo         | Significado                                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `abilityId`   | `productId` de Catalog. Es el identificador que el cliente envía en `useSkill`.                                                           |
-| `reference`   | Alias (`sku`) de Catalog.                                                                                                                 |
-| `name`        | Texto para mostrar.                                                                                                                       |
-| `powerCost`   | `{ mode: 'FIXED', amount }` (entero ≥ 1) o `{ mode: 'ALL_AVAILABLE' }` («todos los puntos de poder»). Tal como lo publica Catalog.        |
-| `chargeTurns` | Turnos de carga (Catalog v1: 1). Entero ≥ 1.                                                                                              |
-| `effects[]`   | `kind`, `target`, `statistic`, `operation`, `magnitude`, `durationTurns` y `hasActivationCondition`. Sin procedencia ni `appliedToStats`. |
+| Campo         | Significado                                                                                                                                                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `abilityId`   | `productId` de Catalog. Es el identificador que el cliente envía en `useSkill`.                                                                                                                                                                                         |
+| `reference`   | Alias (`sku`) de Catalog.                                                                                                                                                                                                                                               |
+| `name`        | Texto para mostrar.                                                                                                                                                                                                                                                     |
+| `powerCost`   | `{ mode: 'FIXED', amount }` (entero ≥ 1) o `{ mode: 'ALL_AVAILABLE' }` («todos los puntos de poder»). Tal como lo publica Catalog.                                                                                                                                      |
+| `chargeTurns` | Turnos de carga (Catalog v1: 1). Entero ≥ 1.                                                                                                                                                                                                                            |
+| `effects[]`   | `kind`, `target`, `statistic`, `operation`, `magnitude`, `durationTurns` y `hasActivationCondition`. Sin procedencia ni `appliedToStats`.                                                                                                                               |
+| `unlockLevel` | EN-031 (aditivo): nivel del héroe desde el que se puede usar. Por **posición declarada** en el héroe: 1, 3 y 5 (`AbilityUnlockPolicy`); una cuarta o posterior, 5. Las bloqueadas viajan igual: Combat las publica como bloqueadas y rechaza su uso con `SKILL_LOCKED`. |
 
 Orden: el de las referencias `abilities` del héroe en Catalog (no el alfabético de la
 `lookup`). Lista blanca campo a campo: **no viajan `raw`, la condición de activación, el

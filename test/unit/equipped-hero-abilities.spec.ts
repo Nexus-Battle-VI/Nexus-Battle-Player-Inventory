@@ -281,7 +281,39 @@ describe('HU-19 — GetEquippedHeroForCombat resuelve las habilidades del heroe'
           hasActivationCondition: false,
         },
       ],
+      unlockLevel: 3,
     })
+  })
+
+  it('EN-031: cada habilidad lleva el nivel de desbloqueo de su POSICION declarada (1, 3, 5, 5)', async () => {
+    const SEGUNDA = ability('segunda', 'Segunda', envelope(abilityValues()))
+    const TERCERA = ability('tercera', 'Tercera', envelope(abilityValues()))
+    const { forCombat } = await escenario([
+      hero(['pid-golpe-con-escudo', 'pid-mano-de-piedra', 'pid-segunda', 'pid-tercera']),
+      GOLPE,
+      MANO,
+      SEGUNDA,
+      TERCERA,
+    ])
+
+    const resultado = await forCombat.execute('jugador-1')
+
+    expect(resultado.abilities.map((entry) => [entry.name, entry.unlockLevel])).toEqual([
+      ['Golpe con escudo', 1],
+      ['Mano de piedra', 3],
+      ['Segunda', 5],
+      ['Tercera', 5],
+    ])
+  })
+
+  it('EN-031: una referencia omitida NO adelanta el desbloqueo de las siguientes', async () => {
+    const { forCombat } = await escenario([hero(['pid-no-existe', 'pid-golpe-con-escudo']), GOLPE])
+
+    const resultado = await forCombat.execute('jugador-1')
+
+    expect(resultado.abilities).toEqual([
+      expect.objectContaining({ abilityId: 'pid-golpe-con-escudo', unlockLevel: 3 }),
+    ])
   })
 
   it('resuelve todas las habilidades con UNA sola lookup, nunca una por habilidad', async () => {
