@@ -995,6 +995,10 @@ una elección conservadora que se puede cambiar sin tocar el resto.
    `UNSUPPORTED`, y el Poder insuficiente degrada a ataque básico (HU-11) en vez de deshabilitar.
    Esta decisión sigue **abierta y sin cerrar**: no se implementó gating por nivel porque no hay
    fuente que lo respalde, no porque se haya decidido que no hace falta.
+   **Cerrada el 2026-10-11 (EN-031)** por decisión del producto: las habilidades se desbloquean por
+   la posición en que Catalog las declara en el héroe, en los niveles **1, 3 y 5** (0, 300 y 700 XP).
+   Player-Inventory lo informa (`unlockLevel`, `AbilityUnlockPolicy`) y Combat lo hace cumplir
+   (`SKILL_LOCKED`); Web solo lo presenta.
 5. **Si hará falta una superficie HTTP. — Resuelta parcialmente (2026-09-27).** `#188` permite no
    exponerla, y HU-09/HU-10 siguieron sin necesitarla (se acreditan por el contrato interno). Pero
    Web sí apareció como consumidor: la progresión en "Mi Inventario" (Task `HU-09.5`, `#443`) necesita
