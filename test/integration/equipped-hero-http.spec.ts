@@ -408,6 +408,7 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
       {
         abilityId: 'pid-golpe-con-escudo',
         reference: 'golpe-con-escudo',
+        unlockLevel: 1,
         name: 'Golpe con escudo',
         powerCost: { mode: 'FIXED', amount: 2 },
         chargeTurns: 1,
@@ -425,6 +426,7 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
       {
         abilityId: 'pid-mano-de-piedra',
         reference: 'mano-de-piedra',
+        unlockLevel: 3,
         name: 'Mano de piedra',
         powerCost: { mode: 'FIXED', amount: 4 },
         chargeTurns: 1,
@@ -443,6 +445,7 @@ describe('Contrato HTTP interno del heroe equipado, para Combat (HU-15)', () => 
       {
         abilityId: 'pid-defensa-feroz',
         reference: 'defensa-feroz',
+        unlockLevel: 5,
         name: 'Defensa feroz',
         powerCost: { mode: 'ALL_AVAILABLE' },
         chargeTurns: 1,
